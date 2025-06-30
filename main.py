@@ -14,7 +14,7 @@ import glob
 import sys
 
 # R-help-chat
-# First version by jmd on 2025-06-29
+# First version by Jeffrey Dick on 2025-06-29
 
 # TODO: use UUID to process only changed documents
 # https://stackoverflow.com/questions/76265631/chromadb-add-single-document-only-if-it-doesnt-exist
@@ -52,15 +52,24 @@ def suppress_stderr():
         sys.stderr = original_stderr
 
 
-# Create vector store, suppressing messages:
-# Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
-# Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
-with suppress_stderr():
-    vectorstore = Chroma(
-        collection_name=collection_name,
-        persist_directory=persist_directory,
-        embedding_function=embedding,
+def build_retriever():
+    """Build retriever instance"""
+    # Create vector store, suppressing messages:
+    # Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+    # Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+    with suppress_stderr():
+        vectorstore = Chroma(
+            collection_name=collection_name,
+            persist_directory=persist_directory,
+            embedding_function=embedding,
+        )
+    # Instantiate a retriever
+    retriever = vectorstore.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": 10},
     )
+
+    return retriever
 
 
 def ProcessDirectory(path):
@@ -69,13 +78,15 @@ def ProcessDirectory(path):
     "path": directory to process
     """
 
+    # Get a retriever instance
+    retriever = build_retriever()
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     # Loop over files
     for file_path in file_paths:
         # Query documents by metadata
-        results = vectorstore.get(
-            # Replace with your metadata key-value pair
+        results = retriever.vectorstore.get(
+            # Metadata key-value pair
             where={"source": file_path}
         )
         # Flag to add or update file
@@ -96,7 +107,7 @@ def ProcessDirectory(path):
             # Delete the old embeddings
             if add_file:
                 with suppress_stderr():
-                    vectorstore.delete(results["ids"])
+                    retriever.vectorstore.delete(results["ids"])
                 update_file = True
 
         if add_file:
@@ -132,13 +143,11 @@ def ProcessFile(file_path):
     # print([len(chunk.page_content) for chunk in chunks])
     print(f"Got {len(chunks)} chunks from {file_path}")
 
+    # Get a retriever instance
+    retriever = build_retriever()
+    # Add documents to vectorstore
     with suppress_stderr():
-        vectorstore = Chroma.from_documents(
-            documents=chunks,
-            embedding=embedding,
-            collection_name=collection_name,
-            persist_directory=persist_directory,
-        )
+        retriever.vectorstore.add_documents(chunks)
 
     # Add file timestamps to metadata
     AddTimestamps(file_path)
@@ -163,33 +172,29 @@ def AddTimestamps(file_path):
             timestamp = datetime.fromtimestamp(mod_time).isoformat()
             metadata["timestamp"] = timestamp
             # Update the document in the vector store
-            collection.update(id, metadatas=metadata)
+            with suppress_stderr():
+                collection.update(id, metadatas=metadata)
 
 
 def ListDocuments():
 
-    # Initialize Chroma vector store
-    with suppress_stderr():
-        vectorstore = Chroma(
-            collection_name=collection_name,
-            persist_directory=persist_directory,
-        )
+    # Get retriever instance
+    retriever = build_retriever()
     # Retrieve all document IDs
-    document_ids = vectorstore._collection.get()["ids"]
-    # Print the document IDs
-    print(document_ids)
+    document_ids = retriever.vectorstore.get()["ids"]
+    # Return the document IDs
+    return document_ids
 
 
 def QueryDatabase(query):
     """
     Retrieve documents from database and query with LLM
+
+    Example: QueryDatabase("What R functions are discussed?")
     """
 
-    # Instantiate a retriever
-    retriever = vectorstore.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 10},
-    )
+    # Get retriever instance
+    retriever = build_retriever()
 
     # Creating a prompt template
     prompt = ChatPromptTemplate.from_template(
