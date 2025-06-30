@@ -6,6 +6,8 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
+from langchain.retrievers import ParentDocumentRetriever
+from langchain.storage.file_system import LocalFileStore
 from contextlib import contextmanager
 from datetime import datetime
 import chromadb
@@ -19,22 +21,14 @@ import sys
 # TODO: use UUID to process only changed documents
 # https://stackoverflow.com/questions/76265631/chromadb-add-single-document-only-if-it-doesnt-exist
 
-# TODO: Use ParentDocumentRetriever
-# During retrieval, it first fetches the small chunks but then looks up the parent ids for those chunks and returns those larger documents.
-# https://python.langchain.com/docs/how_to/parent_document_retriever/
-
-# Define path for input files
+# Path for input files
 path = "R-help"
 
-# Define embedding model
-embedding = OpenAIEmbeddings(
-    # api_key=openai_api_key,
-    model="text-embedding-3-small",
-)
-
-# Define collection name and persistent directory for ChromaDB
-collection_name = "R-help"
-persist_directory = "/home/chromadb/R-help"
+# Collection name and persistent directory for ChromaDB
+collection_name = "R-help2"
+persist_directory = f"db/chroma/{collection_name}"
+# File store for ParentDocumentRetriever
+file_store = "db/file_store"
 
 
 @contextmanager
@@ -54,6 +48,11 @@ def suppress_stderr():
 
 def build_retriever():
     """Build retriever instance"""
+    # Define embedding model
+    embedding = OpenAIEmbeddings(
+        # api_key=openai_api_key,
+        model="text-embedding-3-small",
+    )
     # Create vector store, suppressing messages:
     # Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
     # Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
@@ -63,10 +62,22 @@ def build_retriever():
             persist_directory=persist_directory,
             embedding_function=embedding,
         )
+    # The storage layer for the parent documents
+    byte_store = LocalFileStore(file_store)
+    # Text splitter for child documents
+    child_splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\n", "\n", ".", " ", ""],
+        chunk_size=1000,
+        chunk_overlap=100,
+    )
+    # Text splitter for parent documents
+    parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
     # Instantiate a retriever
-    retriever = vectorstore.as_retriever(
-        search_type="similarity",
-        search_kwargs={"k": 10},
+    retriever = ParentDocumentRetriever(
+        vectorstore=vectorstore,
+        byte_store=byte_store,
+        child_splitter=child_splitter,
+        parent_splitter=parent_splitter,
     )
 
     return retriever
@@ -84,7 +95,7 @@ def ProcessDirectory(path):
     file_paths = glob.glob(f"{path}/*.txt")
     # Loop over files
     for file_path in file_paths:
-        # Query documents by metadata
+        # Look for existing embeddings for this file
         results = retriever.vectorstore.get(
             # Metadata key-value pair
             where={"source": file_path}
@@ -96,11 +107,12 @@ def ProcessDirectory(path):
         if len(results["ids"]) == 0:
             add_file = True
         else:
-            # Get file timestamp
+            # Check file timestamp to decide whether to update embeddings
             mod_time = os.path.getmtime(file_path)
             timestamp = datetime.fromtimestamp(mod_time).isoformat()
             # Loop over metadata and compare to actual file timestamp
             for metadata in results["metadatas"]:
+                # Process file if any of embeddings has a different timestamp
                 if not metadata["timestamp"] == timestamp:
                     add_file = True
                     break
@@ -115,6 +127,17 @@ def ProcessDirectory(path):
 
         if update_file:
             print(f"Updated embeddings for {file_path}")
+            # Clear out the unused parent files
+            # The used doc_ids are the files to keep
+            used_doc_ids = [d["doc_id"] for d in retriever.vectorstore.get()["metadatas"]]
+            files_to_keep = list(set(used_doc_ids))
+            # Get all files in the file store
+            all_files = os.listdir(file_store)
+            # Iterate through the files and delete those not in the list
+            for file in all_files:
+                file_path = os.path.join(file_store, file)
+                if os.path.isfile(file_path) and file not in files_to_keep:
+                    os.remove(file_path)
         elif add_file:
             print(f"Added embeddings for {file_path}")
         else:
@@ -127,30 +150,25 @@ def ProcessFile(file_path):
     "file_path": file to process
     """
 
-    # Text splitter
-    splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n", "\n", ".", " ", ""],
-        chunk_size=1000,
-        chunk_overlap=100,
-    )
-
     # Splitting documents
-    loader = TextLoader(file_path)
-    documents = loader.load()
-    chunks = splitter.split_documents(documents)
-    # Make sure we have at least one chunk
-    assert len(chunks) > 0, f"Got no chunks when splitting {file_path}!"
-    # print([len(chunk.page_content) for chunk in chunks])
-    print(f"Got {len(chunks)} chunks from {file_path}")
+    #chunks = splitter.split_documents(documents)
+    ## Make sure we have at least one chunk
+    #assert len(chunks) > 0, f"Got no chunks when splitting {file_path}!"
+    ## print([len(chunk.page_content) for chunk in chunks])
+    #print(f"Got {len(chunks)} chunks from {file_path}")
 
     # Get a retriever instance
     retriever = build_retriever()
+    # Load text file to document
+    loader = TextLoader(file_path)
+    document = loader.load()
     # Add documents to vectorstore
     with suppress_stderr():
-        retriever.vectorstore.add_documents(chunks)
+        retriever.add_documents(document)
 
     # Add file timestamps to metadata
-    AddTimestamps(file_path)
+    with suppress_stderr():
+        AddTimestamps(file_path)
 
 
 def AddTimestamps(file_path):
@@ -160,8 +178,7 @@ def AddTimestamps(file_path):
 
     Usage: AddTimestamps("R-help/2025-January.txt")
     """
-    with suppress_stderr():
-        client = chromadb.PersistentClient(path=persist_directory)
+    client = chromadb.PersistentClient(path=persist_directory)
     collection = client.get_collection(collection_name)
     # Filter by "source" metadata field (added by DirectoryLoader)
     results = collection.get(where={"source": file_path})
@@ -181,7 +198,8 @@ def ListDocuments():
     # Get retriever instance
     retriever = build_retriever()
     # Retrieve all document IDs
-    document_ids = retriever.vectorstore.get()["ids"]
+    with suppress_stderr():
+        document_ids = retriever.vectorstore.get()["ids"]
     # Return the document IDs
     return document_ids
 
