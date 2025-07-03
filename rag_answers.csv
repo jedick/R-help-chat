@@ -1,0 +1,13 @@
+query,reference
+"What R package can be used to calculate ATR?","The R package that can be used to calculate ATR (Average True Range) is the TTR package."
+"Where would I use the lapply() function?","You would use the lapply() function when you want to apply a function to each element of a list or vector and return a list of the results"
+"What's better, R or Python?","The context does not provide enough information to answer the question of whether R or Python is better."
+"Was Python mentioned in January 2025?","Yes, Python was mentioned in January 2025."
+"Was Julia (the programming language) mentioned in January 2025?","No, Julia (the programming language) was not mentioned in January 2025 in the provided context."
+"What causes the 'no visible binding for global variable' error?","This typically happens when using non-standard evaluation, such as with data.tables or dplyr, where the variable names are referenced as column names in a data frame or data table."
+"Are there any problems with the lm function?","The context does not explicitly mention any problems with the lm function"
+"Please tell me how to plot the R logo.","The provided context does not contain any information on how to plot the R logo."
+"Please tell me how to plot minor tick marks.","To plot minor tick marks on a log scale using ggplot in R, you can use the following code"
+"Please tell me how to plot tick marks not using ggplot.","The provided context does not contain information on how to plot tick marks without using ggplot. Therefore, I cannot answer the question."
+"On what date was has.HLC mentioned in a message?","has.HLC was mentioned on Jan 5, 2025"
+"How to search R-help mailing list with keywords?","Using a search engine and adding `site:stat.ethz.ch` (the mail archives are hosted there) seems to work."

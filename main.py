@@ -129,7 +129,9 @@ def ProcessDirectory(path):
             print(f"Updated embeddings for {file_path}")
             # Clear out the unused parent files
             # The used doc_ids are the files to keep
-            used_doc_ids = [d["doc_id"] for d in retriever.vectorstore.get()["metadatas"]]
+            used_doc_ids = [
+                d["doc_id"] for d in retriever.vectorstore.get()["metadatas"]
+            ]
             files_to_keep = list(set(used_doc_ids))
             # Get all files in the file store
             all_files = os.listdir(file_store)
@@ -151,11 +153,11 @@ def ProcessFile(file_path):
     """
 
     # Splitting documents
-    #chunks = splitter.split_documents(documents)
+    # chunks = splitter.split_documents(documents)
     ## Make sure we have at least one chunk
-    #assert len(chunks) > 0, f"Got no chunks when splitting {file_path}!"
+    # assert len(chunks) > 0, f"Got no chunks when splitting {file_path}!"
     ## print([len(chunk.page_content) for chunk in chunks])
-    #print(f"Got {len(chunks)} chunks from {file_path}")
+    # print(f"Got {len(chunks)} chunks from {file_path}")
 
     # Get a retriever instance
     retriever = build_retriever()
@@ -234,5 +236,6 @@ def QueryDatabase(query):
     )
 
     # Invoking the retrieval chain
-    result = chain.invoke(query)
+    with suppress_stderr():
+        result = chain.invoke(query)
     return result
