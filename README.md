@@ -1,4 +1,6 @@
-**R-help-chat**: Chat with R-help archives using an LLM. A custom RAG solution built with [LangChain](https://www.langchain.com/).
+# R-help-chat
+
+Chat with R-help archives using an LLM. A custom RAG solution built with [LangChain](https://www.langchain.com/).
 
 ## Features
 
@@ -35,9 +37,9 @@ QueryDatabase("Help with parsing REST API response.")
 
 - Evals are implemented with [Ragas](https://github.com/explodinggradients/ragas)
 - The human-curated reference answers in `rag_answers.csv` are based on one month of the R-help archives (`2025-January.txt`)
-- Running takes about 5 minutes and uses 270K input tokens
+- Running evals for 12 answers takes about 2.5 minutes and uses 380K input tokens
 
 ```python
 python rag_eval.py
-# {'context_recall': 0.6667, 'faithfulness': 1.0000, 'factual_correctness(mode=f1)': 0.6275}
+# {'context_recall': 0.5833, 'faithfulness': 0.7917, 'factual_correctness(mode=f1)': 0.7125}
 ```

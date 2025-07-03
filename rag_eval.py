@@ -52,7 +52,7 @@ def main():
     evaluation_dataset = EvaluationDataset.from_list(dataset)
 
     # Set up LLM for evaluation
-    llm = ChatOpenAI(model="gpt-4o")
+    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     evaluator_llm = LangchainLLMWrapper(llm)
 
     # Evaluate
