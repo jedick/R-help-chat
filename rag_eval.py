@@ -4,9 +4,15 @@ import csv
 from main import QueryDatabase, build_retriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
-from ragas.metrics import LLMContextPrecisionWithReference, ContextEntityRecall, Faithfulness, FactualCorrectness
+from ragas.metrics import (
+    LLMContextPrecisionWithReference,
+    ContextEntityRecall,
+    Faithfulness,
+    FactualCorrectness,
+)
+
 # NVIDIA metrics
-#from ragas.metrics import AnswerAccuracy, ContextRelevance, ResponseGroundedness
+# from ragas.metrics import AnswerAccuracy, ContextRelevance, ResponseGroundedness
 from langchain_openai import ChatOpenAI
 import argparse
 
@@ -49,12 +55,14 @@ def build_eval_dataset(queries, references, search_type):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate RAG retrieval and generation.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate RAG retrieval and generation."
+    )
     parser.add_argument(
         "--search_type",
         choices=["dense", "sparse", "hybrid"],
         required=True,
-        help="Retrieval type: dense, sparse, or hybrid."
+        help="Retrieval type: dense, sparse, or hybrid.",
     )
     args = parser.parse_args()
     search_type = args.search_type
@@ -70,9 +78,14 @@ def main():
     # Evaluate
     result = evaluate(
         dataset=evaluation_dataset,
-        metrics=[LLMContextPrecisionWithReference(), ContextEntityRecall(), Faithfulness(), FactualCorrectness()],
+        metrics=[
+            LLMContextPrecisionWithReference(),
+            ContextEntityRecall(),
+            Faithfulness(),
+            FactualCorrectness(),
+        ],
         # NVIDIA metrics
-        #metrics=[AnswerAccuracy(), ContextRelevance(), ResponseGroundedness()],
+        # metrics=[AnswerAccuracy(), ContextRelevance(), ResponseGroundedness()],
         llm=evaluator_llm,
     )
     print("Evaluation Results:")

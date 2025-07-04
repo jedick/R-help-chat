@@ -52,7 +52,7 @@ def suppress_stderr():
 def build_retriever(search_type: str = "hybrid"):
     """
     Build retriever instance
-    
+
     Args:
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
     """
@@ -114,7 +114,7 @@ def ProcessDirectory(path, search_type: str = "hybrid"):
 
     # Get a retriever instance
     retriever = build_retriever(search_type)
-    
+
     if search_type == "sparse":
         # For sparse search, we need to handle BM25 differently
         # BM25 doesn't have the same metadata tracking as ChromaDB
@@ -124,14 +124,14 @@ def ProcessDirectory(path, search_type: str = "hybrid"):
             ProcessFile(file_path, search_type)
             print(f"Processed {file_path} for sparse search")
         return
-    
+
     # For dense search, use the existing logic
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     # Loop over files
     for file_path in file_paths:
         # Look for existing embeddings for this file
-        if hasattr(retriever, 'vectorstore') and hasattr(retriever.vectorstore, 'get'):
+        if hasattr(retriever, "vectorstore") and hasattr(retriever.vectorstore, "get"):
             results = retriever.vectorstore.get(
                 # Metadata key-value pair
                 where={"source": file_path}
@@ -228,16 +228,16 @@ def ProcessFileSparse(file_path):
     # Load text file to document
     loader = TextLoader(file_path)
     documents = loader.load()
-    
+
     # Split archive file into emails for BM25
     splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
     emails = splitter.split_documents(documents)
-    
+
     # Add source metadata to emails
     for email in emails:
         if "source" not in email.metadata:
             email.metadata["source"] = file_path
-    
+
     # Create or update BM25 index
     try:
         # Update BM25 index if it exists
@@ -246,7 +246,7 @@ def ProcessFileSparse(file_path):
         new_emails = [email for email in emails if email not in retriever.docs]
         # TODO: implement add_documents method for BM25SRetriever class
         # If add_documents was available, we could just index the new emails
-        #retriever.from_documents(documents=new_emails)
+        # retriever.from_documents(documents=new_emails)
         # For now, create new BM25 index with all emails
         all_emails = retriever.docs + new_emails
         BM25SRetriever.from_documents(
@@ -261,7 +261,6 @@ def ProcessFileSparse(file_path):
             persist_directory=bm25_persist_directory,
         )
         print(f"BM25 index created with {len(emails)} emails from {file_path}")
-    
 
 
 def AddTimestamps(file_path):
@@ -306,7 +305,7 @@ def QueryDatabase(query, search_type: str = "hybrid"):
 
     # Get retriever instance
     retriever = build_retriever(search_type)
-    
+
     if retriever is None:
         return "No retriever available. Please process some documents first."
 
