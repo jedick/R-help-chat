@@ -4,7 +4,9 @@ import csv
 from main import QueryDatabase, build_retriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
-from ragas.metrics import LLMContextRecall, Faithfulness, FactualCorrectness
+from ragas.metrics import LLMContextPrecisionWithReference, ContextEntityRecall, Faithfulness, FactualCorrectness
+# NVIDIA metrics
+#from ragas.metrics import AnswerAccuracy, ContextRelevance, ResponseGroundedness
 from langchain_openai import ChatOpenAI
 
 
@@ -58,7 +60,9 @@ def main():
     # Evaluate
     result = evaluate(
         dataset=evaluation_dataset,
-        metrics=[LLMContextRecall(), Faithfulness(), FactualCorrectness()],
+        metrics=[LLMContextPrecisionWithReference(), ContextEntityRecall(), Faithfulness(), FactualCorrectness()],
+        # NVIDIA metrics
+        #metrics=[AnswerAccuracy(), ContextRelevance(), ResponseGroundedness()],
         llm=evaluator_llm,
     )
     print("Evaluation Results:")

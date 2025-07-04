@@ -22,7 +22,7 @@ from main import *
 ProcessDirectory("R-help")
 ```
 
-Processing `2025-January.txt` (476K unzipped) takes about 30 seconds and uses 160K input tokens.
+Processing `2025-January.txt` (476 KB unzipped) takes about 30 seconds and uses 160K input tokens.
 
 ## Sample queries
 
@@ -36,10 +36,16 @@ QueryDatabase("Help with parsing REST API response.")
 ## Evaluations
 
 - Evals are implemented with [Ragas](https://github.com/explodinggradients/ragas)
-- The human-curated reference answers in `rag_answers.csv` are based on one month of the R-help archives (`2025-January.txt`)
-- Running evals for 12 answers takes about 2.5 minutes and uses 380K input tokens
+- Choice of metrics (all LLM-based, see [available metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) for detail):
+  - **Context precision:** proportion of retrieved chunks judged to be relevant to *reference answer*
+  - **Context entities recall:** proportion of entities in *reference answer* judged to be present in retrieved context
+    - "This metric is useful in fact-based use cases, because where entities matter, we need the retrieved_contexts which cover them." - [Ragas docs](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_entities_recall/)
+  - **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
+  - **Factual correctness:** extent to which *response* aligns with *reference answer*
+
+Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (`2025-January.txt`):
 
 ```python
 python rag_eval.py
-# {'context_recall': 0.5833, 'faithfulness': 0.7917, 'factual_correctness(mode=f1)': 0.7125}
+# {'llm_context_precision_with_reference': 0.3819, 'context_entity_recall': 0.2827, 'faithfulness': 0.8056, 'factual_correctness(mode=f1)': 0.6942}
 ```
