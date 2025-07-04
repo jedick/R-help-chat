@@ -92,7 +92,9 @@ def build_retriever(search_type: str = "hybrid"):
         # Instantiate a retriever
         retriever = ParentDocumentRetriever(
             vectorstore=vectorstore,
-            docstore=byte_store,
+            # NOTE: https://github.com/langchain-ai/langchain/issues/9345
+            # Define byte_store = LocalFileStore(file_store) and use byte_store instead of docstore in ParentDocumentRetriever
+            byte_store=byte_store,
             child_splitter=child_splitter,
             parent_splitter=parent_splitter,
         )

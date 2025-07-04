@@ -8,10 +8,11 @@ from ragas.metrics import LLMContextPrecisionWithReference, ContextEntityRecall,
 # NVIDIA metrics
 #from ragas.metrics import AnswerAccuracy, ContextRelevance, ResponseGroundedness
 from langchain_openai import ChatOpenAI
+import argparse
 
 
-# Read queries and references from CSV
 def load_queries_and_references(csv_path):
+    """Read queries and references from CSV"""
     queries = []
     references = []
     with open(csv_path, newline="") as csvfile:
@@ -22,21 +23,20 @@ def load_queries_and_references(csv_path):
     return queries, references
 
 
-# Retrieve context documents for a query
-def get_retrieved_contexts(query):
-    retriever = build_retriever()
-    # ParentDocumentRetriever returns a list of Document objects
+def get_retrieved_contexts(query, search_type):
+    """Retrieve context documents for a query"""
+    retriever = build_retriever(search_type)
     # Use invoke instead of deprecated get_relevant_documents
     docs = retriever.invoke(query)
     return [doc.page_content for doc in docs]
 
 
-# Build dataset for evaluation
-def build_eval_dataset(queries, references):
+def build_eval_dataset(queries, references, search_type):
+    """Build dataset for evaluation"""
     dataset = []
     for query, reference in zip(queries, references):
-        retrieved_contexts = get_retrieved_contexts(query)
-        response = QueryDatabase(query)
+        retrieved_contexts = get_retrieved_contexts(query, search_type)
+        response = QueryDatabase(query, search_type=search_type)
         dataset.append(
             {
                 "user_input": query,
@@ -49,8 +49,18 @@ def build_eval_dataset(queries, references):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Evaluate RAG retrieval and generation.")
+    parser.add_argument(
+        "--search_type",
+        choices=["dense", "sparse", "hybrid"],
+        required=True,
+        help="Retrieval type: dense, sparse, or hybrid."
+    )
+    args = parser.parse_args()
+    search_type = args.search_type
+
     queries, references = load_queries_and_references("rag_answers.csv")
-    dataset = build_eval_dataset(queries, references)
+    dataset = build_eval_dataset(queries, references, search_type)
     evaluation_dataset = EvaluationDataset.from_list(dataset)
 
     # Set up LLM for evaluation

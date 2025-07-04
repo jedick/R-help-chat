@@ -4,12 +4,13 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 
 ## Features
 
-- Database management to efficiently handle rolling data updates
-  - Only scans changed files and removes stale documents from vector database
+- Database management to efficiently handle incremental data updates
+  - Only indexes changed files and removes stale documents from [Chroma](https://github.com/chroma-core/chroma) vector database
 - Vector search on small chunks, which are then used for retrieval of whole emails
   - Embedding small chunks better captures semantic meaning
   - However, we want to retrieve the entire email for context, e.g. the date and sender
   - Uses LangChain's `ParentDocumentRetriever` and `LocalFileStore`
+- Retrieval using either dense (vector embeddings) or sparse ([BM25S](https://github.com/xhluca/bm25s)) search.
 
 ## Usage
 
@@ -19,12 +20,11 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 
 ```python
 from main import *
+# Takes about 30 seconds and uses 160K input tokens for `2025-January.txt`
 ProcessDirectory("R-help")
 ```
 
-Processing `2025-January.txt` (476 KB unzipped) takes about 30 seconds and uses 160K input tokens.
-
-## Sample queries
+- Now you're ready to query the database. Here are some examples:
 
 ```python
 QueryDatabase("How can I get a named argument from '...'?")
@@ -33,22 +33,29 @@ QueryDatabase("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
+- To run evals, use one of these commands:
+
+```python
+python rag_eval.py --search_type dense
+python rag_eval.py --search_type sparse
+```
+
 ## Evaluations
 
-- Evals are implemented with [Ragas](https://github.com/explodinggradients/ragas)
-- Choice of metrics (all LLM-based, see [available metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) for detail):
-  - **Context precision:** proportion of retrieved chunks judged to be relevant to *reference answer*
-  - **Context entities recall:** proportion of entities in *reference answer* judged to be present in retrieved context
-    - "This metric is useful in fact-based use cases, because where entities matter, we need the retrieved_contexts which cover them." - [Ragas docs](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_entities_recall/)
-  - **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
-  - **Factual correctness:** extent to which *response* aligns with *reference answer*
+Evals are made for the following LLM-based metrics (see [available metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) for details):
+
+- **Context precision:** proportion of retrieved chunks judged to be relevant to *reference answer*
+- **Context entities recall:** proportion of entities in *reference answer* judged to be present in retrieved context
+  - "This metric is useful in fact-based use cases, because where entities matter, we need the `retrieved_contexts` which cover them." - [Ragas docs](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_entities_recall/)
+- **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
+- **Factual correctness:** extent to which *response* aligns with *reference answer*
 
 Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (`2025-January.txt`):
 
-```python
-python rag_eval.py
-# {'llm_context_precision_with_reference': 0.3819, 'context_entity_recall': 0.2827, 'faithfulness': 0.8056, 'factual_correctness(mode=f1)': 0.6942}
-```
+| Search type | Context precision | Context entities recall | Faithfulness | Factual correctness |
+|-|-|-|-|-|
+| `dense`  | 0.38 | 0.28 | 0.71 | 0.69 |
+| `sparse` | 0.47 | 0.10 | 0.80 | 0.78 |
 
 ## Acknowledgments
 
