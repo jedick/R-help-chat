@@ -9,5 +9,5 @@ query,reference
 "Please tell me how to plot the R logo.","The provided context does not contain any information on how to plot the R logo."
 "Please tell me how to plot minor tick marks.","To plot minor tick marks on a log scale using ggplot in R, you can use the following code"
 "Please tell me how to plot tick marks not using ggplot.","The provided context does not contain information on how to plot tick marks without using ggplot. Therefore, I cannot answer the question."
-"On what date was has.HLC mentioned in a message?","has.HLC was mentioned on Jan 5, 2025"
+"On what date was has.HLC mentioned in a message?","The function `has.HLC` was mentioned in a message dated January 5, 2025."
 "How to search R-help mailing list with keywords?","Using a search engine and adding `site:stat.ethz.ch` (the mail archives are hosted there) seems to work."

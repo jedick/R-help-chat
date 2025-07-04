@@ -49,3 +49,7 @@ Results for 12 reference answers in `rag_answers.csv` with retrieval from one mo
 python rag_eval.py
 # {'llm_context_precision_with_reference': 0.3819, 'context_entity_recall': 0.2827, 'faithfulness': 0.8056, 'factual_correctness(mode=f1)': 0.6942}
 ```
+
+## Acknowledgments
+
+- The BM25S retriever code (with persistence!) is based on a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
