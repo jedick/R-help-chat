@@ -15,7 +15,7 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 ## Usage
 
 - Set your `OPENAI_API_KEY` environment variable
-- Grab one or more gzip'd text files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/) and put them in a folder named `R-help`
+- Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/), gunzip them, and put them in a folder named `R-help`
 - Run this Python code to create the vector database:
 
 ```python
@@ -35,9 +35,10 @@ QueryDatabase("Help with parsing REST API response.")
 
 - To run evals, use one of these commands:
 
-```python
+```sh
 python rag_eval.py --search_type dense
 python rag_eval.py --search_type sparse
+python rag_eval.py --search_type hybrid
 ```
 
 ## Evaluations
@@ -48,7 +49,7 @@ Evals are made for the following LLM-based metrics (see [available metrics in Ra
 - **Context entities recall:** proportion of entities in *reference answer* judged to be present in retrieved context
   - "This metric is useful in fact-based use cases, because where entities matter, we need the `retrieved_contexts` which cover them." - [Ragas docs](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_entities_recall/)
 - **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
-- **Factual correctness:** extent to which *response* aligns with *reference answer*
+- **Factual correctness:** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
 
 Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (`2025-January.txt`):
 
@@ -56,6 +57,7 @@ Results for 12 reference answers in `rag_answers.csv` with retrieval from one mo
 |-|-|-|-|-|
 | `dense`  | 0.38 | 0.28 | 0.71 | 0.69 |
 | `sparse` | 0.47 | 0.10 | 0.80 | 0.78 |
+| `hybrid` | 0.46 | 0.24 | 0.88 | 0.76 |
 
 ## Acknowledgments
 

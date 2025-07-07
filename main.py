@@ -6,7 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain.retrievers import ParentDocumentRetriever
+from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain.storage.file_system import LocalFileStore
 from bm25s_retriever import BM25SRetriever
 from contextlib import contextmanager
@@ -57,52 +57,69 @@ def build_retriever(search_type: str = "hybrid"):
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
     """
     if search_type == "sparse":
-        # Use BM25 sparse search
-        retriever = BM25SRetriever.from_persisted_directory(
-            path=bm25_persist_directory,
-            k=10,
-        )
-        return retriever
+        return build_retriever_sparse()
     elif search_type == "dense":
-        # Use dense vector search with ChromaDB
-        # Define embedding model
-        embedding = OpenAIEmbeddings(
-            # api_key=openai_api_key,
-            model="text-embedding-3-small",
-        )
-        # Create vector store, suppressing messages:
-        # Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
-        # Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
-        with suppress_stderr():
-            vectorstore = Chroma(
-                collection_name=collection_name,
-                persist_directory=persist_directory,
-                embedding_function=embedding,
-            )
-        # The storage layer for the parent documents
-        byte_store = LocalFileStore(file_store)
-        # Text splitter for child documents
-        child_splitter = RecursiveCharacterTextSplitter(
-            separators=["\n\n", "\n", ".", " ", ""],
-            chunk_size=1000,
-            chunk_overlap=100,
-        )
-        # Text splitter for parent documents
-        parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
-        # Instantiate a retriever
-        retriever = ParentDocumentRetriever(
-            vectorstore=vectorstore,
-            # NOTE: https://github.com/langchain-ai/langchain/issues/9345
-            # Define byte_store = LocalFileStore(file_store) and use byte_store instead of docstore in ParentDocumentRetriever
-            byte_store=byte_store,
-            child_splitter=child_splitter,
-            parent_splitter=parent_splitter,
-        )
-        return retriever
+        return build_retriever_dense()
     else:
-        # Hybrid search - for now, default to dense search
-        # TODO: Implement hybrid search combining dense and sparse results
-        return build_retriever("dense")
+        # Hybrid search - use ensemble method
+        # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
+        sparse_retriever = build_retriever_sparse()
+        dense_retriever = build_retriever_dense()
+        ensemble_retriever = EnsembleRetriever(retrievers=[sparse_retriever, dense_retriever], weights=[0.5, 0.5])
+        return ensemble_retriever
+
+
+def build_retriever_sparse():
+    """
+    Build sparse retriever instance
+    """
+    # Use BM25 sparse search
+    retriever = BM25SRetriever.from_persisted_directory(
+        path=bm25_persist_directory,
+        k=10,
+    )
+    return retriever
+
+
+def build_retriever_dense():
+    """
+    Build dense retriever instance
+    """
+    # Use dense vector search with ChromaDB
+    # Define embedding model
+    embedding = OpenAIEmbeddings(
+        # api_key=openai_api_key,
+        model="text-embedding-3-small",
+    )
+    # Create vector store, suppressing messages:
+    # Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+    # Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+    with suppress_stderr():
+        vectorstore = Chroma(
+            collection_name=collection_name,
+            persist_directory=persist_directory,
+            embedding_function=embedding,
+        )
+    # The storage layer for the parent documents
+    byte_store = LocalFileStore(file_store)
+    # Text splitter for child documents
+    child_splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\n", "\n", ".", " ", ""],
+        chunk_size=1000,
+        chunk_overlap=100,
+    )
+    # Text splitter for parent documents
+    parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
+    # Instantiate a retriever
+    retriever = ParentDocumentRetriever(
+        vectorstore=vectorstore,
+        # NOTE: https://github.com/langchain-ai/langchain/issues/9345
+        # Define byte_store = LocalFileStore(file_store) and use byte_store instead of docstore in ParentDocumentRetriever
+        byte_store=byte_store,
+        child_splitter=child_splitter,
+        parent_splitter=parent_splitter,
+    )
+    return retriever
 
 
 def ProcessDirectory(path, search_type: str = "hybrid"):
