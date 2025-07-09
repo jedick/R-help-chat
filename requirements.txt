@@ -1,0 +1,9 @@
+langchain
+langchain-community
+langchain-chroma
+langchain-huggingface
+sentence-transformers  # revdep of langchain-huggingface
+einops  # revdep of Nomic embeddings
+transfomers>=4.53  # revdep of gemma3 models + gguf
+bm25s
+ragas

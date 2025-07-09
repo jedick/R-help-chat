@@ -10,7 +10,7 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
   - Embedding small chunks better captures semantic meaning
   - However, we want to retrieve the entire email for context, e.g. the date and sender
   - Uses LangChain's `ParentDocumentRetriever` and `LocalFileStore`
-- Retrieval using either dense (vector embeddings) or sparse ([BM25S](https://github.com/xhluca/bm25s)) search.
+- Retrieval using dense (vector embeddings), sparse ([BM25S](https://github.com/xhluca/bm25s)), or hybrid (dense+sparse) search.
 
 ## Usage
 
@@ -53,11 +53,14 @@ Evals are made for the following LLM-based metrics (see [available metrics in Ra
 
 Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (`2025-January.txt`):
 
-| Search type | Context precision | Context entities recall | Faithfulness | Factual correctness |
-|-|-|-|-|-|
-| `dense`  | 0.38 | 0.28 | 0.71 | 0.69 |
-| `sparse` | 0.47 | 0.10 | 0.80 | 0.78 |
-| `hybrid` | 0.46 | 0.24 | 0.88 | 0.76 |
+| Processing | Search type | Context precision | Context entities recall | Faithfulness | Factual correctness |
+|-|-|-|-|-|-|
+| Remote | `dense`  | 0.38 | 0.28 | 0.71 | 0.69 |
+| Remote | `sparse` | 0.47 | 0.10 | 0.80 | 0.78 |
+| Remote | `hybrid` | 0.46 | 0.24 | 0.88 | 0.76 |
+
+- Remote processing: OpenAI API for embedding and LLM
+- Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it"](https://huggingface.co/google/gemma-3-4b-it") for LLM
 
 ## Acknowledgments
 
