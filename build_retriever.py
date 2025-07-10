@@ -9,8 +9,9 @@ import os
 
 # To use OpenAI models (remote)
 from langchain_openai import OpenAIEmbeddings
+
 ## To use Hugging Face models (local)
-#from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings
 # For more control over BGE and Nomic embeddings
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
@@ -24,6 +25,7 @@ persist_directory = f"db/chroma/{collection_name}"
 file_store = f"db/file_store/{collection_name}"
 # BM25 persistent directory
 bm25_persist_directory = f"db/bm25/{collection_name}"
+
 
 def GetRetrieverParam(param_name: str):
     """
@@ -47,12 +49,12 @@ def BuildRetriever(search_type: str = "hybrid", embedding_api: str = "local"):
     if search_type == "sparse":
         return BuildRetrieverSparse()
     elif search_type == "dense":
-        return BuildRetrieverDense(embedding_api = embedding_api)
+        return BuildRetrieverDense(embedding_api=embedding_api)
     elif search_type == "hybrid":
         # Hybrid search - use ensemble method
         # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
         sparse_retriever = BuildRetrieverSparse()
-        dense_retriever = BuildRetrieverDense(embedding_api = embedding_api)
+        dense_retriever = BuildRetrieverDense(embedding_api=embedding_api)
         ensemble_retriever = EnsembleRetriever(
             retrievers=[sparse_retriever, dense_retriever], weights=[0.5, 0.5]
         )
@@ -130,7 +132,7 @@ def BuildRetrieverDense(embedding_api: str = "local"):
     )
     ## Release GPU memory
     ## https://github.com/langchain-ai/langchain/discussions/10668
-    #torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     return retriever
 
 
@@ -153,5 +155,3 @@ def AddTimestamps(file_path):
             metadata["timestamp"] = timestamp
             # Update the document in the vector store
             collection.update(id, metadatas=metadata)
-
-

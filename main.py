@@ -9,6 +9,7 @@ import torch
 
 # To use OpenAI models (remote)
 from langchain_openai import ChatOpenAI
+
 # To use Hugging Face models (local)
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 
@@ -25,6 +26,7 @@ from util import SuppressStderr
 embedding_api = "remote"
 # LLM API (remote or remote)
 llm_api = "remote"
+
 
 def ProcessDirectory(path):
     """

@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import os
 import sys
 
+
 @contextmanager
 def SuppressStderr():
     """
@@ -17,5 +18,3 @@ def SuppressStderr():
     finally:
         # Restore stderr
         sys.stderr = original_stderr
-
-

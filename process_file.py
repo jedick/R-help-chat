@@ -6,6 +6,7 @@ from bm25s_retriever import BM25SRetriever
 from build_retriever import BuildRetriever, GetRetrieverParam, AddTimestamps
 from util import SuppressStderr
 
+
 def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "local"):
     """
     Splits file into chunks and saves vector embeddings
@@ -83,5 +84,3 @@ def ProcessFileSparse(file_path):
             persist_directory=bm25_persist_directory,
         )
         print(f"BM25 index created with {len(emails)} emails from {file_path}")
-
-
