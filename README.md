@@ -60,7 +60,7 @@ Results for 12 reference answers in `rag_answers.csv` with retrieval from one mo
 | Remote | `hybrid` | 0.46 | 0.24 | 0.88 | 0.76 |
 
 - Remote processing: OpenAI API for embedding and LLM
-- Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it"](https://huggingface.co/google/gemma-3-4b-it") for LLM
+- Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for LLM
 
 ## Acknowledgments
 

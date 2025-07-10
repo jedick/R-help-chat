@@ -1,167 +1,38 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader
-from langchain_chroma import Chroma
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
-from langchain.storage.file_system import LocalFileStore
-from bm25s_retriever import BM25SRetriever
-from contextlib import contextmanager
 from datetime import datetime
 from transformers import AutoTokenizer
-import chromadb
 import os
 import glob
-import sys
 import torch
 
 # To use OpenAI models (remote)
-from langchain_openai import OpenAIEmbeddings
 from langchain_openai import ChatOpenAI
-
 # To use Hugging Face models (local)
-from langchain_huggingface import HuggingFaceEmbeddings
-
-# For more control over BGE and Nomic embeddings
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
+
+# Local modules
+from bm25s_retriever import BM25SRetriever
+from build_retriever import BuildRetriever, GetRetrieverParam
+from process_file import ProcessFile
+from util import SuppressStderr
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
 
-# Collection name and persistent directory for ChromaDB
-collection_name = "January-2025"
-persist_directory = f"db/chroma/{collection_name}"
-# File store for ParentDocumentRetriever
-file_store = f"db/file_store/{collection_name}"
-# BM25 persistent directory
-bm25_persist_directory = f"db/bm25/{collection_name}"
-# Embedding type (remote or local)
-embedding_type = "local"
-# LLM type (remote or local)
-llm_type = "local"
+# Embedding API (remote or local)
+embedding_api = "remote"
+# LLM API (remote or remote)
+llm_api = "remote"
 
-
-@contextmanager
-def suppress_stderr():
+def ProcessDirectory(path):
     """
-    Context for suppressing stderr messages
-    """
-    try:
-        # Save the original stderr
-        original_stderr = sys.stderr
-        sys.stderr = open(os.devnull, "w")  # Redirect to null device
-        yield  # Code inside the `with` block executes here
-    finally:
-        # Restore stderr
-        sys.stderr = original_stderr
-
-
-def build_retriever(search_type: str = "hybrid"):
-    """
-    Build retriever instance
-
-    Args:
-        search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
-    """
-    if search_type == "sparse":
-        return build_retriever_sparse()
-    elif search_type == "dense":
-        return build_retriever_dense()
-    else:
-        # Hybrid search - use ensemble method
-        # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
-        sparse_retriever = build_retriever_sparse()
-        dense_retriever = build_retriever_dense()
-        ensemble_retriever = EnsembleRetriever(
-            retrievers=[sparse_retriever, dense_retriever], weights=[0.5, 0.5]
-        )
-        return ensemble_retriever
-
-
-def build_retriever_sparse():
-    """
-    Build sparse retriever instance
-    """
-    if not os.path.exists(bm25_persist_directory):
-        os.makedirs(bm25_persist_directory)
-
-    # Use BM25 sparse search
-    retriever = BM25SRetriever.from_persisted_directory(
-        path=bm25_persist_directory,
-        k=10,
-    )
-    return retriever
-
-
-def build_retriever_dense():
-    """
-    Build dense retriever instance
-    """
-    # Use dense vector search with ChromaDB
-    # Define embedding model
-    if embedding_type == "remote":
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
-    if embedding_type == "local":
-        # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
-        # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
-        model_name = "nomic-ai/nomic-embed-text-v1.5"
-        model_kwargs = {
-            "device": "cuda",
-            "trust_remote_code": True,
-        }
-        encode_kwargs = {"normalize_embeddings": True}
-        embedding_function = HuggingFaceBgeEmbeddings(
-            model_name=model_name,
-            model_kwargs=model_kwargs,
-            encode_kwargs=encode_kwargs,
-            query_instruction="search_query:",
-            embed_instruction="search_document:",
-        )
-    # Create vector store, suppressing messages:
-    # Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
-    # Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
-    with suppress_stderr():
-        vectorstore = Chroma(
-            collection_name=collection_name,
-            persist_directory=persist_directory,
-            embedding_function=embedding_function,
-        )
-    # The storage layer for the parent documents
-    byte_store = LocalFileStore(file_store)
-    # Text splitter for child documents
-    child_splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\n", "\n", ".", " ", ""],
-        chunk_size=1000,
-        chunk_overlap=100,
-    )
-    # Text splitter for parent documents
-    parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
-    # Instantiate a retriever
-    retriever = ParentDocumentRetriever(
-        vectorstore=vectorstore,
-        # NOTE: https://github.com/langchain-ai/langchain/issues/9345
-        # Define byte_store = LocalFileStore(file_store) and use byte_store instead of docstore in ParentDocumentRetriever
-        byte_store=byte_store,
-        child_splitter=child_splitter,
-        parent_splitter=parent_splitter,
-    )
-    # Release GPU memory
-    # https://github.com/langchain-ai/langchain/discussions/10668
-    torch.cuda.empty_cache()
-    return retriever
-
-
-def ProcessDirectory(path, search_type: str = "hybrid"):
-    """
-    Update vector store for files in a directory, only adding new or updated files
+    Update vector store and sparse index for files in a directory, only adding new or updated files
     "path": directory to process
-    "search_type": Type of search to use. Options: "dense", "sparse", "hybrid"
 
     Usage example:
     ProcessDirectory("R-help")
-
     """
 
     # TODO: use UUID to process only changed documents
@@ -171,20 +42,22 @@ def ProcessDirectory(path, search_type: str = "hybrid"):
     # For now, we'll process all files when using sparse search
     file_paths = glob.glob(f"{path}/*.txt")
     for file_path in file_paths:
-        ProcessFile(file_path, "sparse")
+        ProcessFile(file_path, "sparse", embedding_api)
         print(f"Processed {file_path} for sparse search")
 
     # Get a dense retriever instance
-    retriever = build_retriever("dense")
+    with SuppressStderr():
+        retriever = BuildRetriever("dense", embedding_api)
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     # Loop over files
     for file_path in file_paths:
         # Look for existing embeddings for this file
-        results = retriever.vectorstore.get(
-            # Metadata key-value pair
-            where={"source": file_path}
-        )
+        with SuppressStderr():
+            results = retriever.vectorstore.get(
+                # Metadata key-value pair
+                where={"source": file_path}
+            )
         # Flag to add or update file
         add_file = False
         update_file = False
@@ -203,12 +76,12 @@ def ProcessDirectory(path, search_type: str = "hybrid"):
                     break
             # Delete the old embeddings
             if add_file:
-                with suppress_stderr():
+                with SuppressStderr():
                     retriever.vectorstore.delete(results["ids"])
                 update_file = True
 
         if add_file:
-            ProcessFile(file_path, "dense")
+            ProcessFile(file_path, "dense", embedding_api)
 
         if update_file:
             print(f"Updated embeddings for {file_path}")
@@ -219,11 +92,12 @@ def ProcessDirectory(path, search_type: str = "hybrid"):
             ]
             files_to_keep = list(set(used_doc_ids))
             # Get all files in the file store
+            file_store = GetRetrieverParam("file_store")
             all_files = os.listdir(file_store)
             # Iterate through the files and delete those not in the list
             for file in all_files:
-                file_path = os.path.join(file_store, file)
-                if os.path.isfile(file_path) and file not in files_to_keep:
+                if file not in files_to_keep:
+                    file_path = os.path.join(file_store, file)
                     os.remove(file_path)
         elif add_file:
             print(f"Added embeddings for {file_path}")
@@ -231,113 +105,12 @@ def ProcessDirectory(path, search_type: str = "hybrid"):
             print(f"No change for {file_path}")
 
 
-def ProcessFile(file_path, search_type: str = "dense"):
-    """
-    Splits file into chunks and saves vector embeddings
-    "file_path": file to process
-    "search_type": Type of search to use. Options: "dense", "sparse"
-    """
-
-    if search_type == "sparse":
-        # Handle sparse search with BM25
-        ProcessFileSparse(file_path)
-    elif search_type == "dense":
-        # Handle dense search with ChromaDB
-        ProcessFileDense(file_path)
-    else:
-        raise Exception(f"Unsupported search type: f{search_type}")
-
-
-def ProcessFileDense(file_path):
-    """
-    Process file for dense vector search using ChromaDB
-    "file_path": file to process
-    """
-    # Get a retriever instance
-    retriever = build_retriever("dense")
-    # Load text file to document
-    loader = TextLoader(file_path)
-    document = loader.load()
-    # Add documents to vectorstore
-    with suppress_stderr():
-        retriever.add_documents(document)
-
-    # Add file timestamps to metadata
-    with suppress_stderr():
-        AddTimestamps(file_path)
-
-
-def ProcessFileSparse(file_path):
-    """
-    Process file for sparse search using BM25
-    "file_path": file to process
-    """
-    # Load text file to document
-    loader = TextLoader(file_path)
-    documents = loader.load()
-
-    # Split archive file into emails for BM25
-    splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
-    emails = splitter.split_documents(documents)
-
-    # Add source metadata to emails
-    for email in emails:
-        if "source" not in email.metadata:
-            email.metadata["source"] = file_path
-
-    # Create or update BM25 index
-    try:
-        # Update BM25 index if it exists
-        retriever = BM25SRetriever.from_persisted_directory(bm25_persist_directory)
-        # Get new emails - ones which have not been indexed
-        new_emails = [email for email in emails if email not in retriever.docs]
-        # TODO: implement add_documents method for BM25SRetriever class
-        # If add_documents was available, we could just index the new emails
-        # retriever.from_documents(documents=new_emails)
-        # For now, create new BM25 index with all emails
-        all_emails = retriever.docs + new_emails
-        BM25SRetriever.from_documents(
-            documents=emails,
-            persist_directory=bm25_persist_directory,
-        )
-        print(f"BM25 index updated with {len(new_emails)} emails from {file_path}")
-    except (FileNotFoundError, OSError):
-        # Create new BM25 index
-        BM25SRetriever.from_documents(
-            documents=emails,
-            persist_directory=bm25_persist_directory,
-        )
-        print(f"BM25 index created with {len(emails)} emails from {file_path}")
-
-
-def AddTimestamps(file_path):
-    """
-    Adds timestamps to metadata in vector store.
-    "file_path": used for both filtering the vector store and obtaining file modification time
-
-    Usage: AddTimestamps("R-help/2025-January.txt")
-    """
-    client = chromadb.PersistentClient(path=persist_directory)
-    collection = client.get_collection(collection_name)
-    # Filter by "source" metadata field (added by DirectoryLoader)
-    results = collection.get(where={"source": file_path})
-    for id, metadata in zip(results["ids"], results["metadatas"]):
-        # Add timestamp if it's not present
-        if not "timestamp" in metadata:
-            mod_time = os.path.getmtime(file_path)
-            timestamp = datetime.fromtimestamp(mod_time).isoformat()
-            metadata["timestamp"] = timestamp
-            # Update the document in the vector store
-            with suppress_stderr():
-                collection.update(id, metadatas=metadata)
-
-
 def ListDocuments():
 
-    # Get retriever instance
-    retriever = build_retriever()
-    # Retrieve all document IDs
-    with suppress_stderr():
+    with SuppressStderr():
+        # Get retriever instance
+        retriever = BuildRetriever("dense", embedding_api)
+        # Retrieve all document IDs
         document_ids = retriever.vectorstore.get()["ids"]
     # Return the document IDs
     return document_ids
@@ -351,7 +124,8 @@ def QueryDatabase(query, search_type: str = "hybrid"):
     """
 
     # Get retriever instance
-    retriever = build_retriever(search_type)
+    with SuppressStderr():
+        retriever = BuildRetriever(search_type, embedding_api)
 
     if retriever is None:
         return "No retriever available. Please process some documents first."
@@ -365,10 +139,10 @@ def QueryDatabase(query, search_type: str = "hybrid"):
         """
     )
     ## Define a model
-    if llm_type == "remote":
+    if llm_api == "remote":
         chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-    if llm_type == "local":
+    if llm_api == "local":
         llm = HuggingFacePipeline.from_model_id(
             model_id="google/gemma-3-4b-it",
             task="text-generation",
@@ -397,6 +171,6 @@ def QueryDatabase(query, search_type: str = "hybrid"):
     )
 
     # Invoking the retrieval chain
-    with suppress_stderr():
+    with SuppressStderr():
         result = chain.invoke(query)
     return result
