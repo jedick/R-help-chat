@@ -7,7 +7,7 @@ from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
     LLMContextPrecisionWithReference,
-    ContextEntityRecall,
+    ContextRecall,
     Faithfulness,
     FactualCorrectness,
 )
@@ -82,7 +82,7 @@ def main():
         dataset=evaluation_dataset,
         metrics=[
             LLMContextPrecisionWithReference(),
-            ContextEntityRecall(),
+            ContextRecall(),
             Faithfulness(),
             FactualCorrectness(),
         ],

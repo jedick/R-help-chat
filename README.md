@@ -5,7 +5,7 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 ## Features
 
 - Data preprocesssing for email messages
-  - Removes quoted lines (starting with `>`) for faster indexing and retrieval
+  - Removes quoted lines (starting with ">") for faster indexing and retrieval
 - Efficient handling for incremental data updates
   - Only indexes changed files
   - Removes stale documents from [Chroma](https://github.com/chroma-core/chroma) vector database
@@ -47,18 +47,17 @@ python rag_eval.py --search_type hybrid
 Evals are made for the following LLM-based metrics (see [available metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) for details):
 
 - **Context precision:** proportion of retrieved chunks judged to be relevant to *reference answer*
-- **Context entities recall:** proportion of entities in *reference answer* judged to be present in retrieved context
-  - "This metric is useful in fact-based use cases, because where entities matter, we need the `retrieved_contexts` which cover them." - [Ragas docs](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/context_entities_recall/)
+- **Context recall:** proportion of claims in *reference answer* judged to be supported by the retrieved context
 - **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
 - **Factual correctness:** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
 
 Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (`2025-January.txt`):
 
-| Processing | Search type | Context precision | Context entities recall | Faithfulness | Factual correctness |
+| Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|
-| Remote | `dense`  | 0.40 | 0.22 | 0.80 | 0.54 |
-| Remote | `sparse` | 0.46 | 0.12 | 0.63 | 0.66 |
-| Remote | `hybrid` | 0.43 | 0.22 | 0.70 | 0.72 |
+| Remote | `dense`  | 0.62 | 0.69 | 0.82 | 0.62 |
+| Remote | `sparse` | 0.53 | 0.88 | 0.69 | 0.72 |
+| Remote | `hybrid` | 0.63 | 0.82 | 0.70 | 0.84 |
 
 - Remote processing: OpenAI API for embedding and LLM
 - Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for LLM
