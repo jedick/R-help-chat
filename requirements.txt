@@ -4,6 +4,7 @@ langchain-chroma
 langchain-huggingface
 sentence-transformers  # revdep of langchain-huggingface
 einops  # revdep of Nomic embeddings
-transfomers>=4.53  # revdep of gemma3 models + gguf
+transfomers>=4.50  # revdep of gemma3 models
 bm25s
+flashrank
 ragas

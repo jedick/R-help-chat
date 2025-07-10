@@ -3,6 +3,9 @@ from langchain_community.document_loaders import TextLoader
 from langchain_chroma import Chroma
 from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain.storage.file_system import LocalFileStore
+from langchain.retrievers import ContextualCompressionRetriever
+from langchain_community.document_compressors import FlashrankRerank
+from flashrank import Ranker
 from datetime import datetime
 import chromadb
 import os
@@ -38,32 +41,65 @@ def GetRetrieverParam(param_name: str):
     return globals()[param_name]
 
 
-def BuildRetriever(search_type: str = "hybrid", embedding_api: str = "local"):
+def BuildRetriever(search_type: str = "hybrid", embedding_api: str = "local", top_k=6):
     """
-    Build retriever instance
+    Build retriever instance.
+    All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
-        search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
+        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
         embedding_api: Type of embedding API (remote or local)
+        top_k: Number of documents to retrieve for "dense", "sparse", and "sparse_rr"
     """
+    if search_type == "dense":
+        return BuildRetrieverDense(embedding_api=embedding_api, top_k=top_k)
     if search_type == "sparse":
-        return BuildRetrieverSparse()
-    elif search_type == "dense":
-        return BuildRetrieverDense(embedding_api=embedding_api)
+        # This gets top_k documents
+        sparse_retriever = BuildRetrieverSparse(top_k)
+        return sparse_retriever
+    if search_type == "sparse_rr":
+        # Start with 10 documents
+        sparse_retriever = BuildRetrieverSparse(10)
+        # Reranking
+        client = Ranker(model_name="ms-marco-MultiBERT-L-12", max_length=10000)
+        # Keep top_k documents
+        compressor = FlashrankRerank(client=client, top_n=top_k)
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor, base_retriever=sparse_retriever
+        )
+        return compression_retriever
     elif search_type == "hybrid":
-        # Hybrid search - use ensemble method
+        # Hybrid search (dense + sparse) - use ensemble method
         # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
-        sparse_retriever = BuildRetrieverSparse()
-        dense_retriever = BuildRetrieverDense(embedding_api=embedding_api)
+        # Combine 2 retrievers with 3 docs each (6 docs - fair comparison with hybrid_rr search)
+        dense_retriever = BuildRetriever("dense", embedding_api=embedding_api, top_k=3)
+        sparse_retriever = BuildRetriever(
+            "sparse", embedding_api=embedding_api, top_k=3
+        )
         ensemble_retriever = EnsembleRetriever(
-            retrievers=[sparse_retriever, dense_retriever], weights=[0.5, 0.5]
+            retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
+        )
+        return ensemble_retriever
+    elif search_type == "hybrid_rr":
+        # Hybrid search (dense + sparse + sparse_rr)
+        # Combine 3 retrievers with 2 docs each (6 docs - fair comparison with hybrid search)
+        sparse_retriever = BuildRetriever(
+            "sparse", embedding_api=embedding_api, top_k=2
+        )
+        sparse_rr_retriever = BuildRetriever(
+            "sparse_rr", embedding_api=embedding_api, top_k=2
+        )
+        dense_retriever = BuildRetriever("dense", embedding_api=embedding_api, top_k=2)
+        ensemble_retriever = EnsembleRetriever(
+            retrievers=[dense_retriever, sparse_retriever, sparse_rr_retriever],
+            weights=[1, 1, 1],
         )
         return ensemble_retriever
     else:
         raise ValueError(f"Unsupported search type: f{search_type}")
 
 
-def BuildRetrieverSparse():
+def BuildRetrieverSparse(top_k=3):
     """
     Build sparse retriever instance
     """
@@ -73,12 +109,12 @@ def BuildRetrieverSparse():
     # Use BM25 sparse search
     retriever = BM25SRetriever.from_persisted_directory(
         path=bm25_persist_directory,
-        k=10,
+        k=top_k,
     )
     return retriever
 
 
-def BuildRetrieverDense(embedding_api: str = "local"):
+def BuildRetrieverDense(embedding_api: str = "local", top_k=3):
     """
     Build dense retriever instance
 
@@ -120,7 +156,9 @@ def BuildRetrieverDense(embedding_api: str = "local"):
         chunk_overlap=100,
     )
     # Text splitter for parent documents
-    parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0)
+    parent_splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0
+    )
     # Instantiate a retriever
     retriever = ParentDocumentRetriever(
         vectorstore=vectorstore,
@@ -129,6 +167,8 @@ def BuildRetrieverDense(embedding_api: str = "local"):
         byte_store=byte_store,
         child_splitter=child_splitter,
         parent_splitter=parent_splitter,
+        # Get top k documents
+        search_kwargs={"k": top_k},
     )
     ## Release GPU memory
     ## https://github.com/langchain-ai/langchain/discussions/10668

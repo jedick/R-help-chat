@@ -62,9 +62,9 @@ def main():
     )
     parser.add_argument(
         "--search_type",
-        choices=["dense", "sparse", "hybrid"],
+        choices=["dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"],
         required=True,
-        help="Retrieval type: dense, sparse, or hybrid.",
+        help="Retrieval type: dense, sparse, sparse_rr, hybrid, or hybrid_rr.",
     )
     args = parser.parse_args()
     search_type = args.search_type

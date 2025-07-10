@@ -13,7 +13,10 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
   - Embedding small chunks better captures semantic meaning
   - However, we want to retrieve the entire email for context, e.g. the date and sender
   - Uses LangChain's `ParentDocumentRetriever` and `LocalFileStore`
-- Retrieval using dense (vector embeddings), sparse ([BM25S](https://github.com/xhluca/bm25s)), or hybrid (dense+sparse) search.
+- Hybrid retrieval using ensemble of:
+  - Dense search (vector embeddings)
+  - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
+  - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
 
 ## Usage
 
@@ -55,12 +58,18 @@ Results for 12 reference answers in `rag_answers.csv` with retrieval from one mo
 
 | Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|
-| Remote | `dense`  | 0.62 | 0.69 | 0.82 | 0.62 |
-| Remote | `sparse` | 0.53 | 0.88 | 0.69 | 0.72 |
-| Remote | `hybrid` | 0.63 | 0.82 | 0.70 | 0.84 |
+| Remote | `dense`     | <u>0.56</u> | 0.81        | 0.83        | 0.59        |
+| Remote | `sparse`    | 0.52        | 0.82        | **0.87**    | 0.75        |
+| Remote | `sparse_rr` | 0.53        | <u>0.86</u> | 0.70        | 0.70        |
+| Remote | `hybrid`    | 0.49        | <u>0.86</u> | <u>0.85</u> | **0.79**    |
+| Remote | `hybrid_rr` | **0.57**    | **0.88**    | 0.78        | <u>0.76</u> |
 
+- All search types retrieve up to 6 emails that are passed to the LLM
+	- `sparse_rr` is sparse search with reranking
+    - `hybrid` = `dense` + `sparse` (3 + 3)
+    - `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
 - Remote processing: OpenAI API for embedding and LLM
-- Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for LLM
+- Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for the LLM
 
 ## Acknowledgments
 

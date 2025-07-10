@@ -21,7 +21,9 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "loc
 
     # Preprocess: remove quoted lines and handle email boundaries
     temp_fd, cleaned_temp_file = tempfile.mkstemp(suffix=".txt", prefix="preproc_")
-    with open(file_path, "r", encoding="utf-8", errors="ignore") as infile, open(cleaned_temp_file, "w", encoding="utf-8") as outfile:
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as infile, open(
+        cleaned_temp_file, "w", encoding="utf-8"
+    ) as outfile:
         prev_line_from = False
         for line in infile:
             # Remove lines that start with '>' or whitespace before '>'
@@ -29,7 +31,7 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "loc
                 continue
             ## Detect the beginning of a new message:
             ## two consecutive lines starting with 'From'
-            #if line.startswith("From"):
+            # if line.startswith("From"):
             #    if prev_line_from:
             #        # Replace the first 'From' with 'EmailFrom' in the previous line
             #        # Go back and update the previous line in the file
@@ -41,10 +43,10 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "loc
             #        last_line = line
             #        continue
             #    prev_line_from = True
-            #else:
+            # else:
             #    prev_line_from = False
             outfile.write(line)
-            #last_line = line
+            # last_line = line
     try:
         os.close(temp_fd)
     except Exception:
@@ -93,12 +95,15 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
 
     # Split archive file into emails for BM25
     # Using two blank lines followed by "From", and no limits on chunk size
-    splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0)
+    splitter = RecursiveCharacterTextSplitter(
+        separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0
+    )
     ## Using 'EmailFrom' as the separator (requires preprocesing)
-    #splitter = RecursiveCharacterTextSplitter(separators=["EmailFrom"])
+    # splitter = RecursiveCharacterTextSplitter(separators=["EmailFrom"])
     emails = splitter.split_documents(documents)
 
     from langchain.text_splitter import TextSplitter
+
     class CustomTextSplitter(TextSplitter):
         def split_text(self, text):
             # Custom logic to split on every separator
@@ -106,7 +111,6 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
 
     splitter = CustomTextSplitter()
     chunks = splitter.split_text(documents[0].page_content)
-
 
     # Add source metadata to emails
     for email in emails:

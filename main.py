@@ -118,9 +118,13 @@ def ListDocuments():
     return document_ids
 
 
-def QueryDatabase(query, search_type: str = "hybrid", llm_api = llm_api):
+def QueryDatabase(query, search_type: str = "hybrid_rr", llm_api=llm_api):
     """
     Retrieve documents from database and query with LLM
+
+    Args:
+        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
+        llm_api: Type of embedding API (remote or local)
 
     Example: QueryDatabase("What R functions are discussed?")
     """
