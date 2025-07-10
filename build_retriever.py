@@ -120,7 +120,7 @@ def BuildRetrieverDense(embedding_api: str = "local"):
         chunk_overlap=100,
     )
     # Text splitter for parent documents
-    parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
+    parent_splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0)
     # Instantiate a retriever
     retriever = ParentDocumentRetriever(
         vectorstore=vectorstore,

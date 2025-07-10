@@ -1,3 +1,5 @@
+import tempfile
+import os
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 
@@ -9,7 +11,7 @@ from util import SuppressStderr
 
 def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "local"):
     """
-    Splits file into chunks and saves vector embeddings
+    Wrapper function to process file for dense or sparse search
 
     Args:
         file_path: file to process
@@ -17,25 +19,63 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "loc
         embedding_api: Type of embedding API (remote or local)
     """
 
-    if search_type == "sparse":
-        # Handle sparse search with BM25
-        ProcessFileSparse(file_path)
-    elif search_type == "dense":
-        # Handle dense search with ChromaDB
-        ProcessFileDense(file_path, embedding_api)
-    else:
-        raise ValueError(f"Unsupported search type: f{search_type}")
+    # Preprocess: remove quoted lines and handle email boundaries
+    temp_fd, cleaned_temp_file = tempfile.mkstemp(suffix=".txt", prefix="preproc_")
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as infile, open(cleaned_temp_file, "w", encoding="utf-8") as outfile:
+        prev_line_from = False
+        for line in infile:
+            # Remove lines that start with '>' or whitespace before '>'
+            if line.lstrip().startswith(">"):
+                continue
+            ## Detect the beginning of a new message:
+            ## two consecutive lines starting with 'From'
+            #if line.startswith("From"):
+            #    if prev_line_from:
+            #        # Replace the first 'From' with 'EmailFrom' in the previous line
+            #        # Go back and update the previous line in the file
+            #        outfile.seek(outfile.tell() - len(last_line))
+            #        outfile.write(last_line.replace("From", "EmailFrom", 1))
+            #        outfile.truncate()
+            #        outfile.write(line)
+            #        prev_line_from = True
+            #        last_line = line
+            #        continue
+            #    prev_line_from = True
+            #else:
+            #    prev_line_from = False
+            outfile.write(line)
+            #last_line = line
+    try:
+        os.close(temp_fd)
+    except Exception:
+        pass
+
+    try:
+        if search_type == "sparse":
+            # Handle sparse search with BM25
+            ProcessFileSparse(cleaned_temp_file, file_path)
+        elif search_type == "dense":
+            # Handle dense search with ChromaDB
+            ProcessFileDense(cleaned_temp_file, file_path, embedding_api)
+        else:
+            raise ValueError(f"Unsupported search type: f{search_type}")
+    finally:
+        # Clean up the temporary file
+        try:
+            os.remove(cleaned_temp_file)
+        except Exception:
+            pass
 
 
-def ProcessFileDense(file_path, embedding_api):
+def ProcessFileDense(cleaned_temp_file, file_path, embedding_api):
     """
     Process file for dense vector search using ChromaDB
     """
     with SuppressStderr():
         # Get a retriever instance
         retriever = BuildRetriever("dense", embedding_api)
-        # Load text file to document
-        loader = TextLoader(file_path)
+        # Load cleaned text file to document
+        loader = TextLoader(cleaned_temp_file)
         document = loader.load()
         # Add documents to vectorstore
         retriever.add_documents(document)
@@ -43,17 +83,30 @@ def ProcessFileDense(file_path, embedding_api):
         AddTimestamps(file_path)
 
 
-def ProcessFileSparse(file_path):
+def ProcessFileSparse(cleaned_temp_file, file_path):
     """
     Process file for sparse search using BM25
     """
     # Load text file to document
-    loader = TextLoader(file_path)
+    loader = TextLoader(cleaned_temp_file)
     documents = loader.load()
 
     # Split archive file into emails for BM25
-    splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"])
+    # Using two blank lines followed by "From", and no limits on chunk size
+    splitter = RecursiveCharacterTextSplitter(separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0)
+    ## Using 'EmailFrom' as the separator (requires preprocesing)
+    #splitter = RecursiveCharacterTextSplitter(separators=["EmailFrom"])
     emails = splitter.split_documents(documents)
+
+    from langchain.text_splitter import TextSplitter
+    class CustomTextSplitter(TextSplitter):
+        def split_text(self, text):
+            # Custom logic to split on every separator
+            return text.split("EmailFrom")
+
+    splitter = CustomTextSplitter()
+    chunks = splitter.split_text(documents[0].page_content)
+
 
     # Add source metadata to emails
     for email in emails:

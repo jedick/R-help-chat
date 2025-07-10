@@ -1,7 +1,8 @@
 import sys
 import os
 import csv
-from main import QueryDatabase, build_retriever
+from main import QueryDatabase, embedding_api, llm_api
+from build_retriever import BuildRetriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
@@ -10,11 +11,11 @@ from ragas.metrics import (
     Faithfulness,
     FactualCorrectness,
 )
-
-# NVIDIA metrics
-# from ragas.metrics import AnswerAccuracy, ContextRelevance, ResponseGroundedness
 from langchain_openai import ChatOpenAI
 import argparse
+
+# Local modules
+from util import SuppressStderr
 
 
 def load_queries_and_references(csv_path):
@@ -31,9 +32,10 @@ def load_queries_and_references(csv_path):
 
 def get_retrieved_contexts(query, search_type):
     """Retrieve context documents for a query"""
-    retriever = build_retriever(search_type)
-    # Use invoke instead of deprecated get_relevant_documents
-    docs = retriever.invoke(query)
+    with SuppressStderr():
+        retriever = BuildRetriever(search_type, embedding_api)
+        # Use invoke instead of deprecated get_relevant_documents
+        docs = retriever.invoke(query)
     return [doc.page_content for doc in docs]
 
 
@@ -84,7 +86,7 @@ def main():
             Faithfulness(),
             FactualCorrectness(),
         ],
-        # NVIDIA metrics
+        # NVIDIA metrics (not used - more concise, but less explainable)
         # metrics=[AnswerAccuracy(), ContextRelevance(), ResponseGroundedness()],
         llm=evaluator_llm,
     )

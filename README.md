@@ -4,8 +4,11 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 
 ## Features
 
-- Database management to efficiently handle incremental data updates
-  - Only indexes changed files and removes stale documents from [Chroma](https://github.com/chroma-core/chroma) vector database
+- Data preprocesssing for email messages
+  - Removes quoted lines (starting with `>`) for faster indexing and retrieval
+- Efficient handling for incremental data updates
+  - Only indexes changed files
+  - Removes stale documents from [Chroma](https://github.com/chroma-core/chroma) vector database
 - Vector search on small chunks, which are then used for retrieval of whole emails
   - Embedding small chunks better captures semantic meaning
   - However, we want to retrieve the entire email for context, e.g. the date and sender
@@ -15,12 +18,12 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 ## Usage
 
 - Set your `OPENAI_API_KEY` environment variable
-- Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/), gunzip them, and put them in a folder named `R-help`
+- Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
+- Extract the files and put them in a folder named `R-help`
 - Run this Python code to create the vector database:
 
 ```python
 from main import *
-# Takes about 30 seconds and uses 160K input tokens for `2025-January.txt`
 ProcessDirectory("R-help")
 ```
 
@@ -33,11 +36,9 @@ QueryDatabase("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
-- To run evals, use one of these commands:
+- To run evals (set search type to `dense`, `sparse`, or `hybrid`):
 
 ```sh
-python rag_eval.py --search_type dense
-python rag_eval.py --search_type sparse
 python rag_eval.py --search_type hybrid
 ```
 
@@ -55,9 +56,9 @@ Results for 12 reference answers in `rag_answers.csv` with retrieval from one mo
 
 | Processing | Search type | Context precision | Context entities recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|
-| Remote | `dense`  | 0.38 | 0.28 | 0.71 | 0.69 |
-| Remote | `sparse` | 0.47 | 0.10 | 0.80 | 0.78 |
-| Remote | `hybrid` | 0.46 | 0.24 | 0.88 | 0.76 |
+| Remote | `dense`  | 0.40 | 0.22 | 0.80 | 0.54 |
+| Remote | `sparse` | 0.46 | 0.12 | 0.63 | 0.66 |
+| Remote | `hybrid` | 0.43 | 0.22 | 0.70 | 0.72 |
 
 - Remote processing: OpenAI API for embedding and LLM
 - Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for LLM

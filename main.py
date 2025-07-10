@@ -118,7 +118,7 @@ def ListDocuments():
     return document_ids
 
 
-def QueryDatabase(query, search_type: str = "hybrid"):
+def QueryDatabase(query, search_type: str = "hybrid", llm_api = llm_api):
     """
     Retrieve documents from database and query with LLM
 
