@@ -1,6 +1,6 @@
 # R-help-chat
 
-Chat with R-help archives using an LLM. A custom RAG solution built with [LangChain](https://www.langchain.com/).
+Chat with R-help archives using an LLM. A complete RAG solution built with [LangChain](https://www.langchain.com/).
 
 ## Features
 
@@ -18,14 +18,15 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
     - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
     - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
 - Options for remote or local processing to balance performance, price, and privacy
-    - Remote processing: OpenAI API for embedding and the LLM
-    - Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for the LLM
+    - Remote processing: OpenAI API for embedding and LLM
+    - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [Gemma](https://huggingface.co/google/gemma-3-4b-it) LLM
 
 ## Usage
 
-- Set your `OPENAI_API_KEY` environment variable
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
+- Choose remote or local processing with the `embedding_api` and `llm_api` variables in `main.py`
+  - If using remote processing, set your `OPENAI_API_KEY` environment variable
 - Run this Python code to create the vector database:
 
 ```python
@@ -61,11 +62,11 @@ Results for 12 reference answers in `rag_answers.csv` with retrieval from one mo
 
 | Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|
-| Remote | `dense`     | 0.56     | 0.81     | 0.83     | 0.59     |
-| Remote | `sparse`    | 0.52     | 0.82     | **0.87** | 0.75     |
-| Remote | `sparse_rr` | 0.53     | 0.86     | 0.70     | 0.70     |
-| Remote | `hybrid`    | 0.49     | 0.86     | 0.85     | **0.79** |
-| Remote | `hybrid_rr` | **0.57** | **0.88** | 0.78     | 0.76     |
+| Remote | `dense`     | 0.59     | 0.74     | 0.77     | 0.68     |
+| Remote | `sparse`    | 0.59     | 0.83     | **0.89** | 0.68     |
+| Remote | `sparse_rr` | 0.49     | **0.87** | 0.67     | **0.78** |
+| Remote | `hybrid`    | **0.62** | 0.74     | 0.81     | 0.72     |
+| Remote | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
 
 For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
 

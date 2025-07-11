@@ -13,6 +13,13 @@ from ragas.metrics import (
 )
 from langchain_openai import ChatOpenAI
 import argparse
+import logging
+
+# Suppress these messages:
+# INFO:openai._base_client:Retrying request to /chat/completions in ___ seconds
+# https://community.openai.com/t/suppress-http-request-post-message/583334/8
+openai_logger = logging.getLogger("openai")
+openai_logger.setLevel(logging.WARNING)
 
 
 def load_queries_and_references(csv_path):

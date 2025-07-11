@@ -27,7 +27,7 @@ embedding_api = "remote"
 # LLM API (remote or remote)
 llm_api = "remote"
 
-# Suprress these messages:
+# Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 # https://community.openai.com/t/suppress-http-request-post-message/583334/8
