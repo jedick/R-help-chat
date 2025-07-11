@@ -23,9 +23,9 @@ from process_file import ProcessFile
 # First version by Jeffrey Dick on 2025-06-29
 
 # Embedding API (remote or local)
-embedding_api = "remote"
-# LLM API (remote or remote)
-llm_api = "remote"
+embedding_type = "remote"
+# Chat API (remote or remote)
+chat_type = "remote"
 
 # Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
@@ -51,11 +51,11 @@ def ProcessDirectory(path):
     # For now, we'll process all files when using sparse search
     file_paths = glob.glob(f"{path}/*.txt")
     for file_path in file_paths:
-        ProcessFile(file_path, "sparse", embedding_api)
+        ProcessFile(file_path, "sparse", embedding_type)
         print(f"Processed {file_path} for sparse search")
 
     # Get a dense retriever instance
-    retriever = BuildRetriever("dense", embedding_api)
+    retriever = BuildRetriever("dense", embedding_type)
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     # Loop over files
@@ -87,7 +87,7 @@ def ProcessDirectory(path):
                 update_file = True
 
         if add_file:
-            ProcessFile(file_path, "dense", embedding_api)
+            ProcessFile(file_path, "dense", embedding_type)
 
         if update_file:
             print(f"Updated embeddings for {file_path}")
@@ -114,43 +114,24 @@ def ProcessDirectory(path):
 def ListDocuments():
 
     # Get retriever instance
-    retriever = BuildRetriever("dense", embedding_api)
+    retriever = BuildRetriever("dense", embedding_type)
     # Retrieve all document IDs
     document_ids = retriever.vectorstore.get()["ids"]
     # Return the document IDs
     return document_ids
 
 
-def QueryDatabase(query, search_type: str = "hybrid_rr", llm_api=llm_api):
+def GetChatModel(chat_type):
     """
-    Retrieve documents from database and query with LLM
+    Get a chat model.
 
     Args:
-        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
-        llm_api: Type of embedding API (remote or local)
-
-    Example: QueryDatabase("What R functions are discussed?")
+        chat_type: Type of chat API (remote or local)
     """
 
-    # Get retriever instance
-    retriever = BuildRetriever(search_type, embedding_api)
-
-    if retriever is None:
-        return "No retriever available. Please process some documents first."
-
-    # Creating a prompt template
-    prompt = ChatPromptTemplate.from_template(
-        """Use only the provided context to answer the following question.
-        If the context does not have enough information to answer the question, say so.
-        Context: {context}
-        Question: {question}
-        """
-    )
-    ## Define a model
-    if llm_api == "remote":
+    if chat_type == "remote":
         chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-
-    if llm_api == "local":
+    if chat_type == "local":
         llm = HuggingFacePipeline.from_model_id(
             model_id="google/gemma-3-4b-it",
             task="text-generation",
@@ -169,6 +150,36 @@ def QueryDatabase(query, search_type: str = "hybrid_rr", llm_api=llm_api):
         # https://github.com/langchain-ai/langchain/issues/31324
         tokenizer = AutoTokenizer.from_pretrained(llm.model_id)
         chat_model = ChatHuggingFace(llm=llm, tokenizer=tokenizer)
+    return chat_model
+
+
+def QueryDatabase(query, search_type: str = "hybrid_rr", chat_type=chat_type):
+    """
+    Query to retrieve documents with single-turn chat
+
+    Args:
+        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
+        chat_type: Type of chat API (remote or local)
+
+    Example: QueryDatabase("What R functions are discussed?")
+    """
+
+    # Get retriever instance
+    retriever = BuildRetriever(search_type, embedding_type)
+
+    if retriever is None:
+        return "No retriever available. Please process some documents first."
+
+    # Creating a prompt template
+    prompt = ChatPromptTemplate.from_template(
+        """Use only the provided context to answer the following question.
+        If the context does not have enough information to answer the question, say so.
+        Context: {context}
+        Question: {question}
+        """
+    )
+
+    chat_model = GetChatModel(chat_type)
 
     # Building an LCEL retrieval chain
     chain = (

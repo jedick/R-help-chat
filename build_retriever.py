@@ -41,18 +41,18 @@ def GetRetrieverParam(param_name: str):
     return globals()[param_name]
 
 
-def BuildRetriever(search_type: str = "hybrid", embedding_api: str = "local", top_k=6):
+def BuildRetriever(search_type: str = "hybrid", embedding_type: str = "local", top_k=6):
     """
     Build retriever instance.
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
         search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
-        embedding_api: Type of embedding API (remote or local)
+        embedding_type: Type of embedding API (remote or local)
         top_k: Number of documents to retrieve for "dense", "sparse", and "sparse_rr"
     """
     if search_type == "dense":
-        return BuildRetrieverDense(embedding_api=embedding_api, top_k=top_k)
+        return BuildRetrieverDense(embedding_type=embedding_type, top_k=top_k)
     if search_type == "sparse":
         # This gets top_k documents
         sparse_retriever = BuildRetrieverSparse(top_k)
@@ -72,9 +72,11 @@ def BuildRetriever(search_type: str = "hybrid", embedding_api: str = "local", to
         # Hybrid search (dense + sparse) - use ensemble method
         # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
         # Combine 2 retrievers with 3 docs each (6 docs - fair comparison with hybrid_rr search)
-        dense_retriever = BuildRetriever("dense", embedding_api=embedding_api, top_k=3)
+        dense_retriever = BuildRetriever(
+            "dense", embedding_type=embedding_type, top_k=3
+        )
         sparse_retriever = BuildRetriever(
-            "sparse", embedding_api=embedding_api, top_k=3
+            "sparse", embedding_type=embedding_type, top_k=3
         )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
@@ -84,12 +86,14 @@ def BuildRetriever(search_type: str = "hybrid", embedding_api: str = "local", to
         # Hybrid search (dense + sparse + sparse_rr)
         # Combine 3 retrievers with 2 docs each (6 docs - fair comparison with hybrid search)
         sparse_retriever = BuildRetriever(
-            "sparse", embedding_api=embedding_api, top_k=2
+            "sparse", embedding_type=embedding_type, top_k=2
         )
         sparse_rr_retriever = BuildRetriever(
-            "sparse_rr", embedding_api=embedding_api, top_k=2
+            "sparse_rr", embedding_type=embedding_type, top_k=2
         )
-        dense_retriever = BuildRetriever("dense", embedding_api=embedding_api, top_k=2)
+        dense_retriever = BuildRetriever(
+            "dense", embedding_type=embedding_type, top_k=2
+        )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever, sparse_rr_retriever],
             weights=[1, 1, 1],
@@ -114,18 +118,18 @@ def BuildRetrieverSparse(top_k=3):
     return retriever
 
 
-def BuildRetrieverDense(embedding_api: str = "local", top_k=3):
+def BuildRetrieverDense(embedding_type: str = "local", top_k=3):
     """
     Build dense retriever instance
 
     Args:
-        embedding_api: Type of embedding API (remote or local)
+        embedding_type: Type of embedding API (remote or local)
     """
     # Use dense vector search with ChromaDB
     # Define embedding model
-    if embedding_api == "remote":
+    if embedding_type == "remote":
         embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
-    if embedding_api == "local":
+    if embedding_type == "local":
         # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
         # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
         model_name = "nomic-ai/nomic-embed-text-v1.5"

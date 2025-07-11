@@ -1,7 +1,7 @@
 import sys
 import os
 import csv
-from main import QueryDatabase, embedding_api, llm_api
+from main import QueryDatabase, embedding_type, llm_type
 from build_retriever import BuildRetriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
@@ -36,7 +36,7 @@ def load_queries_and_references(csv_path):
 
 def get_retrieved_contexts(query, search_type):
     """Retrieve context documents for a query"""
-    retriever = BuildRetriever(search_type, embedding_api)
+    retriever = BuildRetriever(search_type, embedding_type)
     # Use invoke instead of deprecated get_relevant_documents
     docs = retriever.invoke(query)
     return [doc.page_content for doc in docs]

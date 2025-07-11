@@ -1,6 +1,6 @@
 # R-help-chat
 
-Chat with R-help archives using an LLM. A complete RAG solution built with [LangChain](https://www.langchain.com/).
+Chat with R-help archives using an LLM. A complete RAG solution built with [LangChain](https://github.com/langchain-ai/langchain).
 
 ## Features
 
@@ -25,7 +25,7 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
-- Choose remote or local processing with the `embedding_api` and `llm_api` variables in `main.py`
+- Choose remote or local processing with the `embedding_type` and `llm_type` variables in `main.py`
   - If using remote processing, set your `OPENAI_API_KEY` environment variable
 - Run this Python code to create the vector database:
 
@@ -58,7 +58,7 @@ Evals are made for the following LLM-based metrics (see [available metrics in Ra
 - **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
 - **Factual correctness:** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
 
-Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025):
+Results for reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025):
 
 | Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|

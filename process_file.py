@@ -8,14 +8,14 @@ from bm25s_retriever import BM25SRetriever
 from build_retriever import BuildRetriever, GetRetrieverParam, AddTimestamps
 
 
-def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "local"):
+def ProcessFile(file_path, search_type: str = "dense", embedding_type: str = "local"):
     """
     Wrapper function to process file for dense or sparse search
 
     Args:
         file_path: file to process
         search_type: Type of search to use. Options: "dense", "sparse"
-        embedding_api: Type of embedding API (remote or local)
+        embedding_type: Type of embedding API (remote or local)
     """
 
     # Preprocess: remove quoted lines and handle email boundaries
@@ -57,7 +57,7 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "loc
             ProcessFileSparse(cleaned_temp_file, file_path)
         elif search_type == "dense":
             # Handle dense search with ChromaDB
-            ProcessFileDense(cleaned_temp_file, file_path, embedding_api)
+            ProcessFileDense(cleaned_temp_file, file_path, embedding_type)
         else:
             raise ValueError(f"Unsupported search type: f{search_type}")
     finally:
@@ -68,12 +68,12 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "loc
             pass
 
 
-def ProcessFileDense(cleaned_temp_file, file_path, embedding_api):
+def ProcessFileDense(cleaned_temp_file, file_path, embedding_type):
     """
     Process file for dense vector search using ChromaDB
     """
     # Get a retriever instance
-    retriever = BuildRetriever("dense", embedding_api)
+    retriever = BuildRetriever("dense", embedding_type)
     # Load cleaned text file to document
     loader = TextLoader(cleaned_temp_file)
     document = loader.load()
