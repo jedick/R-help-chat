@@ -142,10 +142,12 @@ def BuildRetrieverDense(embedding_api: str = "local", top_k=3):
             embed_instruction="search_document:",
         )
     # Create vector store
+    client_settings = chromadb.config.Settings(anonymized_telemetry=False)
     vectorstore = Chroma(
         collection_name=collection_name,
-        persist_directory=persist_directory,
         embedding_function=embedding_function,
+        client_settings=client_settings,
+        persist_directory=persist_directory,
     )
     # The storage layer for the parent documents
     byte_store = LocalFileStore(file_store)
@@ -183,7 +185,8 @@ def AddTimestamps(file_path):
 
     Usage: AddTimestamps("R-help/2025-January.txt")
     """
-    client = chromadb.PersistentClient(path=persist_directory)
+    client_settings = chromadb.config.Settings(anonymized_telemetry=False)
+    client = chromadb.PersistentClient(path=persist_directory, settings=client_settings)
     collection = client.get_collection(collection_name)
     # Filter by "source" metadata field (added by DirectoryLoader)
     results = collection.get(where={"source": file_path})

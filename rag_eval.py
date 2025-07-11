@@ -14,9 +14,6 @@ from ragas.metrics import (
 from langchain_openai import ChatOpenAI
 import argparse
 
-# Local modules
-from util import SuppressStderr
-
 
 def load_queries_and_references(csv_path):
     """Read queries and references from CSV"""
@@ -32,10 +29,9 @@ def load_queries_and_references(csv_path):
 
 def get_retrieved_contexts(query, search_type):
     """Retrieve context documents for a query"""
-    with SuppressStderr():
-        retriever = BuildRetriever(search_type, embedding_api)
-        # Use invoke instead of deprecated get_relevant_documents
-        docs = retriever.invoke(query)
+    retriever = BuildRetriever(search_type, embedding_api)
+    # Use invoke instead of deprecated get_relevant_documents
+    docs = retriever.invoke(query)
     return [doc.page_content for doc in docs]
 
 

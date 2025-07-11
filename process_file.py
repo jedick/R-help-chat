@@ -6,7 +6,6 @@ from langchain_community.document_loaders import TextLoader
 # Local modules
 from bm25s_retriever import BM25SRetriever
 from build_retriever import BuildRetriever, GetRetrieverParam, AddTimestamps
-from util import SuppressStderr
 
 
 def ProcessFile(file_path, search_type: str = "dense", embedding_api: str = "local"):
@@ -73,16 +72,15 @@ def ProcessFileDense(cleaned_temp_file, file_path, embedding_api):
     """
     Process file for dense vector search using ChromaDB
     """
-    with SuppressStderr():
-        # Get a retriever instance
-        retriever = BuildRetriever("dense", embedding_api)
-        # Load cleaned text file to document
-        loader = TextLoader(cleaned_temp_file)
-        document = loader.load()
-        # Add documents to vectorstore
-        retriever.add_documents(document)
-        # Add file timestamps to metadata
-        AddTimestamps(file_path)
+    # Get a retriever instance
+    retriever = BuildRetriever("dense", embedding_api)
+    # Load cleaned text file to document
+    loader = TextLoader(cleaned_temp_file)
+    document = loader.load()
+    # Add documents to vectorstore
+    retriever.add_documents(document)
+    # Add file timestamps to metadata
+    AddTimestamps(file_path)
 
 
 def ProcessFileSparse(cleaned_temp_file, file_path):

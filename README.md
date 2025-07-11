@@ -5,18 +5,21 @@ Chat with R-help archives using an LLM. A custom RAG solution built with [LangCh
 ## Features
 
 - Data preprocesssing for email messages
-  - Removes quoted lines (starting with ">") for faster indexing and retrieval
+    - Removes quoted lines (starting with ">") for faster indexing and retrieval
 - Efficient handling for incremental data updates
-  - Only indexes changed files
-  - Removes stale documents from [Chroma](https://github.com/chroma-core/chroma) vector database
+    - Only indexes changed files
+    - Removes stale documents from vector database
 - Vector search on small chunks, which are then used for retrieval of whole emails
-  - Embedding small chunks better captures semantic meaning
-  - However, we want to retrieve the entire email for context, e.g. the date and sender
-  - Uses LangChain's `ParentDocumentRetriever` and `LocalFileStore`
+    - Embedding small chunks better captures semantic meaning
+    - However, we want to retrieve the entire email for context, e.g. the date and sender
+    - Uses LangChain's `ParentDocumentRetriever` and `LocalFileStore`
 - Hybrid retrieval using ensemble of:
-  - Dense search (vector embeddings)
-  - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
-  - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
+    - Dense search with vector embeddings ([Chroma](https://github.com/chroma-core/chroma) vector database)
+    - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
+    - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
+- Options for remote or local processing to balance performance, price, and privacy
+    - Remote processing: OpenAI API for embedding and the LLM
+    - Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for the LLM
 
 ## Usage
 
@@ -54,22 +57,21 @@ Evals are made for the following LLM-based metrics (see [available metrics in Ra
 - **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
 - **Factual correctness:** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
 
-Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (`2025-January.txt`):
+Results for 12 reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025):
 
 | Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|
-| Remote | `dense`     | <u>0.56</u> | 0.81        | 0.83        | 0.59        |
-| Remote | `sparse`    | 0.52        | 0.82        | **0.87**    | 0.75        |
-| Remote | `sparse_rr` | 0.53        | <u>0.86</u> | 0.70        | 0.70        |
-| Remote | `hybrid`    | 0.49        | <u>0.86</u> | <u>0.85</u> | **0.79**    |
-| Remote | `hybrid_rr` | **0.57**    | **0.88**    | 0.78        | <u>0.76</u> |
+| Remote | `dense`     | 0.56     | 0.81     | 0.83     | 0.59     |
+| Remote | `sparse`    | 0.52     | 0.82     | **0.87** | 0.75     |
+| Remote | `sparse_rr` | 0.53     | 0.86     | 0.70     | 0.70     |
+| Remote | `hybrid`    | 0.49     | 0.86     | 0.85     | **0.79** |
+| Remote | `hybrid_rr` | **0.57** | **0.88** | 0.78     | 0.76     |
 
-- All search types retrieve up to 6 emails that are passed to the LLM
-	- `sparse_rr` is sparse search with reranking
-    - `hybrid` = `dense` + `sparse` (3 + 3)
-    - `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
-- Remote processing: OpenAI API for embedding and LLM
-- Local processing: [nomic-ai/nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) for embedding and [google/gemma-3-4b-it](https://huggingface.co/google/gemma-3-4b-it) for the LLM
+For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
+
+- `sparse_rr` is sparse search with reranking
+- `hybrid` = `dense` + `sparse` (3 + 3)
+- `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
 
 ## Acknowledgments
 

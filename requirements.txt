@@ -2,9 +2,15 @@ langchain
 langchain-community
 langchain-chroma
 langchain-huggingface
-sentence-transformers  # revdep of langchain-huggingface
-einops  # revdep of Nomic embeddings
-transfomers>=4.50  # revdep of gemma3 models
+# revdep of langchain-huggingface
+sentence-transformers
+# revdep of Nomic embeddings
+einops
+# revdep of gemma3 models
+transfomers>=4.50
 bm25s
 flashrank
 ragas
+# temporary fix for ChromaDB telemetry errors
+# https://github.com/vanna-ai/vanna/issues/917
+posthog<6.0.0

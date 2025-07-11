@@ -6,6 +6,7 @@ from transformers import AutoTokenizer
 import os
 import glob
 import torch
+import logging
 
 # To use OpenAI models (remote)
 from langchain_openai import ChatOpenAI
@@ -17,7 +18,6 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from bm25s_retriever import BM25SRetriever
 from build_retriever import BuildRetriever, GetRetrieverParam
 from process_file import ProcessFile
-from util import SuppressStderr
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
@@ -26,6 +26,13 @@ from util import SuppressStderr
 embedding_api = "remote"
 # LLM API (remote or remote)
 llm_api = "remote"
+
+# Suprress these messages:
+# INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
+# INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+# https://community.openai.com/t/suppress-http-request-post-message/583334/8
+httpx_logger = logging.getLogger("httpx")
+httpx_logger.setLevel(logging.WARNING)
 
 
 def ProcessDirectory(path):
@@ -48,18 +55,16 @@ def ProcessDirectory(path):
         print(f"Processed {file_path} for sparse search")
 
     # Get a dense retriever instance
-    with SuppressStderr():
-        retriever = BuildRetriever("dense", embedding_api)
+    retriever = BuildRetriever("dense", embedding_api)
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     # Loop over files
     for file_path in file_paths:
         # Look for existing embeddings for this file
-        with SuppressStderr():
-            results = retriever.vectorstore.get(
-                # Metadata key-value pair
-                where={"source": file_path}
-            )
+        results = retriever.vectorstore.get(
+            # Metadata key-value pair
+            where={"source": file_path}
+        )
         # Flag to add or update file
         add_file = False
         update_file = False
@@ -78,8 +83,7 @@ def ProcessDirectory(path):
                     break
             # Delete the old embeddings
             if add_file:
-                with SuppressStderr():
-                    retriever.vectorstore.delete(results["ids"])
+                retriever.vectorstore.delete(results["ids"])
                 update_file = True
 
         if add_file:
@@ -109,11 +113,10 @@ def ProcessDirectory(path):
 
 def ListDocuments():
 
-    with SuppressStderr():
-        # Get retriever instance
-        retriever = BuildRetriever("dense", embedding_api)
-        # Retrieve all document IDs
-        document_ids = retriever.vectorstore.get()["ids"]
+    # Get retriever instance
+    retriever = BuildRetriever("dense", embedding_api)
+    # Retrieve all document IDs
+    document_ids = retriever.vectorstore.get()["ids"]
     # Return the document IDs
     return document_ids
 
@@ -130,8 +133,7 @@ def QueryDatabase(query, search_type: str = "hybrid_rr", llm_api=llm_api):
     """
 
     # Get retriever instance
-    with SuppressStderr():
-        retriever = BuildRetriever(search_type, embedding_api)
+    retriever = BuildRetriever(search_type, embedding_api)
 
     if retriever is None:
         return "No retriever available. Please process some documents first."
@@ -177,6 +179,5 @@ def QueryDatabase(query, search_type: str = "hybrid_rr", llm_api=llm_api):
     )
 
     # Invoking the retrieval chain
-    with SuppressStderr():
-        result = chain.invoke(query)
+    result = chain.invoke(query)
     return result
