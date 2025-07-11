@@ -1,8 +1,12 @@
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
-from datetime import datetime
+from langchain_core.documents import Document
+from langgraph.graph import START, StateGraph
+from typing_extensions import List, Annotated, TypedDict
 from transformers import AutoTokenizer
+from dotenv import load_dotenv
+from datetime import datetime
 import os
 import glob
 import torch
@@ -33,6 +37,15 @@ chat_type = "remote"
 # https://community.openai.com/t/suppress-http-request-post-message/583334/8
 httpx_logger = logging.getLogger("httpx")
 httpx_logger.setLevel(logging.WARNING)
+
+# Create a prompt template
+prompt = ChatPromptTemplate.from_template(
+    """Use only the provided context to answer the following question.
+    If the context does not have enough information to answer the question, say so.
+    Context: {context}
+    Question: {question}
+    """
+)
 
 
 def ProcessDirectory(path):
@@ -153,15 +166,15 @@ def GetChatModel(chat_type):
     return chat_model
 
 
-def QueryDatabase(query, search_type: str = "hybrid_rr", chat_type=chat_type):
+def RunChain(query, search_type: str = "hybrid_rr", chat_type=chat_type):
     """
-    Query to retrieve documents with single-turn chat
+    Run chain to retrieve documents and send to chat
 
     Args:
         search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
         chat_type: Type of chat API (remote or local)
 
-    Example: QueryDatabase("What R functions are discussed?")
+    Example: RunChain("What R functions are discussed?")
     """
 
     # Get retriever instance
@@ -169,15 +182,6 @@ def QueryDatabase(query, search_type: str = "hybrid_rr", chat_type=chat_type):
 
     if retriever is None:
         return "No retriever available. Please process some documents first."
-
-    # Creating a prompt template
-    prompt = ChatPromptTemplate.from_template(
-        """Use only the provided context to answer the following question.
-        If the context does not have enough information to answer the question, say so.
-        Context: {context}
-        Question: {question}
-        """
-    )
 
     chat_model = GetChatModel(chat_type)
 
@@ -192,3 +196,72 @@ def QueryDatabase(query, search_type: str = "hybrid_rr", chat_type=chat_type):
     # Invoking the retrieval chain
     result = chain.invoke(query)
     return result
+
+
+def RunGraph(query, search_type: str = "hybrid_rr", chat_type=chat_type):
+    """
+    Run graph for retrieval and chat, with source citations
+
+    Args:
+        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
+        chat_type: Type of chat API (remote or local)
+
+    Example: RunGraph("What R functions are discussed?")
+    """
+
+    # For tracing
+    # os.environ["LANGSMITH_TRACING"] = "true"
+    # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
+    # For LANGCHAIN_API_KEY
+    # load_dotenv(dotenv_path=".env", override=True)
+
+    chat_model = GetChatModel(chat_type)
+
+    # Desired schema for response
+    class AnswerWithSources(TypedDict):
+        """An answer to the question, with sources."""
+
+        answer: str
+        sources: Annotated[
+            List[str],
+            ...,
+            "List of sources (sender's name and date in From: email headers) used to answer the question",
+        ]
+
+    # Define state for application
+    class State(TypedDict):
+        question: str
+        context: List[Document]
+        answer: AnswerWithSources
+
+    # Define retrieval step
+    def retrieve(state: State):
+        # Get retriever instance
+        retriever = BuildRetriever(search_type, embedding_type)
+        if retriever is None:
+            raise Exception(
+                "No retriever available. Please process some documents first."
+            )
+        retrieved_docs = retriever.invoke(state["question"])
+        return {"context": retrieved_docs}
+
+    # Define generation step
+    def generate(state: State):
+        docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+        messages = prompt.invoke(
+            {"question": state["question"], "context": docs_content}
+        )
+        structured_chat_model = chat_model.with_structured_output(AnswerWithSources)
+        response = structured_chat_model.invoke(messages)
+        return {"answer": response}
+
+    # Compile application
+    graph_builder = StateGraph(State).add_sequence([retrieve, generate])
+    graph_builder.add_edge(START, "retrieve")
+    graph = graph_builder.compile()
+
+    # Because we're tracking the retrieved context in our application's state, it is accessible after invoking the application:
+    # print(f'Context: {result["context"]}\n\n')
+    # print(f'Answer: {result["answer"]}')
+    result = graph.invoke({"question": query})
+    return result["answer"]

@@ -9,14 +9,14 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
 - Efficient handling for incremental data updates
     - Only indexes changed files
     - Removes stale documents from vector database
-- Vector search on small chunks, which are then used for retrieval of whole emails
-    - Embedding small chunks better captures semantic meaning
-    - However, we want to retrieve the entire email for context, e.g. the date and sender
-    - Uses LangChain's `ParentDocumentRetriever` and `LocalFileStore`
-- Hybrid retrieval using ensemble of:
+- Hybrid retrieval combining:
     - Dense search with vector embeddings ([Chroma](https://github.com/chroma-core/chroma) vector database)
     - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
     - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
+- Context engineering and source tracking
+    - Dense embedding uses small chunks to capture semantic meaning
+    - All retrieval methods provide whole emails for context
+    - *Graph app uses structured LLM response to cite the sender and date*
 - Options for remote or local processing to balance performance, price, and privacy
     - Remote processing: OpenAI API for embedding and LLM
     - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [Gemma](https://huggingface.co/google/gemma-3-4b-it) LLM
@@ -25,7 +25,7 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
-- Choose remote or local processing with the `embedding_type` and `llm_type` variables in `main.py`
+- Choose remote or local processing with the `embedding_type` and `chat_type` variables in `main.py`
   - If using remote processing, set your `OPENAI_API_KEY` environment variable
 - Run this Python code to create the vector database:
 
@@ -37,16 +37,30 @@ ProcessDirectory("R-help")
 - Now you're ready to query the database. Here are some examples:
 
 ```python
-QueryDatabase("How can I get a named argument from '...'?")
+RunChain("How can I get a named argument from '...'?")
 # 'To get a named argument from \'...\', you can use several approaches as discussed in the context. Here are a few methods ...'
-QueryDatabase("Help with parsing REST API response.")
+
+RunChain("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
-- To run evals (set search type to `dense`, `sparse`, or `hybrid`):
+- Use the graph app to get source citations:
+
+```python
+RunGraph("How to print line numbers where errors occur?")
+# {'answer': 'To print line numbers where errors occur in R, you can use the `options()` function to set `show.error.locations` to `TRUE`. ...',
+# 'sources': ['Ivo Welch, Jan 18 2025',
+#  'Luke Tierney, Jan 19 2025',
+#  'Duncan Murdoch, Jan 19 2025']}
+```
+
+- To run evals:
+  - Set `app_type` to graph or chain
+  - Set `search_type` to dense, sparse, sparse\_rr, hybrid, or hybrid\_rr
+
 
 ```sh
-python rag_eval.py --search_type hybrid
+python rag_eval.py --app_type graph --search_type hybrid_rr
 ```
 
 ## Evaluations
@@ -62,11 +76,12 @@ Results for reference answers in `rag_answers.csv` with retrieval from one month
 
 | Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
 |-|-|-|-|-|-|
-| Remote | `dense`     | 0.59     | 0.74     | 0.77     | 0.68     |
-| Remote | `sparse`    | 0.59     | 0.83     | **0.89** | 0.68     |
-| Remote | `sparse_rr` | 0.49     | **0.87** | 0.67     | **0.78** |
-| Remote | `hybrid`    | **0.62** | 0.74     | 0.81     | 0.72     |
-| Remote | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
+| Remote chain | `dense`     | 0.59     | 0.74     | 0.77     | 0.68     |
+| Remote chain | `sparse`    | 0.59     | 0.83     | 0.89     | 0.68     |
+| Remote chain | `sparse_rr` | 0.49     | **0.87** | 0.67     | **0.78** |
+| Remote chain | `hybrid`    | **0.62** | 0.74     | 0.81     | 0.72     |
+| Remote chain | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
+| Remote graph | `hybrid_rr` | 0.61     | 0.86     | **0.92** | 0.51     |
 
 For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
 
