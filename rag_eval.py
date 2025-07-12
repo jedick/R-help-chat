@@ -51,7 +51,7 @@ def build_eval_dataset(queries, references, app_type, search_type):
             response = RunChain(query, search_type=search_type)
         if app_type == "graph":
             result = RunGraph(query, search_type=search_type)
-            response = result["answer"]
+            response = result["messages"][-1].content
         dataset.append(
             {
                 "user_input": query,

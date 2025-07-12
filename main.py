@@ -2,9 +2,9 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, AIMessage
 from langchain_core.tools import tool
-from langgraph.graph import START, END, MessagesState, StateGraph
+from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.checkpoint.memory import MemorySaver
 from typing_extensions import List, Annotated, TypedDict
@@ -192,76 +192,7 @@ def RunChain(query, search_type: str = "hybrid_rr", chat_type=chat_type):
     return result
 
 
-def RunGraph(query, search_type: str = "hybrid_rr", chat_type=chat_type):
-    """
-    Run graph for retrieval and chat, with source citations
-
-    Args:
-        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
-        chat_type: Type of chat API (remote or local)
-
-    Example: RunGraph("What R functions are discussed?")
-    """
-
-    # For tracing
-    # os.environ["LANGSMITH_TRACING"] = "true"
-    # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
-    # For LANGCHAIN_API_KEY
-    # load_dotenv(dotenv_path=".env", override=True)
-
-    chat_model = GetChatModel(chat_type)
-
-    # Desired schema for response
-    class ResponseWithSources(TypedDict):
-        """A response to the question, with sources."""
-
-        answer: str
-        sources: Annotated[
-            List[str],
-            ...,
-            "List of sources (sender's name and date in From: email headers) used to answer the question",
-        ]
-
-    # Define state for application
-    class State(TypedDict):
-        question: str
-        context: List[Document]
-        response: ResponseWithSources
-
-    # Define retrieval step
-    def retrieve(state: State):
-        # Get retriever instance
-        retriever = BuildRetriever(search_type, embedding_type)
-        if retriever is None:
-            raise Exception(
-                "No retriever available. Please process some documents first."
-            )
-        retrieved_docs = retriever.invoke(state["question"])
-        return {"context": retrieved_docs}
-
-    # Define generation step
-    def generate(state: State):
-        docs_content = "\n\n".join(doc.page_content for doc in state["context"])
-        messages = prompt.invoke(
-            {"question": state["question"], "context": docs_content}
-        )
-        structured_chat_model = chat_model.with_structured_output(ResponseWithSources)
-        response = structured_chat_model.invoke(messages)
-        return {"response": response}
-
-    # Compile application
-    graph_builder = StateGraph(State).add_sequence([retrieve, generate])
-    graph_builder.add_edge(START, "retrieve")
-    graph = graph_builder.compile()
-
-    # Because we're tracking the retrieved context in our application's state, it is accessible after invoking the application:
-    # print(f'Context: {result["context"]}\n\n')
-    # print(f'Response: {result["response"]}')
-    result = graph.invoke({"question": query})
-    return result["response"]
-
-
-def BuildChatGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
+def BuildGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
     """
     Build graph for chat (conversational RAG with memory)
 
@@ -324,13 +255,14 @@ def BuildChatGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
     class ChatMessagesState(MessagesState):
         # Add a context key to the state to store retrieved documents
         context: List[Document]
+        # Add a sources key that contains the cited sources
+        sources: List[str]
 
     # Define response or retrieval step (entry point)
     # NOTE: This has to be ChatMessagesState, not MessagesState, to access step["context"]
     def respond_or_retrieve(state: ChatMessagesState):
         """Generate AI response or tool call for retrieval"""
         chat_model_with_tools = chat_model.bind_tools([retrieve])
-        # response = chat_model_with_tools.invoke(state["messages"])
         response = chat_model_with_tools.invoke(
             [SystemMessage(system_message_prefix)] + state["messages"]
         )
@@ -339,6 +271,17 @@ def BuildChatGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
 
     # Define retrieval step
     tools = ToolNode([retrieve])
+
+    # Desired schema for response
+    class ResponseWithSources(TypedDict):
+        """An answer to the question, with sources."""
+
+        answer: str
+        sources: Annotated[
+            List[str],
+            ...,
+            "List of sources (sender's name and date in From: email headers) used to answer the question",
+        ]
 
     # Define generation step
     def generate(state: MessagesState):
@@ -351,6 +294,10 @@ def BuildChatGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
             else:
                 break
         tool_messages = recent_tool_messages[::-1]
+        # Pluck out the retrieved documents to be added to the state
+        context = []
+        for tool_message in tool_messages:
+            context.extend(tool_message.artifact)
 
         # Format into prompt
         docs_content = "\n\n".join(doc.content for doc in tool_messages)
@@ -368,13 +315,15 @@ def BuildChatGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
         ]
         prompt = [SystemMessage(system_message_with_context)] + conversation_messages
 
-        # Run the model
-        response = chat_model.invoke(prompt)
-        context = []
-        # Pluck out the retrieved documents and populate them in the state
-        for tool_message in tool_messages:
-            context.extend(tool_message.artifact)
-        return {"messages": [response], "context": context}
+        ## Run the chat model
+        # messages = chat_model.invoke(prompt)
+        # return {"messages": messages, "context": context}
+        # Run the chat model with structured output
+        structured_chat_model = chat_model.with_structured_output(ResponseWithSources)
+        response = structured_chat_model.invoke(prompt)
+        # Add the answer to the state as an AIMessage
+        message = AIMessage(response["answer"])
+        return {"messages": message, "context": context, "sources": response["sources"]}
 
     # Initialize a graph object
     graph_builder = StateGraph(MessagesState)
@@ -395,23 +344,28 @@ def BuildChatGraph(search_type: str = "hybrid_rr", chat_type=chat_type):
         {END: END, "tools": "tools"},
     )
     graph_builder.add_edge("tools", "generate")
-    graph_builder.add_edge("generate", END)
+    graph_builder.set_finish_point("generate")
 
     return graph_builder
 
 
-def RunChat(query: str, thread_id=None):
-    """Run chat with graph for conversational RAG
+def RunGraph(
+    query: str, search_type: str = "hybrid_rr", chat_type=chat_type, thread_id=None
+):
+    """Run graph for conversational RAG app
 
     Args:
         query: User query to start the chat
+        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
+        chat_type: Type of chat API (remote or local)
+        thread_id: Thread ID for memory (optional)
 
-    Example;
-        RunChat("Help with parsing REST API response.")
+    Example:
+        RunGraph("Help with parsing REST API response.")
     """
 
     # Build the graph
-    graph_builder = BuildChatGraph()
+    graph_builder = BuildGraph(search_type=search_type, chat_type=chat_type)
 
     # FIXME: Use thread id for memory if given
     # TypeError: Type is not msgpack serializable: ToolMessage
@@ -436,8 +390,11 @@ def RunChat(query: str, thread_id=None):
         stream_mode="values",
         config=config,
     ):
-        step["messages"][-1].pretty_print()
+        if not step["messages"][-1].type == "tool":
+            step["messages"][-1].pretty_print()
 
-    # We see that the retrieved Document objects are accessible from the application state.
+    # To get the last message content: step["messages"][-1].content
+    # To get the retrieved context and cited sources:
     # step["context"]
+    # step["sources"]
     return step

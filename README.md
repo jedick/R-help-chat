@@ -9,32 +9,37 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
 - Efficient handling for incremental data updates
     - Only indexes changed files
     - Removes stale documents from vector database
-- Hybrid retrieval combining:
+- Multiple retrieval methods for deeper search
     - Dense search with vector embeddings ([Chroma](https://github.com/chroma-core/chroma) vector database)
     - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
     - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
-- Context engineering and source tracking
-    - Dense embedding uses small chunks to capture semantic meaning
-    - All retrieval methods provide whole emails for context
-    - *Graph app uses structured LLM response to cite the sender and date*
+- Full-context retrieval
+    - Each retrieval method provides whole emails (parent documents) for context
+    - Dense embedding uses small chunks (child documents) to capture semantic meaning
+- Tool calling and citations with graph app
+    - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for retrieval function
+    - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sources (sender and date) for each answer
 - Options for remote or local processing to balance performance, price, and privacy
     - Remote processing: OpenAI API for embedding and LLM
     - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [Gemma](https://huggingface.co/google/gemma-3-4b-it) LLM
 
 ## Usage
 
+Setup:
+
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
 - Choose remote or local processing with the `embedding_type` and `chat_type` variables in `main.py`
-  - If using remote processing, set your `OPENAI_API_KEY` environment variable
-- Run this Python code to create the vector database:
+- If using remote processing, set your `OPENAI_API_KEY` environment variable
+
+Run this Python code to create the vector database:
 
 ```python
 from main import *
 ProcessDirectory("R-help")
 ```
 
-- Now you're ready to query the database. Here are some examples:
+Now you're ready to run the chain or graph. Here are some examples of RAG with the chain app:
 
 ```python
 RunChain("How can I get a named argument from '...'?")
@@ -44,20 +49,28 @@ RunChain("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
-- Use the graph app to get source citations:
+Use the graph app to get the context and cited sources.
+In this example, the chat model cited 3 out of 5 emails retrieved as context for the query.
 
 ```python
-RunGraph("How to print line numbers where errors occur?")
-# {'answer': 'To print line numbers where errors occur in R, you can use the `options()` function to set `show.error.locations` to `TRUE`. ...',
-# 'sources': ['Ivo Welch, Jan 18 2025',
-#  'Luke Tierney, Jan 19 2025',
-#  'Duncan Murdoch, Jan 19 2025']}
+result = RunGraph("How to print line numbers where errors occur?")
+
+result["messages"][-1].content
+# 'To print line numbers where errors occur in R, you can use the `options()` function to set `show.error.locations` to `TRUE`. ...',
+
+len(result["context"])
+# 5 
+
+result["sources"]
+# ['Duncan Murdoch, Sat, 18 Jan 2025',
+# 'Luke Tierney, Sun, 19 Jan 2025',
+# 'Duncan Murdoch, Mon, 20 Jan 2025']
 ```
 
-- To run evals:
-  - Set `app_type` to graph or chain
-  - Set `search_type` to dense, sparse, sparse\_rr, hybrid, or hybrid\_rr
+To run evals:
 
+- Set `app_type` to graph or chain
+- Set `search_type` to dense, sparse, sparse\_rr, hybrid, or hybrid\_rr
 
 ```sh
 python rag_eval.py --app_type graph --search_type hybrid_rr
@@ -76,10 +89,10 @@ Results for reference answers in `rag_answers.csv` with retrieval from one month
 
 | App | Search type | CP | CR | FF | FC |
 |-|-|-|-|-|-|
-| Chain | `hybrid`    | **0.62** | 0.74     | 0.81     | **0.72** |
+| Chain | `hybrid`    | **0.62** | 0.74     | **0.81** | **0.72** |
 | Chain | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
-| Graph | `hybrid`    | 0.55     | **0.88** | 0.85     | 0.66     |
-| Graph | `hybrid_rr` | 0.61     | 0.86     | **0.92** | 0.51     |
+| Graph | `hybrid`    | 0.57     | **0.88** | 0.66     | 0.62     |
+| Graph | `hybrid_rr` | 0.58     | 0.84     | 0.72     | 0.69     |
 
 For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
 
