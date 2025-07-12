@@ -2,7 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
-from langgraph.graph import START, StateGraph
+from langgraph.graph import START, END, StateGraph
 from typing_extensions import List, Annotated, TypedDict
 from transformers import AutoTokenizer
 from dotenv import load_dotenv
@@ -218,8 +218,8 @@ def RunGraph(query, search_type: str = "hybrid_rr", chat_type=chat_type):
     chat_model = GetChatModel(chat_type)
 
     # Desired schema for response
-    class AnswerWithSources(TypedDict):
-        """An answer to the question, with sources."""
+    class ResponseWithSources(TypedDict):
+        """A response to the question, with sources."""
 
         answer: str
         sources: Annotated[
@@ -232,7 +232,7 @@ def RunGraph(query, search_type: str = "hybrid_rr", chat_type=chat_type):
     class State(TypedDict):
         question: str
         context: List[Document]
-        answer: AnswerWithSources
+        response: ResponseWithSources
 
     # Define retrieval step
     def retrieve(state: State):
@@ -251,9 +251,9 @@ def RunGraph(query, search_type: str = "hybrid_rr", chat_type=chat_type):
         messages = prompt.invoke(
             {"question": state["question"], "context": docs_content}
         )
-        structured_chat_model = chat_model.with_structured_output(AnswerWithSources)
+        structured_chat_model = chat_model.with_structured_output(ResponseWithSources)
         response = structured_chat_model.invoke(messages)
-        return {"answer": response}
+        return {"response": response}
 
     # Compile application
     graph_builder = StateGraph(State).add_sequence([retrieve, generate])
@@ -262,6 +262,6 @@ def RunGraph(query, search_type: str = "hybrid_rr", chat_type=chat_type):
 
     # Because we're tracking the retrieved context in our application's state, it is accessible after invoking the application:
     # print(f'Context: {result["context"]}\n\n')
-    # print(f'Answer: {result["answer"]}')
+    # print(f'Response: {result["response"]}')
     result = graph.invoke({"question": query})
-    return result["answer"]
+    return result["response"]

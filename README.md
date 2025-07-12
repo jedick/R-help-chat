@@ -67,27 +67,25 @@ python rag_eval.py --app_type graph --search_type hybrid_rr
 
 Evals are made for the following LLM-based metrics (see [available metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) for details):
 
-- **Context precision:** proportion of retrieved chunks judged to be relevant to *reference answer*
-- **Context recall:** proportion of claims in *reference answer* judged to be supported by the retrieved context
-- **Faithfulness:** proportion of claims in *response* judged to be supported by retrieved context
-- **Factual correctness:** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
+- **Context precision (CP):** proportion of retrieved chunks judged to be relevant to *reference answer*
+- **Context recall (CR):** proportion of claims in *reference answer* judged to be supported by the retrieved context
+- **Faithfulness (FF):** proportion of claims in *response* judged to be supported by retrieved context
+- **Factual correctness (FC):** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
 
-Results for reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025):
+Results for reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025) using remote processing (OpenAI API):
 
-| Processing | Search type | Context precision | Context recall | Faithfulness | Factual correctness |
+| App | Search type | CP | CR | FF | FC |
 |-|-|-|-|-|-|
-| Remote chain | `dense`     | 0.59     | 0.74     | 0.77     | 0.68     |
-| Remote chain | `sparse`    | 0.59     | 0.83     | 0.89     | 0.68     |
-| Remote chain | `sparse_rr` | 0.49     | **0.87** | 0.67     | **0.78** |
-| Remote chain | `hybrid`    | **0.62** | 0.74     | 0.81     | 0.72     |
-| Remote chain | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
-| Remote graph | `hybrid_rr` | 0.61     | 0.86     | **0.92** | 0.51     |
+| Chain | `hybrid`    | **0.62** | 0.74     | 0.81     | **0.72** |
+| Chain | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
+| Graph | `hybrid`    | 0.55     | **0.88** | 0.85     | 0.66     |
+| Graph | `hybrid_rr` | 0.61     | 0.86     | **0.92** | 0.51     |
 
 For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
 
-- `sparse_rr` is sparse search with reranking
 - `hybrid` = `dense` + `sparse` (3 + 3)
 - `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
+  - `sparse_rr` is sparse search with reranking
 
 ## Acknowledgments
 
