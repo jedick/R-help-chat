@@ -78,21 +78,20 @@ python rag_eval.py --app_type graph --search_type hybrid_rr
 
 ## Evaluations
 
-Evals are made for the following LLM-based metrics (see [available metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/) for details):
+Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/) for details):
 
-- **Context precision (CP):** proportion of retrieved chunks judged to be relevant to *reference answer*
-- **Context recall (CR):** proportion of claims in *reference answer* judged to be supported by the retrieved context
-- **Faithfulness (FF):** proportion of claims in *response* judged to be supported by retrieved context
-- **Factual correctness (FC):** extent to which *response* aligns with *reference answer* (F1 score over atomic claims)
+- **Context relevance:** degree to which retrieved context is relevant to the user query
+- **Response groundedness:** how well a response is supported by the retrieved context
+- **Answer accuracy:** agreement betwen the response and a reference answer
 
 Results for reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025) using remote processing (OpenAI API):
 
-| App | Search type | CP | CR | FF | FC |
-|-|-|-|-|-|-|
-| Chain | `hybrid`    | **0.62** | 0.74     | **0.81** | **0.72** |
-| Chain | `hybrid_rr` | 0.58     | 0.77     | 0.71     | 0.69     |
-| Graph | `hybrid`    | 0.57     | **0.88** | 0.66     | 0.62     |
-| Graph | `hybrid_rr` | 0.58     | 0.84     | 0.72     | 0.69     |
+| App | Search type | Relevance | Groundedness | Accuracy |
+|-|-|-|-|-|
+| Chain | `hybrid`    | 0.62     | 0.46     | 0.75     |
+| Chain | `hybrid_rr` | 0.62     | 0.62     | **0.81** |
+| Graph | `hybrid`    | 0.67     | 0.67     | 0.69     |
+| Graph | `hybrid_rr` | **0.77** | **0.79** | **0.81** |
 
 For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
 

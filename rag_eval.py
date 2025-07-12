@@ -6,10 +6,9 @@ from build_retriever import BuildRetriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
-    LLMContextPrecisionWithReference,
-    ContextRecall,
-    Faithfulness,
-    FactualCorrectness,
+    AnswerAccuracy,
+    ContextRelevance,
+    ResponseGroundedness,
 )
 from langchain_openai import ChatOpenAI
 import argparse
@@ -34,23 +33,21 @@ def load_queries_and_references(csv_path):
     return queries, references
 
 
-def get_retrieved_contexts(query, search_type):
-    """Retrieve context documents for a query"""
-    retriever = BuildRetriever(search_type, embedding_type)
-    # Use invoke instead of deprecated get_relevant_documents
-    docs = retriever.invoke(query)
-    return [doc.page_content for doc in docs]
-
-
 def build_eval_dataset(queries, references, app_type, search_type):
     """Build dataset for evaluation"""
     dataset = []
     for query, reference in zip(queries, references):
-        retrieved_contexts = get_retrieved_contexts(query, search_type)
         if app_type == "chain":
             response = RunChain(query, search_type=search_type)
+            # Retrieve context documents for a query
+            retriever = BuildRetriever(
+                search_type=search_type, embedding_type=embedding_type
+            )
+            docs = retriever.invoke(query)
+            retrieved_contexts = [doc.page_content for doc in docs]
         if app_type == "graph":
             result = RunGraph(query, search_type=search_type)
+            retrieved_contexts = [doc.page_content for doc in result["context"]]
             response = result["messages"][-1].content
         dataset.append(
             {
@@ -94,14 +91,14 @@ def main():
     # Evaluate
     result = evaluate(
         dataset=evaluation_dataset,
-        metrics=[
-            LLMContextPrecisionWithReference(),
-            ContextRecall(),
-            Faithfulness(),
-            FactualCorrectness(),
-        ],
-        # NVIDIA metrics (not used - more concise, but less explainable)
-        # metrics=[AnswerAccuracy(), ContextRelevance(), ResponseGroundedness()],
+        # metrics=[
+        #    LLMContextPrecisionWithReference(),
+        #    ContextRecall(),
+        #    Faithfulness(),
+        #    FactualCorrectness(),
+        # ],
+        # NVIDIA metrics
+        metrics=[ContextRelevance(), ResponseGroundedness(), AnswerAccuracy()],
         llm=evaluator_llm,
     )
     print("Evaluation Results:")
