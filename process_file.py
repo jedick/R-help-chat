@@ -59,7 +59,7 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_type: str = "lo
             # Handle dense search with ChromaDB
             ProcessFileDense(cleaned_temp_file, file_path, embedding_type)
         else:
-            raise ValueError(f"Unsupported search type: f{search_type}")
+            raise ValueError(f"Unsupported search type: {search_type}")
     finally:
         # Clean up the temporary file
         try:

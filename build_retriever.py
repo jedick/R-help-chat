@@ -100,7 +100,7 @@ def BuildRetriever(search_type: str = "hybrid", embedding_type: str = "local", t
         )
         return ensemble_retriever
     else:
-        raise ValueError(f"Unsupported search type: f{search_type}")
+        raise ValueError(f"Unsupported search type: {search_type}")
 
 
 def BuildRetrieverSparse(top_k=3):
