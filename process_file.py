@@ -1,11 +1,12 @@
+from langchain_text_splitters import TextSplitter, RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from datetime import datetime
 import tempfile
 import os
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader
 
 # Local modules
 from bm25s_retriever import BM25SRetriever
-from build_retriever import BuildRetriever, GetRetrieverParam, AddTimestamps
+from build_retriever import BuildRetriever, GetRetrieverParam
 
 
 def ProcessFile(file_path, search_type: str = "dense", embedding_type: str = "local"):
@@ -74,13 +75,17 @@ def ProcessFileDense(cleaned_temp_file, file_path, embedding_type):
     """
     # Get a retriever instance
     retriever = BuildRetriever("dense", embedding_type)
-    # Load cleaned text file to document
+    # Load cleaned text file
     loader = TextLoader(cleaned_temp_file)
-    document = loader.load()
+    documents = loader.load()
+    # Use original file path for "source" key in metadata
+    documents[0].metadata["source"] = file_path
+    # Add file timestamp to metadata
+    mod_time = os.path.getmtime(file_path)
+    timestamp = datetime.fromtimestamp(mod_time).isoformat()
+    documents[0].metadata["timestamp"] = timestamp
     # Add documents to vectorstore
-    retriever.add_documents(document)
-    # Add file timestamps to metadata
-    AddTimestamps(file_path)
+    retriever.add_documents(documents)
 
 
 def ProcessFileSparse(cleaned_temp_file, file_path):
@@ -100,20 +105,9 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
     # splitter = RecursiveCharacterTextSplitter(separators=["EmailFrom"])
     emails = splitter.split_documents(documents)
 
-    from langchain.text_splitter import TextSplitter
-
-    class CustomTextSplitter(TextSplitter):
-        def split_text(self, text):
-            # Custom logic to split on every separator
-            return text.split("EmailFrom")
-
-    splitter = CustomTextSplitter()
-    chunks = splitter.split_text(documents[0].page_content)
-
-    # Add source metadata to emails
+    # Use original file path for "source" key in metadata
     for email in emails:
-        if "source" not in email.metadata:
-            email.metadata["source"] = file_path
+        email.metadata["source"] = file_path
 
     # Create or update BM25 index
     try:
@@ -122,20 +116,22 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
         retriever = BM25SRetriever.from_persisted_directory(bm25_persist_directory)
         # Get new emails - ones which have not been indexed
         new_emails = [email for email in emails if email not in retriever.docs]
-        # TODO: implement add_documents method for BM25SRetriever class
-        # If add_documents was available, we could just index the new emails
-        # retriever.from_documents(documents=new_emails)
-        # For now, create new BM25 index with all emails
-        all_emails = retriever.docs + new_emails
-        BM25SRetriever.from_documents(
-            documents=emails,
-            persist_directory=bm25_persist_directory,
-        )
-        print(f"BM25 index updated with {len(new_emails)} emails from {file_path}")
+        if len(new_emails) > 0:
+            # TODO: implement add_documents method for BM25SRetriever class
+            # retriever.from_documents(documents=new_emails)
+            # For now, create new BM25 index with all emails
+            all_emails = retriever.docs + new_emails
+            BM25SRetriever.from_documents(
+                documents=all_emails,
+                persist_directory=bm25_persist_directory,
+            )
+            print(f"BM25S: added {len(new_emails)} new emails from {file_path}")
+        else:
+            print(f"BM25S: no change for {file_path}")
     except (FileNotFoundError, OSError):
         # Create new BM25 index
         BM25SRetriever.from_documents(
             documents=emails,
             persist_directory=bm25_persist_directory,
         )
-        print(f"BM25 index created with {len(emails)} emails from {file_path}")
+        print(f"BM25S: started with {len(emails)} emails from {file_path}")

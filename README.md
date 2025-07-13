@@ -84,14 +84,14 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for reference answers in `rag_answers.csv` with retrieval from one month of the R-help archives (January 2025) using remote processing (OpenAI API):
+Results for reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025) using remote processing (OpenAI API):
 
 | App | Search type | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
-| Chain | `hybrid`    | 0.62     | 0.46     | 0.75     |
-| Chain | `hybrid_rr` | 0.62     | 0.62     | **0.81** |
-| Graph | `hybrid`    | 0.67     | 0.67     | 0.69     |
-| Graph | `hybrid_rr` | **0.77** | **0.79** | **0.81** |
+| Chain | `hybrid`    | 0.69     | 0.52     | **0.75** |
+| Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
+| Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
+| Graph | `hybrid_rr` | 0.75     | **0.79** | 0.73     |
 
 For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
 

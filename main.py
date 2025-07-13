@@ -49,19 +49,17 @@ def ProcessDirectory(path):
     # TODO: use UUID to process only changed documents
     # https://stackoverflow.com/questions/76265631/chromadb-add-single-document-only-if-it-doesnt-exist
 
-    # BM25 doesn't have the same metadata tracking as ChromaDB
-    # For now, we'll process all files when using sparse search
-    file_paths = glob.glob(f"{path}/*.txt")
-    for file_path in file_paths:
-        ProcessFile(file_path, "sparse", embedding_type)
-        print(f"Processed {file_path} for sparse search")
-
     # Get a dense retriever instance
     retriever = BuildRetriever("dense", embedding_type)
+
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
-    # Loop over files
     for file_path in file_paths:
+
+        # Process file for sparse search (BM25S)
+        ProcessFile(file_path, "sparse", embedding_type)
+
+        # Logic for dense search: skip file if already indexed
         # Look for existing embeddings for this file
         results = retriever.vectorstore.get(
             # Metadata key-value pair
@@ -92,7 +90,7 @@ def ProcessDirectory(path):
             ProcessFile(file_path, "dense", embedding_type)
 
         if update_file:
-            print(f"Updated embeddings for {file_path}")
+            print(f"Chroma: updated embeddings for {file_path}")
             # Clear out the unused parent files
             # The used doc_ids are the files to keep
             used_doc_ids = [
@@ -108,9 +106,9 @@ def ProcessDirectory(path):
                     file_path = os.path.join(file_store, file)
                     os.remove(file_path)
         elif add_file:
-            print(f"Added embeddings for {file_path}")
+            print(f"Chroma: added embeddings for {file_path}")
         else:
-            print(f"No change for {file_path}")
+            print(f"Chroma: no change for {file_path}")
 
 
 def GetChatModel(chat_type):

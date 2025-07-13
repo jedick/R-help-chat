@@ -6,7 +6,6 @@ from langchain.storage.file_system import LocalFileStore
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain_community.document_compressors import FlashrankRerank
 from flashrank import Ranker
-from datetime import datetime
 import chromadb
 import os
 
@@ -22,7 +21,7 @@ from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 from bm25s_retriever import BM25SRetriever
 
 # Collection name and persistent directory for ChromaDB
-collection_name = "January-2025"
+collection_name = "R-help"
 persist_directory = f"db/chroma/{collection_name}"
 # File store for ParentDocumentRetriever
 file_store = f"db/file_store/{collection_name}"
@@ -180,25 +179,3 @@ def BuildRetrieverDense(embedding_type: str = "local", top_k=3):
     ## https://github.com/langchain-ai/langchain/discussions/10668
     # torch.cuda.empty_cache()
     return retriever
-
-
-def AddTimestamps(file_path):
-    """
-    Adds timestamps to metadata in vector store.
-    "file_path": used for both filtering the vector store and obtaining file modification time
-
-    Usage: AddTimestamps("R-help/2025-January.txt")
-    """
-    client_settings = chromadb.config.Settings(anonymized_telemetry=False)
-    client = chromadb.PersistentClient(path=persist_directory, settings=client_settings)
-    collection = client.get_collection(collection_name)
-    # Filter by "source" metadata field (added by DirectoryLoader)
-    results = collection.get(where={"source": file_path})
-    for id, metadata in zip(results["ids"], results["metadatas"]):
-        # Add timestamp if it's not present
-        if not "timestamp" in metadata:
-            mod_time = os.path.getmtime(file_path)
-            timestamp = datetime.fromtimestamp(mod_time).isoformat()
-            metadata["timestamp"] = timestamp
-            # Update the document in the vector store
-            collection.update(id, metadatas=metadata)
