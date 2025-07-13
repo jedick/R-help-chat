@@ -37,7 +37,14 @@ from langchain_core.runnables import Runnable, RunnableConfig
 from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
-DEFAULT_SYSTEM_TEMPLATE = """You have access to the following tools:
+# Changes by JMD on 2025-07-13:
+# The first two lines are from the apply_chat_template for HuggingFaceTB/SmolLM3-3B
+# The remainder is unmodified from tool_calling_llm.py
+DEFAULT_SYSTEM_TEMPLATE = """### Tools
+
+You may call one or more functions to assist with the user query.
+
+You have access to the following tools:
 
 {tools}
 
@@ -78,7 +85,7 @@ def _is_pydantic_class(obj: Any) -> bool:
     Checks if the tool provided is a Pydantic class.
     """
     return isinstance(obj, type) and (
-            issubclass(obj, BaseModel) or BaseModel in obj.__bases__
+        issubclass(obj, BaseModel) or BaseModel in obj.__bases__
     )
 
 
@@ -94,6 +101,7 @@ class _AllReturnType(TypedDict):
     parsed: Optional[_DictOrPydantic]
     parsing_error: Optional[BaseException]
 
+
 def RawJSONDecoder(index):
     class _RawJSONDecoder(json.JSONDecoder):
         end = None
@@ -101,15 +109,18 @@ def RawJSONDecoder(index):
         def decode(self, s, *_):
             data, self.__class__.end = self.raw_decode(s, index)
             return data
+
     return _RawJSONDecoder
 
+
 def extract_json(s, index=0):
-    while (index := s.find('{', index)) != -1:
+    while (index := s.find("{", index)) != -1:
         try:
             yield json.loads(s, cls=(decoder := RawJSONDecoder(index)))
             index = decoder.end
         except json.JSONDecodeError:
             index += 1
+
 
 def parse_json_garbage(s: str) -> Any:
     # Find the first occurrence of a JSON opening brace or bracket
@@ -246,9 +257,9 @@ class ToolCallingLLM(BaseChatModel, ABC):
         self.override_bind_tools = override_bind_tools
 
     def bind_tools(
-            self,
-            tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
-            **kwargs: Any,
+        self,
+        tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
+        **kwargs: Any,
     ) -> Runnable[LanguageModelInput, BaseMessage]:
         if self.override_bind_tools:
             return self.bind(functions=tools, **kwargs)
@@ -256,19 +267,24 @@ class ToolCallingLLM(BaseChatModel, ABC):
             return super().bind_tools(tools, **kwargs)
 
     def _generate_system_message_and_functions(
-            self,
-            kwargs: Dict[str, Any],
+        self,
+        kwargs: Dict[str, Any],
     ) -> Tuple[BaseMessage, List]:
         functions = kwargs.get("tools", kwargs.get("functions", []))
         functions = [
-            fn["function"]
-            if (not _is_pydantic_class(fn) and
-                not _is_pydantic_object(fn) and
-                "name" not in fn.keys() and
-                "function" in fn.keys() and
-                "name" in fn["function"].keys())
-            else fn
-            for fn in functions]
+            (
+                fn["function"]
+                if (
+                    not _is_pydantic_class(fn)
+                    and not _is_pydantic_object(fn)
+                    and "name" not in fn.keys()
+                    and "function" in fn.keys()
+                    and "name" in fn["function"].keys()
+                )
+                else fn
+            )
+            for fn in functions
+        ]
         if "functions" in kwargs:
             del kwargs["functions"]
         if "function_call" in kwargs:
@@ -292,9 +308,13 @@ class ToolCallingLLM(BaseChatModel, ABC):
         return system_message, functions
 
     def _process_response(
-            self, response_message: BaseMessage, functions: List[Dict]
+        self, response_message: BaseMessage, functions: List[Dict]
     ) -> AIMessage:
         chat_generation_content = response_message.content
+        # Get only assistant output - JMD
+        chat_generation_content = chat_generation_content.split(
+            "<|im_start|>assistant"
+        )[1]
         if not isinstance(chat_generation_content, str):
             raise ValueError("ToolCallingLLM does not support non-string output.")
         try:
@@ -308,16 +328,17 @@ class ToolCallingLLM(BaseChatModel, ABC):
         called_tool_name = (
             parsed_chat_result["tool"]
             if "tool" in parsed_chat_result
-            else parsed_chat_result["name"] if "name" in parsed_chat_result
-            else None
+            else parsed_chat_result["name"] if "name" in parsed_chat_result else None
         )
         called_tool = next(
             (fn for fn in functions if fn["function"]["name"] == called_tool_name), None
         )
         if (
-                called_tool is None
-                or called_tool["function"]["name"] == DEFAULT_RESPONSE_FUNCTION["function"]["name"]
-                or called_tool["function"]["name"] == DEFAULT_RESPONSE_FUNCTION["function"]["name"][2:]
+            called_tool is None
+            or called_tool["function"]["name"]
+            == DEFAULT_RESPONSE_FUNCTION["function"]["name"]
+            or called_tool["function"]["name"]
+            == DEFAULT_RESPONSE_FUNCTION["function"]["name"][2:]
         ):
             if (
                 "tool_input" in parsed_chat_result
@@ -333,15 +354,20 @@ class ToolCallingLLM(BaseChatModel, ABC):
                 response = parsed_chat_result["response"]
             else:
                 raise ValueError(
-                    f"Failed to parse a response from {self.model} output: "  # type: ignore[attr-defined]
+                    # Removed {self.model} because it's not defined if we only have llm - JMD
+                    f"Failed to parse a response from output: "  # type: ignore[attr-defined]
                     f"{chat_generation_content}"
                 )
             return AIMessage(content=response)
 
         called_tool_arguments = (
-            parsed_chat_result["tool_input"] if "tool_input" in parsed_chat_result
-            else parsed_chat_result["parameters"] if "parameters" in parsed_chat_result
-            else {}
+            parsed_chat_result["tool_input"]
+            if "tool_input" in parsed_chat_result
+            else (
+                parsed_chat_result["parameters"]
+                if "parameters" in parsed_chat_result
+                else {}
+            )
         )
 
         response_message_with_functions = AIMessage(
@@ -358,11 +384,11 @@ class ToolCallingLLM(BaseChatModel, ABC):
         return response_message_with_functions
 
     def _generate(
-            self,
-            messages: List[BaseMessage],
-            stop: Optional[List[str]] = None,
-            run_manager: Optional[CallbackManagerForLLMRun] = None,
-            **kwargs: Any,
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        **kwargs: Any,
     ) -> ChatResult:
         system_message, functions = self._generate_system_message_and_functions(kwargs)
         response_message = super()._generate(  # type: ignore[safe-super]
@@ -374,11 +400,11 @@ class ToolCallingLLM(BaseChatModel, ABC):
         return ChatResult(generations=[ChatGeneration(message=response)])
 
     async def _agenerate(
-            self,
-            messages: List[BaseMessage],
-            stop: Optional[List[str]] = None,
-            run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-            **kwargs: Any,
+        self,
+        messages: List[BaseMessage],
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        **kwargs: Any,
     ) -> ChatResult:
         system_message, functions = self._generate_system_message_and_functions(kwargs)
         response_message = await super()._agenerate(
@@ -390,19 +416,19 @@ class ToolCallingLLM(BaseChatModel, ABC):
         return ChatResult(generations=[ChatGeneration(message=response)])
 
     async def astream(
-            self,
-            input: LanguageModelInput,
-            config: Optional[RunnableConfig] = None,
-            *,
-            stop: Optional[List[str]] = None,
-            **kwargs: Any,
+        self,
+        input: LanguageModelInput,
+        config: Optional[RunnableConfig] = None,
+        *,
+        stop: Optional[List[str]] = None,
+        **kwargs: Any,
     ) -> AsyncIterator[BaseMessageChunk]:
         system_message, functions = self._generate_system_message_and_functions(kwargs)
         generation: Optional[BaseMessageChunk] = None
         async for chunk in super().astream(
-                [system_message] + super()._convert_input(input).to_messages(),
-                stop=stop,
-                **kwargs,
+            [system_message] + super()._convert_input(input).to_messages(),
+            stop=stop,
+            **kwargs,
         ):
             if generation is None:
                 generation = chunk
