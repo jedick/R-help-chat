@@ -2,7 +2,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.checkpoint.memory import MemorySaver
-from transformers import AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from dotenv import load_dotenv
 from datetime import datetime
 import os
@@ -20,6 +20,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from process_file import ProcessFile
 from build_retriever import BuildRetriever, GetRetrieverParam
 from build_graph import BuildGraph
+from huggingface_mod import ChatHuggingFace
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
@@ -131,7 +132,6 @@ def GetChatModel(chat_type):
         # Define the pipeline here before passing it to the HuggingFacePipeline class
         # (more control than .from_model_id method)
         # https://huggingface.co/blog/langchain
-        from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 
         model_id = "HuggingFaceTB/SmolLM3-3B"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -142,13 +142,13 @@ def GetChatModel(chat_type):
         )
         pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
         llm = HuggingFacePipeline(pipeline=pipe)
-        # Need to provide the tokenizer here, or get OSError:
-        # None is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
-        # https://github.com/langchain-ai/langchain/issues/31324
-        chat_model = ChatHuggingFace(llm=llm, tokenizer=tokenizer)
-        # TODO: pass args to tokenizer.apply_chat_template() for thinking and tool use
-        # https://huggingface.co/HuggingFaceTB/SmolLM3-3B
-        # https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/langchain_huggingface/chat_models/huggingface.py
+
+        chat_model = ChatHuggingFace(
+            llm=llm,
+            # TODO: Use chat_model.bind_tools method
+            # https://huggingface.co/HuggingFaceTB/SmolLM3-3B
+            apply_chat_template_kwargs={"enable_thinking": False},
+        )
     return chat_model
 
 

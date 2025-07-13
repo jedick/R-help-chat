@@ -58,8 +58,8 @@ from langchain_core.utils.pydantic import is_basemodel_subclass
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
-from ..llms.huggingface_endpoint import HuggingFaceEndpoint
-from ..llms.huggingface_pipeline import HuggingFacePipeline
+from langchain_huggingface import HuggingFaceEndpoint
+from langchain_huggingface import HuggingFacePipeline
 
 
 @dataclass
@@ -498,6 +498,8 @@ class ChatHuggingFace(BaseChatModel):
     """Maximum number of tokens to generate."""
     model_kwargs: dict[str, Any] = Field(default_factory=dict)
     """Holds any model parameters valid for `create` call not explicitly specified."""
+    apply_chat_template_kwargs: dict[str, Any] = Field(default_factory=dict)
+    """Parameters for tokenizer.apply_chat_template."""
 
     def __init__(self, **kwargs: Any):
         super().__init__(**kwargs)
@@ -729,7 +731,14 @@ class ChatHuggingFace(BaseChatModel):
         messages_dicts = [self._to_chatml_format(m) for m in messages]
 
         return self.tokenizer.apply_chat_template(
-            messages_dicts, tokenize=False, add_generation_prompt=True
+            messages_dicts,
+            tokenize=False,
+            add_generation_prompt=True,
+            **(
+                self.apply_chat_template_kwargs
+                if self.apply_chat_template_kwargs
+                else {}
+            ),
         )
 
     def _to_chatml_format(self, message: BaseMessage) -> dict:
