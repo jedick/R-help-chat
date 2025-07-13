@@ -21,7 +21,7 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sources (sender and date) for each answer
 - Options for remote or local processing to balance performance, price, and privacy
     - Remote processing: OpenAI API for embedding and LLM
-    - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [Gemma](https://huggingface.co/google/gemma-3-4b-it) LLM
+    - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [Gemma](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) LLM
 
 ## Usage
 
@@ -84,7 +84,7 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025) using remote processing (OpenAI API):
+Results for queries and reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025) using remote processing (OpenAI API):
 
 | App | Search type | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
@@ -93,7 +93,7 @@ Results for reference answers in `rag_answers.csv` with retrieval from six month
 | Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
 | Graph | `hybrid_rr` | 0.75     | **0.79** | 0.73     |
 
-For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM
+For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM:
 
 - `hybrid` = `dense` + `sparse` (3 + 3)
 - `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
@@ -102,3 +102,4 @@ For a fair comparison, all search types retrieve up to 6 emails that are passed 
 ## Acknowledgments
 
 - The BM25S retriever code (with persistence!) is based on a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
+- `huggingface_mod.py` is copied from the [LangChain codebase](https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/langchain_huggingface/chat_models/huggingface.py)

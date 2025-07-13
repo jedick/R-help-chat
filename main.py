@@ -29,6 +29,12 @@ embedding_type = "remote"
 # Chat API (remote or remote)
 chat_type = "remote"
 
+# Don't try to use local models without a GPU
+if not torch.cuda.is_available() and (
+    embedding_type == "local" or chat_type == "local"
+):
+    raise Exception("Local model selected without GPU")
+
 # Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
@@ -122,24 +128,27 @@ def GetChatModel(chat_type):
     if chat_type == "remote":
         chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     if chat_type == "local":
-        llm = HuggingFacePipeline.from_model_id(
-            model_id="google/gemma-3-4b-it",
-            task="text-generation",
-            pipeline_kwargs=dict(
-                max_new_tokens=512,
-                do_sample=False,
-                # Without this output begins repeating
-                repetition_penalty=1.1,
-                return_full_text=False,
-            ),
+        # Define the pipeline here before passing it to the HuggingFacePipeline class
+        # (more control than .from_model_id method)
+        # https://huggingface.co/blog/langchain
+        from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+
+        model_id = "HuggingFaceTB/SmolLM3-3B"
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
             # We need this to load the model in BF16 instead of fp32 (torch.float)
-            model_kwargs={"torch_dtype": torch.bfloat16},
+            torch_dtype=torch.bfloat16,
         )
+        pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+        llm = HuggingFacePipeline(pipeline=pipe)
         # Need to provide the tokenizer here, or get OSError:
         # None is not a local folder and is not a valid model identifier listed on 'https://huggingface.co/models'
         # https://github.com/langchain-ai/langchain/issues/31324
-        tokenizer = AutoTokenizer.from_pretrained(llm.model_id)
         chat_model = ChatHuggingFace(llm=llm, tokenizer=tokenizer)
+        # TODO: pass args to tokenizer.apply_chat_template() for thinking and tool use
+        # https://huggingface.co/HuggingFaceTB/SmolLM3-3B
+        # https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/langchain_huggingface/chat_models/huggingface.py
     return chat_model
 
 

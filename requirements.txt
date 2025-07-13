@@ -2,6 +2,7 @@ langchain
 langchain-community
 langchain-chroma
 langchain-huggingface
+langgraph
 # revdep of langchain-huggingface
 sentence-transformers
 # revdep of Nomic embeddings
