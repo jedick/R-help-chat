@@ -20,15 +20,14 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from process_file import ProcessFile
 from build_retriever import BuildRetriever, GetRetrieverParam
 from build_graph import BuildGraph
-from huggingface_mod import ChatHuggingFace
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
 
 # Embedding API (remote or local)
-embedding_type = "remote"
+embedding_type = "local"
 # Chat API (remote or remote)
-chat_type = "remote"
+chat_type = "local"
 
 # Don't try to use local models without a GPU
 if not torch.cuda.is_available() and (
@@ -129,10 +128,9 @@ def GetChatModel(chat_type):
     if chat_type == "remote":
         chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
     if chat_type == "local":
-        # Define the pipeline here before passing it to the HuggingFacePipeline class
-        # (more control than .from_model_id method)
-        # https://huggingface.co/blog/langchain
 
+        # Define the pipeline to pass to the HuggingFacePipeline class
+        # https://huggingface.co/blog/langchain
         model_id = "HuggingFaceTB/SmolLM3-3B"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(
@@ -140,15 +138,16 @@ def GetChatModel(chat_type):
             # We need this to load the model in BF16 instead of fp32 (torch.float)
             torch_dtype=torch.bfloat16,
         )
-        pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+        # With return_full_text=False, the response is just the assistant response (expected by ToolCallingLLM).
+        # Otherwise, the response includes the system and user prompts. The JSON in system prompt inhibits parsing by
+        # ToolCallingLLM, resulting in an error and printing the full response.
+        pipe = pipeline(
+            "text-generation", model=model, tokenizer=tokenizer, return_full_text=False
+        )
         llm = HuggingFacePipeline(pipeline=pipe)
 
-        chat_model = ChatHuggingFace(
-            llm=llm,
-            # TODO: Use chat_model.bind_tools method
-            # https://huggingface.co/HuggingFaceTB/SmolLM3-3B
-            apply_chat_template_kwargs={"enable_thinking": False},
-        )
+        chat_model = ChatHuggingFace(llm=llm)
+
     return chat_model
 
 
