@@ -102,4 +102,5 @@ For a fair comparison, all search types retrieve up to 6 emails that are passed 
 ## Acknowledgments
 
 - The BM25S retriever code (with persistence!) is based on a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- `huggingface_mod.py` is copied from the [LangChain codebase](https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/langchain_huggingface/chat_models/huggingface.py)
+- `huggingface_mod.py` is copied from the [LangChain codebase](https://github.com/langchain-ai/langchain/blob/master/libs/partners/huggingface/langchain_huggingface/chat_models/huggingface.py) with modifications
+- `tool_calling_llm.py` is copied from [lalanikarim/tool_calling_llm](https://github.com/lalanikarim/tool_calling_llm)
