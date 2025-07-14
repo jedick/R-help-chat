@@ -64,6 +64,8 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     Args:
         retriever: retriever instance from BuildRetriever()
         chat_model: LangChain chat model from GetChatModel()
+        think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
+        think_generate: Whether to use thinking mode for generation
 
     Example: RunGraph("What R functions are discussed?")
 
@@ -81,12 +83,13 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     # Define start of system message, used in both respond_or_retrieve and generate
     system_message_start = (
         "You are a helpful RAG chatbot designed to answer questions about R programming. "
-        "Do not ask the user for more information, but retrieve information from the R-help mailing list archives. "
-        "Summarize the retrieved information to give an answer. "
-        "Tell the user if you are unable to answer the question based on the available information. "
+        "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
+        "Summarize the retrieved emails to give an answer. "
+        "To answer 'X or Y?', retrieve emails about X and Y to support your answer. "
+        "Tell the user if you are unable to answer the question based on the information in the emails. "
         "It is more helpful to say that there is not enough information than to respond with your own ideas or suggestions. "
         "Do not give an answer based on your own knowledge or memory. "
-        "For example, do not respond to a question about macros with names of packages that aren't described in the retrieved email messages. "
+        "For example, a question about macros should not be answered with 'knitr' and 'markdown' if those packages aren't described in the retrieved emails. "
         "Respond with 200 words maximum and 20 lines of code maximum. "
         "Cite the sender's name and date taken from the email headers. "
     )
@@ -97,8 +100,8 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     # Below, we add them as an additional key in the state, for convenience.
     # Define the response format of the tool as "content_and_artifact":
     @tool(response_format="content_and_artifact")
-    def retrieve(query: str):
-        """Retrieve information related to a query from the R-help mailing list archives"""
+    def retrieve_emails(query: str):
+        """Retrieve emails related to a query from the R-help mailing list archives"""
         retrieved_docs = retriever.invoke(query)
         serialized = "\n\n".join(
             (f"Source: {doc.metadata}\n" f"Content: {doc.page_content}")
@@ -133,10 +136,10 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             chat_model_for_tools = ToolifySmolLM3(
                 chat_model, system_message_start, think_retrieve
             )
-            chat_model_with_tools = chat_model_for_tools.bind_tools([retrieve])
+            chat_model_with_tools = chat_model_for_tools.bind_tools([retrieve_emails])
             response = chat_model_with_tools.invoke(state["messages"])
         else:
-            chat_model_with_tools = chat_model.bind_tools([retrieve])
+            chat_model_with_tools = chat_model.bind_tools([retrieve_emails])
             response = chat_model_with_tools.invoke(
                 [SystemMessage(system_message_start)] + state["messages"]
             )
@@ -144,7 +147,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         return {"messages": [response]}
 
     # Define retrieval step
-    tools = ToolNode([retrieve])
+    tools = ToolNode([retrieve_emails])
 
     # Desired schema for response
     class AnswerWithSources(TypedDict):
@@ -159,7 +162,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
 
     # Define generation step
     def generate(state: MessagesState):
-        """Generate a response using the retrieved content"""
+        """Generate a response using the retrieved emails"""
         # Get generated ToolMessages
         recent_tool_messages = []
         for message in reversed(state["messages"]):
@@ -168,15 +171,16 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             else:
                 break
         tool_messages = recent_tool_messages[::-1]
-        # Pluck out the retrieved documents to be added to the state
+        # Pluck out the retrieved emails to be added to the state
         context = []
         for tool_message in tool_messages:
             context.extend(tool_message.artifact)
 
         # Generate system message
         docs_content = "\n\n".join(doc.content for doc in tool_messages)
-        system_message_middle = "\n\n### Retrieved Information:\n\n"
-        if hasattr(chat_model, "model_id"):
+        system_message_middle = "\n\n### Retrieved Emails:\n\n"
+        # This is disabled until we figure out a better way to get a structured response
+        if hasattr(chat_model, "model_id") and False:
             system_message_middle = """
             ### Additional Instructions
 
@@ -187,7 +191,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
               "senders": <Senders of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31>
             }
 
-            ### Retrieved Information:
+            ### Retrieved Emails:
 
             """
         system_message = system_message_start + system_message_middle + docs_content
@@ -211,24 +215,24 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
 
         # Setup the chat model for structured output
         if hasattr(chat_model, "model_id"):
-            # Our system prompt has instructions for formatting the output into the desired schema, so we use json_mode
-            structured_chat_model = chat_model.with_structured_output(
-                AnswerWithSources, method="json_mode"
-            )
+            ## Our system prompt has instructions for formatting the output into the desired schema, so we use json_mode
+            # structured_chat_model = chat_model.with_structured_output(
+            #    AnswerWithSources, method="json_mode"
+            # )
+            # response = structured_chat_model.invoke(prompt)
+            messages = chat_model.invoke(prompt)
+            return {"messages": messages, "context": context}
         else:
             structured_chat_model = chat_model.with_structured_output(AnswerWithSources)
-
-        response = structured_chat_model.invoke(prompt)
-
-        # Add the answer to the state as an AIMessage
-        print(response)
-        answer = response["answer"]
-        return {
-            "messages": AIMessage(answer),
-            "answer": answer,
-            "context": context,
-            "senders": response["senders"],
-        }
+            response = structured_chat_model.invoke(prompt)
+            # Add the answer to the state as an AIMessage
+            answer = response["answer"]
+            return {
+                "messages": AIMessage(answer),
+                "answer": answer,
+                "context": context,
+                "senders": response["senders"],
+            }
 
     # Initialize a graph object
     graph_builder = StateGraph(MessagesState)

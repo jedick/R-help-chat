@@ -25,9 +25,9 @@ from build_graph import BuildGraph
 # First version by Jeffrey Dick on 2025-06-29
 
 # Embedding API (remote or local)
-embedding_type = "local"
+embedding_type = "remote"
 # Chat API (remote or remote)
-chat_type = "local"
+chat_type = "remote"
 
 # Don't try to use local models without a GPU
 if not torch.cuda.is_available() and (
@@ -201,7 +201,12 @@ def RunChain(query, search_type: str = "hybrid_rr", chat_type=chat_type):
 
 
 def RunGraph(
-    query: str, search_type: str = "hybrid_rr", chat_type=chat_type, thread_id=None
+    query: str,
+    search_type: str = "hybrid_rr",
+    chat_type=chat_type,
+    think_retrieve=False,
+    think_generate=False,
+    thread_id=None,
 ):
     """Run graph for conversational RAG app
 
@@ -209,6 +214,8 @@ def RunGraph(
         query: User query to start the chat
         search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
         chat_type: Type of chat API (remote or local)
+        think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
+        think_generate: Whether to use thinking mode for generation
         thread_id: Thread ID for memory (optional)
 
     Example:
@@ -220,7 +227,12 @@ def RunGraph(
     # Get chat model used in both respond_or_retrieve and generate steps
     chat_model = GetChatModel(chat_type)
     # Build the graph
-    graph_builder = BuildGraph(retriever=retriever, chat_model=chat_model)
+    graph_builder = BuildGraph(
+        retriever=retriever,
+        chat_model=chat_model,
+        think_retrieve=think_retrieve,
+        think_generate=think_generate,
+    )
 
     # FIXME: Use thread id for memory if given
     # TypeError: Type is not msgpack serializable: ToolMessage
