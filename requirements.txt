@@ -7,8 +7,9 @@ langgraph
 sentence-transformers
 # revdep of Nomic embeddings
 einops
-# revdep of gemma3 models
-transfomers>=4.50
+# revdep of SmolLM3
+transfomers>=4.53
+tool-calling-llm
 bm25s
 flashrank
 ragas

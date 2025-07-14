@@ -126,7 +126,9 @@ def GetChatModel(chat_type):
     """
 
     if chat_type == "remote":
+
         chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
     if chat_type == "local":
 
         # Define the pipeline to pass to the HuggingFacePipeline class
@@ -138,14 +140,19 @@ def GetChatModel(chat_type):
             # We need this to load the model in BF16 instead of fp32 (torch.float)
             torch_dtype=torch.bfloat16,
         )
-        # With return_full_text=False, the response is just the assistant response (expected by ToolCallingLLM).
-        # Otherwise, the response includes the system and user prompts. The JSON in system prompt inhibits parsing by
-        # ToolCallingLLM, resulting in an error and printing the full response.
-        pipe = pipeline(
-            "text-generation", model=model, tokenizer=tokenizer, return_full_text=False
-        )
-        llm = HuggingFacePipeline(pipeline=pipe)
 
+        # ToolCallingLLM needs return_full_text=False in order to parse just the assistant response;
+        # the JSON function descriptions in the full response cause an error in ToolCallingLLM
+        pipe = pipeline(
+            "text-generation",
+            model=model,
+            tokenizer=tokenizer,
+            return_full_text=False,
+            # It seems that max_new_tokens has to be specified here, not in .invoke()
+            max_new_tokens=1000,
+        )
+
+        llm = HuggingFacePipeline(pipeline=pipe)
         chat_model = ChatHuggingFace(llm=llm)
 
     return chat_model

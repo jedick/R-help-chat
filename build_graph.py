@@ -8,20 +8,19 @@ from langchain_huggingface import ChatHuggingFace
 from tool_calling_llm import ToolCallingLLM
 
 
-def ToolifySmolLM3(chat_model, system_message_prefix, think=False):
+def ToolifySmolLM3(chat_model, system_message_start, think=False):
     """
     Get a SmolLM3 model ready for bind_tools().
     """
 
     # Add \no_think flag to turn off thinking mode
     if not think:
-        system_message_prefix = "/no_think\n" + system_message_prefix
+        system_message_start = "/no_think\n" + system_message_start
 
-    # NOTE: The first two lines (after the prefix) are extracted from
-    # tokenizer.apply_chat_template(xml_tools=) for HuggingFaceTB/SmolLM3-3B to activate tool calling
-    # The remainder is taken from ToolCallingLLM
+    # NOTE: The first two nonblank lines are taken from the chat template for HuggingFaceTB/SmolLM3-3B
+    # The rest are taken from the default system template for ToolCallingLLM
     tool_system_prompt_template = (
-        system_message_prefix
+        system_message_start
         + """
 
     ### Tools
@@ -80,12 +79,16 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     # load_dotenv(dotenv_path=".env", override=True)
 
     # Define start of system message, used in both respond_or_retrieve and generate
-    system_message_prefix = (
-        "You are an assistant that answers questions about R programming. "
-        "Do not respond with your own knowledge or ask the user for more information. "
-        "Instead, use a tool to retrieve information related to the query from the R-help mailing list archives. "
-        "Use only the retrieved information to provide a helpful answer. "
-        "If the retrieved information is insufficient to answer the question, say so. "
+    system_message_start = (
+        "You are a helpful RAG chatbot designed to answer questions about R programming. "
+        "Do not ask the user for more information, but retrieve information from the R-help mailing list archives. "
+        "Summarize the retrieved information to give an answer. "
+        "Tell the user if you are unable to answer the question based on the available information. "
+        "It is more helpful to say that there is not enough information than to respond with your own ideas or suggestions. "
+        "Do not give an answer based on your own knowledge or memory. "
+        "For example, do not respond to a question about macros with names of packages that aren't described in the retrieved email messages. "
+        "Respond with 200 words maximum and 20 lines of code maximum. "
+        "Cite the sender's name and date taken from the email headers. "
     )
 
     # Define retrieval tool
@@ -114,25 +117,28 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     #   - Final response as a AIMessage
     # Leveraging tool-calling to interact with a retrieval step allows a model to rewrite user queries into more effective search queries
     class ChatMessagesState(MessagesState):
+        # Add an answer key with the final answer
+        answer: str
         # Add a context key to the state to store retrieved documents
         context: List[Document]
-        # Add a sources key that contains the cited sources
-        sources: List[str]
+        # Add a senders key that contains the cited senders
+        senders: List[str]
 
     # Define response or retrieval step (entry point)
     # NOTE: This has to be ChatMessagesState, not MessagesState, to access step["context"]
     def respond_or_retrieve(state: ChatMessagesState):
         """Generate AI response or tool call for retrieval"""
-        if chat_model.model_id == "HuggingFaceTB/SmolLM3-3B":
+        # Local models (ChatHuggingFace) have a "model_id" attribute
+        if hasattr(chat_model, "model_id"):
             chat_model_for_tools = ToolifySmolLM3(
-                chat_model, system_message_prefix, think_retrieve
+                chat_model, system_message_start, think_retrieve
             )
             chat_model_with_tools = chat_model_for_tools.bind_tools([retrieve])
             response = chat_model_with_tools.invoke(state["messages"])
         else:
             chat_model_with_tools = chat_model.bind_tools([retrieve])
             response = chat_model_with_tools.invoke(
-                [SystemMessage(system_message_prefix)] + state["messages"]
+                [SystemMessage(system_message_start)] + state["messages"]
             )
         # MessagesState appends messages to state instead of overwriting
         return {"messages": [response]}
@@ -141,14 +147,14 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     tools = ToolNode([retrieve])
 
     # Desired schema for response
-    class ResponseWithSources(TypedDict):
-        """An answer to the question, with sources."""
+    class AnswerWithSources(TypedDict):
+        """An answer to the question, with senders."""
 
         answer: str
-        sources: Annotated[
+        senders: Annotated[
             List[str],
             ...,
-            "List of sources (sender's name and date in From: email headers) used to answer the question",
+            "Senders of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31",
         ]
 
     # Define generation step
@@ -167,42 +173,62 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         for tool_message in tool_messages:
             context.extend(tool_message.artifact)
 
-        # Format into prompt
+        # Generate system message
         docs_content = "\n\n".join(doc.content for doc in tool_messages)
-        system_message_with_context = (
-            f"{system_message_prefix}"
-            "\n\n"
-            "### Retrieved Information:"
-            f"{docs_content}"
-        )
-        if chat_model.model_id == "HuggingFaceTB/SmolLM3-3B" and not think_generate:
-            system_message_with_context = "/no_think\n" + system_message_with_context
+        system_message_middle = "\n\n### Retrieved Information:\n\n"
+        if hasattr(chat_model, "model_id"):
+            system_message_middle = """
+            ### Additional Instructions
+
+            You must respond with only a JSON object matching the following schema:
+
+            {
+              "answer": <An answer to the question>,
+              "senders": <Senders of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31>
+            }
+
+            ### Retrieved Information:
+
+            """
+        system_message = system_message_start + system_message_middle + docs_content
+        if hasattr(chat_model, "model_id") and not think_generate:
+            # /no_think is needed to avoid parsing error (<think> .. </think> is not valid JSON)
+            # TODO: Strip <think> output before parsing in langchain_huggingface/chat_models/huggingface.py
+            system_message = "/no_think\n" + system_message
+        # Combine conversation messages
         conversation_messages = [
             message
             for message in state["messages"]
-            if message.type in ("human", "system")
+            if message.type == "human"
             or (message.type == "ai" and not message.tool_calls)
         ]
-        prompt = [SystemMessage(system_message_with_context)] + conversation_messages
+        # Format system and conversation messages into prompt
+        prompt = [SystemMessage(system_message)] + conversation_messages
 
         ## Run the "naked" chat model (keep this here for testing)
-        if chat_model.model_id == "HuggingFaceTB/SmolLM3-3B":
-            # Currently SmolLM3 isn't setup for structured output
-            messages = chat_model.invoke(prompt)
-            return {"messages": messages, "context": context}
-        else:
-            # Run the chat model with structured output
+        # messages = chat_model.invoke(prompt)
+        # return {"messages": messages, "context": context}
+
+        # Setup the chat model for structured output
+        if hasattr(chat_model, "model_id"):
+            # Our system prompt has instructions for formatting the output into the desired schema, so we use json_mode
             structured_chat_model = chat_model.with_structured_output(
-                ResponseWithSources
+                AnswerWithSources, method="json_mode"
             )
-            response = structured_chat_model.invoke(prompt)
-            # Add the answer to the state as an AIMessage
-            message = AIMessage(response["answer"])
-            return {
-                "messages": message,
-                "context": context,
-                "sources": response["sources"],
-            }
+        else:
+            structured_chat_model = chat_model.with_structured_output(AnswerWithSources)
+
+        response = structured_chat_model.invoke(prompt)
+
+        # Add the answer to the state as an AIMessage
+        print(response)
+        answer = response["answer"]
+        return {
+            "messages": AIMessage(answer),
+            "answer": answer,
+            "context": context,
+            "senders": response["senders"],
+        }
 
     # Initialize a graph object
     graph_builder = StateGraph(MessagesState)

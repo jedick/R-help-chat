@@ -21,7 +21,7 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sources (sender and date) for each answer
 - Options for remote or local processing to balance performance, price, and privacy
     - Remote processing: OpenAI API for embedding and LLM
-    - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [Gemma](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) LLM
+    - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
 
 ## Usage
 
@@ -104,4 +104,4 @@ For a fair comparison, all search types retrieve up to 6 emails that are passed 
 This project wouldn't be what it is without these awesome codes. Thank you!
 
 - The BM25S retriever code (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is used to add LangChain-compatible tooling to a local Hugging Face model (here, [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B))
+- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is used to add LangChain-compatible tooling to a local Hugging Face model
