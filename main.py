@@ -16,9 +16,9 @@ from langchain_openai import ChatOpenAI
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 
 # Local modules
-from process_file import ProcessFile
-from build_retriever import BuildRetriever, GetRetrieverParam
-from build_graph import BuildGraph
+from index import ProcessFile
+from retriever import BuildRetriever, GetRetrieverParam
+from graph import BuildGraph
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29

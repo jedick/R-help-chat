@@ -2,7 +2,7 @@ import sys
 import os
 import csv
 from main import RunChain, RunGraph, compute_location
-from build_retriever import BuildRetriever
+from retriever import BuildRetriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
 from ragas.metrics import (
@@ -78,7 +78,7 @@ def main():
     app_type = args.app_type
     search_type = args.search_type
 
-    queries, references = load_queries_and_references("rag_answers.csv")
+    queries, references = load_queries_and_references("eval.csv")
     dataset = build_eval_dataset(queries, references, app_type, search_type)
     evaluation_dataset = EvaluationDataset.from_list(dataset)
 

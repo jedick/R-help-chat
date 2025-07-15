@@ -5,8 +5,7 @@ import tempfile
 import os
 
 # Local modules
-from bm25s_retriever import BM25SRetriever
-from build_retriever import BuildRetriever, GetRetrieverParam
+from retriever import BuildRetriever, GetRetrieverParam, BM25SRetriever
 
 
 def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "cloud"):

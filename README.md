@@ -36,6 +36,7 @@ Domain-specific features for mailing list chatbots, like providing source citati
         - Current implementation has relatively low groundedness and accuracy scores
 
 Planned features:
+
 - Memory for graph app (multi-turn chat)
 - Deployment on Hugging Face Spaces
 - Automatic daily updates
@@ -102,7 +103,7 @@ To run evals:
 - Set `search_type` to dense, sparse, sparse\_rr, hybrid, or hybrid\_rr
 
 ```sh
-python rag_eval.py --app_type graph --search_type hybrid_rr
+python eval.py --app_type graph --search_type hybrid_rr
 ```
 
 ## Evaluations
@@ -113,7 +114,7 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for queries and reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025):
+Results for queries and reference answers in `eval.csv` with retrieval from six months of the R-help archives (January-June 2025):
 
 | Compute | App | Search type | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|-|
@@ -132,5 +133,5 @@ For a fair comparison of different search types, each one retrieves up to 6 emai
 
 This project wouldn't be what it is without these awesome codes. Thank you!
 
-- The BM25S retriever code (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is used to add LangChain-compatible tooling to local Hugging Face models
+- The retriever for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
+- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is imported to add LangChain-compatible tooling to local Hugging Face models
