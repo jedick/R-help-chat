@@ -16,3 +16,5 @@ ragas
 # temporary fix for ChromaDB telemetry error log messages
 # https://github.com/vanna-ai/vanna/issues/917
 posthog<6.0.0
+# Gradio for the web interface
+gradio>=4.0.0

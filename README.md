@@ -41,6 +41,17 @@ Planned features:
 - Automatic daily updates
 - Post-deployment monitoring (model performance and data drift)
 
+## Web Interface
+
+A Gradio web interface is available for easy interaction with the chatbot:
+
+```sh
+python app.py
+```
+
+This launches a web interface at `http://localhost:7860`.
+The interactive chat interface comes with example questions and allows choosing remote or local processing, chain or graph app, and the retrieval strategy.
+
 ## Usage
 
 Setup:
@@ -67,7 +78,7 @@ RunChain("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
-Use the graph app to get the context and cited sources.
+Use the graph app to allow the chat model (i.e., LLM) to rewrite your query for retrieval and to return the retrieved emails and cited sources.
 In this example, the chat model cited 3 out of 5 emails retrieved as context for the query.
 
 ```python
@@ -96,7 +107,7 @@ python rag_eval.py --app_type graph --search_type hybrid_rr
 
 ## Evaluations
 
-Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/) for details):
+Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/) for details) with OpenAI's `gpt-4o-mini` as the judge:
 
 - **Context relevance:** degree to which retrieved context is relevant to the user query
 - **Response groundedness:** how well a response is supported by the retrieved context
@@ -106,22 +117,20 @@ Results for queries and reference answers in `rag_answers.csv` with retrieval fr
 
 | Processing | App | Search type | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|-|
-| Remote | Chain | `hybrid`    | 0.69     | 0.52     | **0.75** |
 | Remote | Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
 | Remote | Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
-| Remote | Graph | `hybrid_rr` | 0.75     | **0.79** | 0.73     |
-| Local  | Graph | `hybrid`    | 0.64     | 0.54     | 0.31     |
+| Remote | Graph | `hybrid_rr` | 0.75     | **0.79** | **0.73** |
 | Local  | Graph | `hybrid_rr` | 0.80     | 0.39     | 0.27     |
 
-For a fair comparison, all search types retrieve up to 6 emails that are passed to the chat model:
+For a fair comparison of different search types, each one retrieves up to 6 emails:
 
+- `dense`, `sparse`, or `sparse_rr` (sparse search with reranking) (6)
 - `hybrid` = `dense` + `sparse` (3 + 3)
 - `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
-  - `sparse_rr` is sparse search with reranking
 
 ## Acknowledgments
 
 This project wouldn't be what it is without these awesome codes. Thank you!
 
 - The BM25S retriever code (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is used to add LangChain-compatible tooling to a local Hugging Face model
+- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is used to add LangChain-compatible tooling to local Hugging Face models

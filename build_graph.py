@@ -9,6 +9,12 @@ from tool_calling_llm import ToolCallingLLM
 from dotenv import load_dotenv
 import os
 
+## For tracing
+# os.environ["LANGSMITH_TRACING"] = "true"
+# os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
+## For LANGCHAIN_API_KEY
+# load_dotenv(dotenv_path=".env", override=True)
+
 
 def ToolifySmolLM3(chat_model, system_message_start, think=False):
     """
@@ -75,12 +81,6 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         https://python.langchain.com/docs/tutorials/qa_chat_history
         https://python.langchain.com/docs/how_to/qa_sources
     """
-
-    # For tracing
-    os.environ["LANGSMITH_TRACING"] = "true"
-    os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
-    # For LANGCHAIN_API_KEY
-    load_dotenv(dotenv_path=".env", override=True)
 
     # Define start of system message, used in both respond_or_retrieve and generate
     system_message_start = (

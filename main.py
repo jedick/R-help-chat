@@ -24,8 +24,8 @@ from build_graph import BuildGraph
 # First version by Jeffrey Dick on 2025-06-29
 
 # Embedding and Chat APIs (remote or local)
-embedding_type = "local"
-chat_type = "local"
+embedding_type = "remote"
+chat_type = "remote"
 
 # Don't try to use local models without a GPU
 if not torch.cuda.is_available() and (
