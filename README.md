@@ -7,8 +7,8 @@ General-purpose AI tools like ChatGPT have knowledge of public mailing lists.
 However, list users could benefit from more focused AI-powered search and chat with up-to-date list indexing.
 
 R-help-chat is a chatbot for the R-help archives.
-This project develops an end-to-end workflow including data processing, multiple retrieval methods, conversational chat, evaluation, and deployment and monitoring.
-Domain-specific requirements for mailing list chats, like source citations and whole emails for chat context, are also included.
+This project develops an end-to-end workflow including data processing, multiple retrieval methods, conversational chat, evaluation, deployment, and monitoring.
+Domain-specific features for mailing list chatbots, like providing source citations and retrieving whole emails for context, are also included.
 
 ## Features
 
@@ -30,9 +30,9 @@ Domain-specific requirements for mailing list chats, like source citations and w
 - Tool calling and citations (with graph app)
     - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for retrieval function
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sender and date for each answer
-- Options for remote or local processing to balance performance, price, and privacy
-    - Remote processing: OpenAI API for embedding and chat model
-    - Local processing (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
+- Options for cloud or edge computing to balance performance, price, and privacy
+    - Cloud (remote) models: OpenAI API for embeddings and chat model
+    - Edge (local) models (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
         - Current implementation has relatively low groundedness and accuracy scores
 
 Planned features:
@@ -49,17 +49,17 @@ A Gradio web interface is available for easy interaction with the chatbot:
 python app.py
 ```
 
-This launches a web interface at `http://localhost:7860`.
-The interactive chat interface comes with example questions and allows choosing remote or local processing, chain or graph app, and the retrieval strategy.
+This launches an interactive chat interface in a web browser.
+The interface comes with example questions and allows choosing cloud or edge processing, chain or graph app, and the retrieval strategy.
 
-## Usage
+## Command-Line Usage
 
 Setup:
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
-- Choose remote or local processing with the `embedding_type` and `chat_type` variables in `main.py`
-- If using remote processing, set your `OPENAI_API_KEY` environment variable
+- Choose cloud or edge models with the `compute_location` variable in `main.py`
+- If using cloud processing, set your `OPENAI_API_KEY` environment variable
 
 Run this Python code to create the vector database:
 
@@ -115,12 +115,12 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 
 Results for queries and reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025):
 
-| Processing | App | Search type | Relevance | Groundedness | Accuracy |
+| Compute | App | Search type | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|-|
-| Remote | Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
-| Remote | Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
-| Remote | Graph | `hybrid_rr` | 0.75     | **0.79** | **0.73** |
-| Local  | Graph | `hybrid_rr` | 0.80     | 0.39     | 0.27     |
+| Cloud | Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
+| Cloud | Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
+| Cloud | Graph | `hybrid_rr` | 0.75     | **0.79** | **0.73** |
+| Edge  | Graph | `hybrid_rr` | 0.80     | 0.39     | 0.27     |
 
 For a fair comparison of different search types, each one retrieves up to 6 emails:
 

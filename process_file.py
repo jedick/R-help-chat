@@ -9,14 +9,14 @@ from bm25s_retriever import BM25SRetriever
 from build_retriever import BuildRetriever, GetRetrieverParam
 
 
-def ProcessFile(file_path, search_type: str = "dense", embedding_type: str = "local"):
+def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "cloud"):
     """
     Wrapper function to process file for dense or sparse search
 
     Args:
-        file_path: file to process
+        file_path: File to process
         search_type: Type of search to use. Options: "dense", "sparse"
-        embedding_type: Type of embedding API (remote or local)
+        compute_location: Compute location for embeddings (cloud or edge)
     """
 
     # Preprocess: remove quoted lines and handle email boundaries
@@ -58,7 +58,7 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_type: str = "lo
             ProcessFileSparse(cleaned_temp_file, file_path)
         elif search_type == "dense":
             # Handle dense search with ChromaDB
-            ProcessFileDense(cleaned_temp_file, file_path, embedding_type)
+            ProcessFileDense(cleaned_temp_file, file_path, compute_location)
         else:
             raise ValueError(f"Unsupported search type: {search_type}")
     finally:
@@ -69,12 +69,12 @@ def ProcessFile(file_path, search_type: str = "dense", embedding_type: str = "lo
             pass
 
 
-def ProcessFileDense(cleaned_temp_file, file_path, embedding_type):
+def ProcessFileDense(cleaned_temp_file, file_path, compute_location):
     """
     Process file for dense vector search using ChromaDB
     """
     # Get a retriever instance
-    retriever = BuildRetriever("dense", embedding_type)
+    retriever = BuildRetriever("dense", compute_location)
     # Load cleaned text file
     loader = TextLoader(cleaned_temp_file)
     documents = loader.load()
@@ -112,7 +112,8 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
     # Create or update BM25 index
     try:
         # Update BM25 index if it exists
-        bm25_persist_directory = GetRetrieverParam("bm25_persist_directory")
+        db_dir = GetRetrieverParam("db_dir")
+        bm25_persist_directory = f"{db_dir}/bm25"
         retriever = BM25SRetriever.from_persisted_directory(bm25_persist_directory)
         # Get new emails - ones which have not been indexed
         new_emails = [email for email in emails if email not in retriever.docs]

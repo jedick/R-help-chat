@@ -8,12 +8,13 @@ from langchain_huggingface import ChatHuggingFace
 from tool_calling_llm import ToolCallingLLM
 from dotenv import load_dotenv
 import os
+import warnings
 
-## For tracing
-# os.environ["LANGSMITH_TRACING"] = "true"
-# os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
-## For LANGCHAIN_API_KEY
-# load_dotenv(dotenv_path=".env", override=True)
+# For tracing
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
+# For LANGCHAIN_API_KEY
+load_dotenv(dotenv_path=".env", override=True)
 
 
 def ToolifySmolLM3(chat_model, system_message_start, think=False):
@@ -87,13 +88,13 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         "You are a helpful RAG chatbot designed to answer questions about R programming. "
         "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
         "Summarize the retrieved emails to give an answer. "
-        "To answer 'X or Y?', retrieve emails about X and Y to support your answer. "
+        "For a question about differences or comparison between X and Y, retrieve emails about X and Y to support your answer. "
         "Tell the user if you are unable to answer the question based on the information in the emails. "
         "It is more helpful to say that there is not enough information than to respond with your own ideas or suggestions. "
         "Do not give an answer based on your own knowledge or memory. "
         "For example, a question about macros should not be answered with 'knitr' and 'markdown' if those packages aren't described in the retrieved emails. "
         "Respond with 200 words maximum and 20 lines of code maximum. "
-        "Cite the sender's name and date taken from the email headers. "
+        "Your structured response should include an answer to the question with sources used, if any. "
     )
 
     # Define retrieval tool
@@ -126,8 +127,8 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         answer: str
         # Add a context key to the state to store retrieved documents
         context: List[Document]
-        # Add a senders key that contains the cited senders
-        senders: List[str]
+        # Add a sources key that contains the cited sources
+        sources: List[str]
 
     # Define response or retrieval step (entry point)
     # NOTE: This has to be ChatMessagesState, not MessagesState, to access step["context"]
@@ -153,13 +154,13 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
 
     # Desired schema for response
     class AnswerWithSources(TypedDict):
-        """An answer to the question, with senders."""
+        """An answer to the question with sources used."""
 
         answer: str
-        senders: Annotated[
+        sources: Annotated[
             List[str],
             ...,
-            "Senders of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31",
+            "Senders and dates of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31",
         ]
 
     # Define generation step
@@ -190,7 +191,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
 
             {
               "answer": <An answer to the question>,
-              "senders": <Senders of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31>
+              "sources": <Senders and dates of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31>
             }
 
             ### Retrieved Emails:
@@ -229,12 +230,17 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             response = structured_chat_model.invoke(prompt)
             # Add the answer to the state as an AIMessage
             answer = response["answer"]
-            return {
+            result = {
                 "messages": AIMessage(answer),
                 "answer": answer,
                 "context": context,
-                "senders": response["senders"],
             }
+            # Sometimes OpenAI API returns an answer without sources, so test that it's present
+            if "sources" in response:
+                result["sources"] = response["sources"]
+            else:
+                warnings.warn("No sources in response.")
+            return result
 
     # Initialize a graph object
     graph_builder = StateGraph(MessagesState)

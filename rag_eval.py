@@ -1,7 +1,7 @@
 import sys
 import os
 import csv
-from main import RunChain, RunGraph, embedding_type, chat_type
+from main import RunChain, RunGraph, compute_location
 from build_retriever import BuildRetriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
@@ -38,15 +38,13 @@ def build_eval_dataset(queries, references, app_type, search_type):
     dataset = []
     for query, reference in zip(queries, references):
         if app_type == "chain":
-            response = RunChain(query, search_type=search_type)
+            response = RunChain(query, compute_location, search_type)
             # Retrieve context documents for a query
-            retriever = BuildRetriever(
-                search_type=search_type, embedding_type=embedding_type
-            )
+            retriever = BuildRetriever(compute_location, search_type)
             docs = retriever.invoke(query)
             retrieved_contexts = [doc.page_content for doc in docs]
         if app_type == "graph":
-            result = RunGraph(query, search_type=search_type)
+            result = RunGraph(query, compute_location, search_type)
             retrieved_contexts = [doc.page_content for doc in result["context"]]
             response = result["messages"][-1].content
         dataset.append(
@@ -91,12 +89,6 @@ def main():
     # Evaluate
     result = evaluate(
         dataset=evaluation_dataset,
-        # metrics=[
-        #    LLMContextPrecisionWithReference(),
-        #    ContextRecall(),
-        #    Faithfulness(),
-        #    FactualCorrectness(),
-        # ],
         # NVIDIA metrics
         metrics=[ContextRelevance(), ResponseGroundedness(), AnswerAccuracy()],
         llm=evaluator_llm,

@@ -9,10 +9,10 @@ import glob
 import torch
 import logging
 
-# To use OpenAI models (remote)
+# To use OpenAI models (cloud)
 from langchain_openai import ChatOpenAI
 
-# To use Hugging Face models (local)
+# To use Hugging Face models (edge)
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 
 # Local modules
@@ -23,16 +23,6 @@ from build_graph import BuildGraph
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
 
-# Embedding and Chat APIs (remote or local)
-embedding_type = "remote"
-chat_type = "remote"
-
-# Don't try to use local models without a GPU
-if not torch.cuda.is_available() and (
-    embedding_type == "local" or chat_type == "local"
-):
-    raise Exception("Local model selected without GPU")
-
 # Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
@@ -41,27 +31,30 @@ httpx_logger = logging.getLogger("httpx")
 httpx_logger.setLevel(logging.WARNING)
 
 
-def ProcessDirectory(path):
+def ProcessDirectory(path, compute_location):
     """
     Update vector store and sparse index for files in a directory, only adding new or updated files
-    "path": directory to process
+
+    Args:
+        path: Directory to process
+        compute_location: Compute location for embeddings (cloud or edge)
 
     Usage example:
-    ProcessDirectory("R-help")
+        ProcessDirectory("R-help", "cloud")
     """
 
     # TODO: use UUID to process only changed documents
     # https://stackoverflow.com/questions/76265631/chromadb-add-single-document-only-if-it-doesnt-exist
 
     # Get a dense retriever instance
-    retriever = BuildRetriever("dense", embedding_type)
+    retriever = BuildRetriever(compute_location, "dense")
 
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     for file_path in file_paths:
 
         # Process file for sparse search (BM25S)
-        ProcessFile(file_path, "sparse", embedding_type)
+        ProcessFile(file_path, "sparse", compute_location)
 
         # Logic for dense search: skip file if already indexed
         # Look for existing embeddings for this file
@@ -91,7 +84,7 @@ def ProcessDirectory(path):
                 update_file = True
 
         if add_file:
-            ProcessFile(file_path, "dense", embedding_type)
+            ProcessFile(file_path, "dense", compute_location)
 
         if update_file:
             print(f"Chroma: updated embeddings for {file_path}")
@@ -115,19 +108,23 @@ def ProcessDirectory(path):
             print(f"Chroma: no change for {file_path}")
 
 
-def GetChatModel(chat_type):
+def GetChatModel(compute_location):
     """
     Get a chat model.
 
     Args:
-        chat_type: Type of chat API (remote or local)
+        compute_location: Compute location for chat model (cloud or edge)
     """
 
-    if chat_type == "remote":
+    if compute_location == "cloud":
 
         chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
-    if chat_type == "local":
+    if compute_location == "edge":
+
+        # Don't try to use edge models without a GPU
+        if compute_location == "edge" and not torch.cuda.is_available():
+            raise Exception("Edge chat model selected without GPU")
 
         # Define the pipeline to pass to the HuggingFacePipeline class
         # https://huggingface.co/blog/langchain
@@ -156,25 +153,27 @@ def GetChatModel(chat_type):
     return chat_model
 
 
-def RunChain(query, search_type: str = "hybrid_rr", chat_type=chat_type):
+def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid_rr"):
     """
     Run chain to retrieve documents and send to chat
 
     Args:
+        query: User's query
+        compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
-        chat_type: Type of chat API (remote or local)
 
-    Example: RunChain("What R functions are discussed?")
+    Example:
+        RunChain("What R functions are discussed?")
     """
 
     # Get retriever instance
-    retriever = BuildRetriever(search_type, embedding_type)
+    retriever = BuildRetriever(compute_location, search_type)
 
     if retriever is None:
         return "No retriever available. Please process some documents first."
 
     # Get chat model (LLM)
-    chat_model = GetChatModel(chat_type)
+    chat_model = GetChatModel(compute_location)
 
     # Create a prompt template
     prompt = ChatPromptTemplate.from_template(
@@ -200,8 +199,8 @@ def RunChain(query, search_type: str = "hybrid_rr", chat_type=chat_type):
 
 def RunGraph(
     query: str,
+    compute_location="cloud",
     search_type: str = "hybrid_rr",
-    chat_type=chat_type,
     think_retrieve=False,
     think_generate=False,
     thread_id=None,
@@ -210,8 +209,8 @@ def RunGraph(
 
     Args:
         query: User query to start the chat
+        compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
-        chat_type: Type of chat API (remote or local)
         think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
         think_generate: Whether to use thinking mode for generation
         thread_id: Thread ID for memory (optional)
@@ -221,9 +220,9 @@ def RunGraph(
     """
 
     # Get retriever instance
-    retriever = BuildRetriever(search_type, embedding_type)
+    retriever = BuildRetriever(compute_location, search_type)
     # Get chat model used in both respond_or_retrieve and generate steps
-    chat_model = GetChatModel(chat_type)
+    chat_model = GetChatModel(compute_location)
     # Build the graph
     graph_builder = BuildGraph(
         retriever=retriever,

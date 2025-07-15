@@ -1,19 +1,19 @@
-langchain
-langchain-community
-langchain-chroma
-langchain-huggingface
-langgraph
-# revdep of langchain-huggingface
-sentence-transformers
-# revdep of Nomic embeddings
-einops
-# revdep of SmolLM3
+langchain>=0.3.25,<1.0
+langchain-community>=0.3.24,<1.0
+langchain-chroma==0.2.4
+langchain-huggingface==0.3.0
+langgraph>=0.4.7,<0.6
+# Required by langchain-huggingface
+sentence-transformers>=4.1.0
+# Required by Nomic embeddings
+einops==0.8.1
+# Required by SmolLM3
 transfomers>=4.53
-tool-calling-llm
-bm25s
+tool-calling-llm==0.1.2
+bm25s==0.2.12
 flashrank
-ragas
-# temporary fix for ChromaDB telemetry error log messages
+ragas==0.2.15
+# Temporary fix for ChromaDB telemetry error log messages
 # https://github.com/vanna-ai/vanna/issues/917
 posthog<6.0.0
 # Gradio for the web interface
