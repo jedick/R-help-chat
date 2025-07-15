@@ -1,9 +1,20 @@
 # R-help-chat
 
-Chat with R-help archives using an LLM. A complete RAG solution built with [LangChain](https://github.com/langchain-ai/langchain).
+Mailing list subscribers often need a search facility to pull up old messages related to a topic of interest.
+The R-help mailing list is no exception.
+[The R-help Archives](https://stat.ethz.ch/pipermail/r-help/) are publicly available, but search tools are limited and inconsistently maintained (see the [R-help info page](https://stat.ethz.ch/mailman/listinfo/r-help)).
+General-purpose AI tools like ChatGPT have knowledge of public mailing lists.
+However, list users could benefit from more focused AI-powered search and chat with up-to-date list indexing.
+
+R-help-chat is a chatbot for the R-help archives.
+This project develops an end-to-end workflow including data processing, multiple retrieval methods, conversational chat, evaluation, and deployment and monitoring.
+Domain-specific requirements for mailing list chats, like source citations and whole emails for chat context, are also included.
 
 ## Features
 
+- Complete retrieval-augmented generation (RAG) solution built with [LangChain](https://github.com/langchain-ai/langchain)
+    - Chain app for simple retrieval and chat sequence
+    - Graph app for conversational chat
 - Data preprocesssing for email messages
     - Removes quoted lines (starting with ">") for faster indexing and retrieval
 - Efficient handling for incremental data updates
@@ -16,12 +27,19 @@ Chat with R-help archives using an LLM. A complete RAG solution built with [Lang
 - Full-context retrieval
     - Each retrieval method provides whole emails (parent documents) for context
     - Dense embedding uses small chunks (child documents) to capture semantic meaning
-- Tool calling and citations with graph app
+- Tool calling and citations (with graph app)
     - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for retrieval function
-    - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sources (sender and date) for each answer
+    - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sender and date for each answer
 - Options for remote or local processing to balance performance, price, and privacy
-    - Remote processing: OpenAI API for embedding and LLM
-    - Local processing: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
+    - Remote processing: OpenAI API for embedding and chat model
+    - Local processing (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
+        - Current implementation has relatively low groundedness and accuracy scores
+
+Planned features:
+- Memory for graph app (multi-turn chat)
+- Deployment on Hugging Face Spaces
+- Automatic daily updates
+- Post-deployment monitoring (model performance and data drift)
 
 ## Usage
 
@@ -84,16 +102,18 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for queries and reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025) using remote processing (OpenAI API):
+Results for queries and reference answers in `rag_answers.csv` with retrieval from six months of the R-help archives (January-June 2025):
 
-| App | Search type | Relevance | Groundedness | Accuracy |
-|-|-|-|-|-|
-| Chain | `hybrid`    | 0.69     | 0.52     | **0.75** |
-| Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
-| Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
-| Graph | `hybrid_rr` | 0.75     | **0.79** | 0.73     |
+| Processing | App | Search type | Relevance | Groundedness | Accuracy |
+|-|-|-|-|-|-|
+| Remote | Chain | `hybrid`    | 0.69     | 0.52     | **0.75** |
+| Remote | Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
+| Remote | Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
+| Remote | Graph | `hybrid_rr` | 0.75     | **0.79** | 0.73     |
+| Local  | Graph | `hybrid`    | 0.64     | 0.54     | 0.31     |
+| Local  | Graph | `hybrid_rr` | 0.80     | 0.39     | 0.27     |
 
-For a fair comparison, all search types retrieve up to 6 emails that are passed to the LLM:
+For a fair comparison, all search types retrieve up to 6 emails that are passed to the chat model:
 
 - `hybrid` = `dense` + `sparse` (3 + 3)
 - `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)

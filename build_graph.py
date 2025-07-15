@@ -6,6 +6,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import List, Annotated, TypedDict
 from langchain_huggingface import ChatHuggingFace
 from tool_calling_llm import ToolCallingLLM
+from dotenv import load_dotenv
+import os
 
 
 def ToolifySmolLM3(chat_model, system_message_start, think=False):
@@ -75,10 +77,10 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     """
 
     # For tracing
-    # os.environ["LANGSMITH_TRACING"] = "true"
-    # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
     # For LANGCHAIN_API_KEY
-    # load_dotenv(dotenv_path=".env", override=True)
+    load_dotenv(dotenv_path=".env", override=True)
 
     # Define start of system message, used in both respond_or_retrieve and generate
     system_message_start = (

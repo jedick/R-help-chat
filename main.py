@@ -3,7 +3,6 @@ from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.checkpoint.memory import MemorySaver
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from dotenv import load_dotenv
 from datetime import datetime
 import os
 import glob
@@ -24,10 +23,9 @@ from build_graph import BuildGraph
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
 
-# Embedding API (remote or local)
-embedding_type = "remote"
-# Chat API (remote or remote)
-chat_type = "remote"
+# Embedding and Chat APIs (remote or local)
+embedding_type = "local"
+chat_type = "local"
 
 # Don't try to use local models without a GPU
 if not torch.cuda.is_available() and (
