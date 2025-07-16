@@ -153,14 +153,14 @@ def GetChatModel(compute_location):
     return chat_model
 
 
-def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid_rr"):
+def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"):
     """
     Run chain to retrieve documents and send to chat
 
     Args:
         query: User's query
         compute_location: Compute location for embedding and chat models (cloud or edge)
-        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
+        search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
 
     Example:
         RunChain("What R functions are discussed?")
@@ -199,7 +199,7 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid_
 
 def GetGraphAndConfig(
     compute_location="cloud",
-    search_type: str = "hybrid_rr",
+    search_type: str = "hybrid",
     think_retrieve=False,
     think_generate=False,
     thread_id=None,
@@ -208,7 +208,7 @@ def GetGraphAndConfig(
 
     Args:
         compute_location: Compute location for embedding and chat models (cloud or edge)
-        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
+        search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
         think_generate: Whether to use thinking mode for generation
         thread_id: Thread ID for memory (optional)
@@ -272,3 +272,14 @@ def RunGraph(
             step["messages"][-1].pretty_print()
 
     return step
+
+
+def ListSources(compute_location):
+
+    # Get retriever instance
+    retriever = BuildRetriever(compute_location, "dense")
+    # Get the generator for documents
+    get = retriever.vectorstore.get()
+    # Return the unique source names, e.g. 'R-help/2024-April.txt', 'R-help/2024-August.txt', etc.
+    sources = set([d["source"] for d in get["metadatas"]])
+    return sources

@@ -13,8 +13,6 @@ from langchain_community.document_loaders import TextLoader
 from langchain_chroma import Chroma
 from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain.storage.file_system import LocalFileStore
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain_community.document_compressors import FlashrankRerank
 from flashrank import Ranker
 import chromadb
 import torch
@@ -43,15 +41,15 @@ def GetRetrieverParam(param_name: str):
     return globals()[param_name]
 
 
-def BuildRetriever(compute_location, search_type: str = "hybrid_rr", top_k=6):
+def BuildRetriever(compute_location, search_type: str = "hybrid", top_k=6):
     """
     Build retriever instance.
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
         compute_location: Compute location for embeddings (cloud or edge)
-        search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
-        top_k: Number of documents to retrieve for "dense", "sparse", and "sparse_rr"
+        search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
+        top_k: Number of documents to retrieve for "dense" and "sparse"
     """
     if search_type == "dense":
         return BuildRetrieverDense(compute_location, top_k)
@@ -59,36 +57,14 @@ def BuildRetriever(compute_location, search_type: str = "hybrid_rr", top_k=6):
         # This gets top_k documents
         sparse_retriever = BuildRetrieverSparse(top_k)
         return sparse_retriever
-    if search_type == "sparse_rr":
-        # Start with 10 documents
-        sparse_retriever = BuildRetrieverSparse(10)
-        # Reranking
-        client = Ranker(model_name="ms-marco-MultiBERT-L-12", max_length=10000)
-        # Keep top_k documents
-        compressor = FlashrankRerank(client=client, top_n=top_k)
-        compression_retriever = ContextualCompressionRetriever(
-            base_compressor=compressor, base_retriever=sparse_retriever
-        )
-        return compression_retriever
     elif search_type == "hybrid":
         # Hybrid search (dense + sparse) - use ensemble method
         # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
-        # Combine 2 retrievers with 3 docs each (6 docs - fair comparison with hybrid_rr search)
+        # Combine 2 retrievers with 3 docs each
         dense_retriever = BuildRetriever(compute_location, "dense", top_k=3)
         sparse_retriever = BuildRetriever(compute_location, "sparse", top_k=3)
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
-        )
-        return ensemble_retriever
-    elif search_type == "hybrid_rr":
-        # Hybrid search (dense + sparse + sparse_rr)
-        # Combine 3 retrievers with 2 docs each (6 docs - fair comparison with hybrid search)
-        sparse_retriever = BuildRetriever(compute_location, "sparse", top_k=2)
-        sparse_rr_retriever = BuildRetriever(compute_location, "sparse_rr", top_k=2)
-        dense_retriever = BuildRetriever(compute_location, "dense", top_k=2)
-        ensemble_retriever = EnsembleRetriever(
-            retrievers=[dense_retriever, sparse_retriever, sparse_rr_retriever],
-            weights=[1, 1, 1],
         )
         return ensemble_retriever
     else:

@@ -1,6 +1,8 @@
 import gradio as gr
 from main import GetGraphAndConfig
 import asyncio
+import torch
+from util import list_sources, get_start_end_months
 
 
 def get_graph_and_config(compute_location, search_type):
@@ -13,12 +15,8 @@ graph = None
 config = None
 
 
-def set_graph_config(compute_location, search_type, reranking):
+def set_graph_config(compute_location, search_type):
     """Helper to set the graph and config in the app"""
-
-    # Add _rr to search type for reranking
-    if reranking and not search_type == "dense":
-        search_type = search_type + "_rr"
 
     global graph, config
     graph, config = get_graph_and_config(compute_location, search_type)
@@ -26,23 +24,18 @@ def set_graph_config(compute_location, search_type, reranking):
     # global COMPUTE, SEARCH
     # if not search_type == SEARCH:
     #    SEARCH = search_type
-    message = "hello"
-    if search_type in ["dense", "sparse", "sparse_rr"]:
+    if search_type in ["dense", "sparse"]:
         message = f"{search_type}: up to 6 emails"
     elif search_type == "hybrid":
         message = "hybrid (dense + sparse): up to 3+3 emails"
-    elif search_type == "hybrid_rr":
-        message = "hybrid_rr (dense + sparse + sparse_rr): up to 2+2+2 emails"
     gr.Success(message, duration=4, title=f"Set search type!")
 
 
-async def interact_with_langchain_agent(
-    query, messages, compute_location, search_type, reranking
-):
+async def interact_with_langchain_agent(query, messages, compute_location, search_type):
 
     # Set initial graph/config
     if graph == None:
-        set_graph_config(compute_location, search_type, reranking)
+        set_graph_config(compute_location, search_type)
 
     # This shows the user query as a chatbot message
     messages.append(gr.ChatMessage(role="user", content=query))
@@ -113,6 +106,35 @@ font = ["ui-sans-serif", "system-ui", "sans-serif"]
 
 with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
 
+    # Define components before rendering them
+    compute_location = gr.Radio(
+        choices=[
+            "cloud",
+            "edge" if torch.cuda.is_available() else "edge (not available)",
+        ],
+        value="cloud",
+        label="Compute Location",
+        interactive=torch.cuda.is_available(),
+        render=False,
+    )
+    search_type = gr.Radio(
+        choices=["dense", "sparse", "hybrid"],
+        value="hybrid",
+        label="Search Type",
+        render=False,
+    )
+    query = gr.Textbox(
+        lines=1,
+        label="Your Question",
+        info="Press Enter to submit",
+        render=False,
+    )
+    help = gr.Checkbox(
+        value=False,
+        label="❓ Help",
+        render=False,
+    )
+
     # Make the interface
     gr.Markdown(
         """
@@ -122,35 +144,24 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
     """
     )
 
-    # Define the query textbox here (to be used by examples), but render it below
-    query = gr.Textbox(
-        lines=1, label="Your Question", info="Press Enter to submit", render=False
-    )
-
     with gr.Row():
-        with gr.Column():
-            compute_location = gr.Radio(
-                choices=["cloud", "edge"],
-                value="cloud",
-                label="Compute Location",
-            )
-        with gr.Column():
-            search_type = gr.Radio(
-                choices=["dense", "sparse", "hybrid"],
-                value="hybrid",
-                label="Search Type",
-            )
-            reranking = gr.Checkbox(
-                value=True,
-                label="reranking",
-            )
-        with gr.Column():
-            moreinfo = gr.Checkbox(
-                value=False,
-                label="More Info",
-            )
+        with gr.Column(scale=2):
+            query.render()
+        with gr.Column(scale=1):
+            with gr.Accordion("⚙️ Settings", open=False):
+                compute_location.render()
+                search_type.render()
+            help.render()
             ## Add a clear button
             # gr.Button("Clear Chat").click(clear_all, None, [chatbot, query, citations, emails])
+
+    with gr.Row():
+
+        with gr.Column(scale=2):
+            # The chatbot interface
+            chatbot = gr.Chatbot(type="messages", show_label=False)
+
+        with gr.Column(scale=1, visible=False) as about:
             # Add some helpful examples
             with gr.Accordion(
                 "💡 Example Questions", open=True, visible=False
@@ -168,24 +179,19 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
                     label="Click an example to fill the question box",
                     elem_id="example-questions",
                 )
-
-    with gr.Row():
-
-        with gr.Column(scale=2):
-            # The chatbot interface
-            chatbot = gr.Chatbot(type="messages", show_label=False)
-
-        with gr.Column(scale=1, visible=False) as about:
             # Add information about the system
             with gr.Accordion("ℹ️ About This System", open=True):
+
+                # Get start and end months from database
+                start, end = get_start_end_months(list_sources(compute_location.value))
                 gr.Markdown(
-                    """
-                    **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/),
-                    providing AI-powered answers to R programming questions.
-                    For technical details, see the [R-help-chat](https://github.com/jedick/R-help-chat) GitHub repo.
+                    f"""
+                    **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
+                    Current coverage is from {start} to {end}.
+                    For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
                     
                     **Features:**
-                    - **Tool usage**: LLM Rewrites your query for search
+                    - **Tool usage**: LLM rewrites your query for search
                     - **Hybrid retrieval**: Combines dense and sparse search
                     - **Chat generation**: Answers based on retrieved emails
                     - **Source citations**: Provides citations to emails
@@ -197,27 +203,23 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
                     **Search Types:**
                     - **dense**: Vector embeddings (semantic similarity)
                     - **sparse**: Keyword search (good for function names)
-                    - **sparse_rr**: Sparse with reranking
                     - **hybrid**: Combination of dense and sparse
-                    - **hybrid_rr**: Hybrid with reranking for sparse
                     """
                 )
 
     with gr.Row():
-        with gr.Column():
-            query.render()
+        with gr.Column(scale=2):
+            emails = gr.Textbox(label="Retrieved Emails", lines=2, visible=False)
         with gr.Column(visible=False) as citations_column:
-            citations = gr.Textbox(label="Citations")
-    with gr.Row():
-        emails = gr.Textbox(label="Retrieved Emails", visible=False)
+            citations = gr.Textbox(label="Citations", lines=2)
 
     def visible(show):
         # Return updated visibility state for a component
         return gr.update(visible=show)
 
     # Show more info
-    moreinfo.change(visible, moreinfo, about)
-    moreinfo.change(visible, moreinfo, examples)
+    help.change(visible, help, about)
+    help.change(visible, help, examples)
 
     # Define states for the retrieve and generate chunks
     retrieve_chunk = gr.State([])
@@ -226,19 +228,14 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
     # Set graph/config when search type changes
     search_type.change(
         set_graph_config,
-        [compute_location, search_type, reranking],
-        None,
-    )
-    reranking.change(
-        set_graph_config,
-        [compute_location, search_type, reranking],
+        [compute_location, search_type],
         None,
     )
 
     # Submit a query to the chatbot
     query.submit(
         interact_with_langchain_agent,
-        [query, chatbot, compute_location, search_type, reranking],
+        [query, chatbot, compute_location, search_type],
         [chatbot, retrieve_chunk, generate_chunk],
     )
 

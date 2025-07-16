@@ -23,7 +23,7 @@ Domain-specific features for mailing list chatbots, like providing source citati
 - Multiple retrieval methods for deeper search
     - Dense search with vector embeddings ([Chroma](https://github.com/chroma-core/chroma) vector database)
     - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
-    - Sparse search with reranking ([FlashRank](https://github.com/PrithivirajDamodaran/FlashRank))
+    - Hybrid (dense+sparse) search
 - Full-context retrieval
     - Each retrieval method provides whole emails (parent documents) for context
     - Dense embedding uses small chunks (child documents) to capture semantic meaning
@@ -100,10 +100,10 @@ result["sources"]
 To run evals:
 
 - Set `app_type` to graph or chain
-- Set `search_type` to dense, sparse, sparse\_rr, hybrid, or hybrid\_rr
+- Set `search_type` to dense, sparse, or hybrid
 
 ```sh
-python eval.py --app_type graph --search_type hybrid_rr
+python eval.py --app_type graph --search_type hybrid
 ```
 
 ## Evaluations
@@ -125,9 +125,8 @@ Results for queries and reference answers in `eval.csv` with retrieval from six 
 
 For a fair comparison of different search types, each one retrieves up to 6 emails:
 
-- `dense`, `sparse`, or `sparse_rr` (sparse search with reranking) (6)
+- `dense` or `sparse` (6)
 - `hybrid` = `dense` + `sparse` (3 + 3)
-- `hybrid_rr` = `dense` + `sparse` + `sparse_rr` (2 + 2 + 2)
 
 ## Acknowledgments
 

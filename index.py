@@ -23,29 +23,11 @@ def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "
     with open(file_path, "r", encoding="utf-8", errors="ignore") as infile, open(
         cleaned_temp_file, "w", encoding="utf-8"
     ) as outfile:
-        prev_line_from = False
         for line in infile:
             # Remove lines that start with '>' or whitespace before '>'
             if line.lstrip().startswith(">"):
                 continue
-            ## Detect the beginning of a new message:
-            ## two consecutive lines starting with 'From'
-            # if line.startswith("From"):
-            #    if prev_line_from:
-            #        # Replace the first 'From' with 'EmailFrom' in the previous line
-            #        # Go back and update the previous line in the file
-            #        outfile.seek(outfile.tell() - len(last_line))
-            #        outfile.write(last_line.replace("From", "EmailFrom", 1))
-            #        outfile.truncate()
-            #        outfile.write(line)
-            #        prev_line_from = True
-            #        last_line = line
-            #        continue
-            #    prev_line_from = True
-            # else:
-            #    prev_line_from = False
             outfile.write(line)
-            # last_line = line
     try:
         os.close(temp_fd)
     except Exception:
@@ -73,7 +55,7 @@ def ProcessFileDense(cleaned_temp_file, file_path, compute_location):
     Process file for dense vector search using ChromaDB
     """
     # Get a retriever instance
-    retriever = BuildRetriever("dense", compute_location)
+    retriever = BuildRetriever(compute_location, "dense")
     # Load cleaned text file
     loader = TextLoader(cleaned_temp_file)
     documents = loader.load()
