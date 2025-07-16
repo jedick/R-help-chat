@@ -9,6 +9,7 @@ from tool_calling_llm import ToolCallingLLM
 from dotenv import load_dotenv
 import os
 import warnings
+from datetime import date
 
 # For tracing
 os.environ["LANGSMITH_TRACING"] = "true"
@@ -85,6 +86,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
 
     # Define start of system message, used in both respond_or_retrieve and generate
     system_message_start = (
+        f"The current date is {date.today()}. "
         "You are a helpful RAG chatbot designed to answer questions about R programming. "
         "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
         "Summarize the retrieved emails to give an answer. "

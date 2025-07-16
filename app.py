@@ -56,12 +56,15 @@ async def interact_with_langchain_agent(
         {"messages": [{"role": "user", "content": query}]},
         config=config,
     ):
+
         # Get the node name and output chunk
         node, chunk = next(iter(step.items()))
+
         if node == "respond_or_retrieve":
             # Get the message (AIMessage class in LangChain)
             message = chunk["messages"][0]
-            if hasattr(message, "tool_calls"):
+            # Look for a tool call
+            if message.tool_calls:
                 tool_call = message.tool_calls[0]
                 messages.append(
                     gr.ChatMessage(
@@ -70,7 +73,13 @@ async def interact_with_langchain_agent(
                         metadata={"title": f"🔍 Running tool {tool_call['name']}"},
                     )
                 )
-                yield messages, [], []
+            else:
+                # A response with no tool call
+                messages.append(
+                    gr.ChatMessage(role="assistant", content=message.content)
+                )
+            yield messages, [], []
+
         if node == "tools":
             # Get the artifact of the retrieve_emails tool
             artifact = chunk["messages"][0].artifact
@@ -90,6 +99,7 @@ async def interact_with_langchain_agent(
                 )
             )
             yield messages, chunk, []
+
         if node == "generate":
             messages.append(gr.ChatMessage(role="assistant", content=chunk["answer"]))
             yield messages, None, chunk
@@ -99,23 +109,30 @@ def clear_all():
     return [], "", "", ""
 
 
-with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
+font = ["ui-sans-serif", "system-ui", "sans-serif"]
+
+with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
 
     # Make the interface
     gr.Markdown(
         """
     # 🤖 R-help-chat
     
-    Chat with the R-help mailing list archives using AI. Ask questions about R programming and get answers based on real discussions from the R-help community.
+    Chat with the R-help mailing list archives. Get AI-powered answers about R programming based on discussions from the R-help community.
     """
     )
+
+    # Define the query textbox here (to be used by examples), but render it below
+    query = gr.Textbox(
+        lines=1, label="Your Question", info="Press Enter to submit", render=False
+    )
+
     with gr.Row():
         with gr.Column():
             compute_location = gr.Radio(
                 choices=["cloud", "edge"],
                 value="cloud",
                 label="Compute Location",
-                info="Cloud: OpenAI API, Edge: Local models (requires GPU)",
             )
         with gr.Column():
             search_type = gr.Radio(
@@ -125,15 +142,32 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
             )
             reranking = gr.Checkbox(
                 value=True,
-                label="Reranking (for sparse search)",
+                label="reranking",
             )
         with gr.Column():
             moreinfo = gr.Checkbox(
                 value=False,
-                label="More info",
+                label="More Info",
             )
             ## Add a clear button
             # gr.Button("Clear Chat").click(clear_all, None, [chatbot, query, citations, emails])
+            # Add some helpful examples
+            with gr.Accordion(
+                "💡 Example Questions", open=True, visible=False
+            ) as examples:
+                example_questions = [
+                    "How can I get a named argument from '...'?",
+                    "How to print line numbers where errors occur?",
+                    "Who discussed ways to handle missing values?",
+                    "Were there bugs mentioned last month?",
+                    "When was has.HLC mentioned?",
+                ]
+                gr.Examples(
+                    examples=[[q] for q in example_questions],
+                    inputs=[query],
+                    label="Click an example to fill the question box",
+                    elem_id="example-questions",
+                )
 
     with gr.Row():
 
@@ -141,55 +175,49 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
             # The chatbot interface
             chatbot = gr.Chatbot(type="messages", show_label=False)
 
-        with gr.Column(scale=1, visible=False) as info_column:
-            # Add some helpful examples
-            with gr.Accordion("💡 Example Questions", open=False):
-                gr.Markdown(
-                    """
-                    Here are some example questions you can try:
-                    
-                    - How can I get a named argument from '...'?
-                    - Help with parsing REST API response.
-                    - How to print line numbers where errors occur?
-                    - What are the differences between data.frame and tibble?
-                    - How do I install packages from GitHub?
-                    - What's the best way to handle missing values in R?
-                    """
-                )
-
+        with gr.Column(scale=1, visible=False) as about:
             # Add information about the system
-            with gr.Accordion("ℹ️ About This System", open=False):
+            with gr.Accordion("ℹ️ About This System", open=True):
                 gr.Markdown(
                     """
-                    **R-help Chatbot** is built on the R-help mailing list archives, providing AI-powered answers to R programming questions.
+                    **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/),
+                    providing AI-powered answers to R programming questions.
+                    For technical details, see the [R-help-chat](https://github.com/jedick/R-help-chat) GitHub repo.
                     
                     **Features:**
-                    - **Hybrid Retrieval**: Combines dense vector search and sparse BM25 search
-                    - **Source Citations**: Provides citations to emails
+                    - **Tool usage**: LLM Rewrites your query for search
+                    - **Hybrid retrieval**: Combines dense and sparse search
+                    - **Chat generation**: Answers based on retrieved emails
+                    - **Source citations**: Provides citations to emails
                     
                     **Compute Location:**
-                    - **Cloud**: Uses OpenAI API (requires API key)
-                    - **Edge**: Uses edge models (requires GPU)
+                    - **cloud**: Uses OpenAI API (requires API key)
+                    - **edge**: Uses edge models (requires GPU)
                     
                     **Search Types:**
-                    - **dense**: Vector similarity search
-                    - **sparse**: BM25 keyword search
-                    - **sparse_rr**: BM25 with reranking
+                    - **dense**: Vector embeddings (semantic similarity)
+                    - **sparse**: Keyword search (good for function names)
+                    - **sparse_rr**: Sparse with reranking
                     - **hybrid**: Combination of dense and sparse
-                    - **hybrid_rr**: Hybrid with reranking (recommended)
+                    - **hybrid_rr**: Hybrid with reranking for sparse
                     """
                 )
 
     with gr.Row():
         with gr.Column():
-            query = gr.Textbox(lines=1, label="Your Question")
+            query.render()
         with gr.Column(visible=False) as citations_column:
             citations = gr.Textbox(label="Citations")
     with gr.Row():
         emails = gr.Textbox(label="Retrieved Emails", visible=False)
 
+    def visible(show):
+        # Return updated visibility state for a component
+        return gr.update(visible=show)
+
     # Show more info
-    moreinfo.change(visible, moreinfo, info_column)
+    moreinfo.change(visible, moreinfo, about)
+    moreinfo.change(visible, moreinfo, examples)
 
     # Define states for the retrieve and generate chunks
     retrieve_chunk = gr.State([])
@@ -206,10 +234,6 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
         [compute_location, search_type, reranking],
         None,
     )
-
-    def visible(show):
-        # Return updated visibility state for a component
-        return gr.update(visible=show)
 
     # Submit a query to the chatbot
     query.submit(
