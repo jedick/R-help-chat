@@ -1,220 +1,189 @@
 import gradio as gr
-import torch
-from main import RunChain, RunGraph, compute_location
+from main import GetGraphAndConfig
+import asyncio
 
 
-def check_gpu_availability():
-    """Check if GPU is available for edge models"""
-    return torch.cuda.is_available()
+def get_graph_and_config(compute_location, search_type):
+    """Helper to get the graph and config for the agent"""
+    return GetGraphAndConfig(compute_location, search_type)
 
 
-def chat_with_r_help(
-    query: str,
-    compute_location: str,
-    app_type: str,
-    search_type: str = "hybrid_rr",
+# Global state for graph/config (recreated on config change)
+graph = None
+config = None
+
+
+def set_graph_config(compute_location, search_type, reranking):
+    """Helper to set the graph and config in the app"""
+
+    # Add _rr to search type for reranking
+    if reranking and not search_type == "dense":
+        search_type = search_type + "_rr"
+
+    global graph, config
+    graph, config = get_graph_and_config(compute_location, search_type)
+
+    # global COMPUTE, SEARCH
+    # if not search_type == SEARCH:
+    #    SEARCH = search_type
+    message = "hello"
+    if search_type in ["dense", "sparse", "sparse_rr"]:
+        message = f"{search_type}: up to 6 emails"
+    elif search_type == "hybrid":
+        message = "hybrid (dense + sparse): up to 3+3 emails"
+    elif search_type == "hybrid_rr":
+        message = "hybrid_rr (dense + sparse + sparse_rr): up to 2+2+2 emails"
+    gr.Success(message, duration=4, title=f"Set search type!")
+
+
+async def interact_with_langchain_agent(
+    query, messages, compute_location, search_type, reranking
 ):
-    """
-    Main chat function that handles the R-help chatbot interaction
 
-    Args:
-        query: User's question
-        compute_location: "cloud" or "edge" for embeddings and chat model
-        app_type: "chain" or "graph" for the application type
-        search_type: Type of search to use (default: "hybrid_rr")
+    # Set initial graph/config
+    if graph == None:
+        set_graph_config(compute_location, search_type, reranking)
 
-    Returns:
-        str: The chatbot's response
-    """
+    print("hello")
+    print(graph)
 
-    # Validate inputs
-    if not query.strip():
-        return "Please enter a question."
+    # This shows the user query as a chatbot message
+    messages.append(gr.ChatMessage(role="user", content=query))
+    # Return the messages for chatbot and chunks for emails and citations texboxes (blank at first)
+    yield messages, [], []
 
-    # Check GPU availability for edge models
-    if not check_gpu_availability() and compute_location == "edge":
-        return "Error: Edge models selected but no GPU available. Please use cloud models or ensure GPU is available."
-
-    try:
-        # Set the global configuration
-        import main
-
-        main.compute_location = compute_location
-
-        # Run the appropriate function based on app_type
-        if app_type == "chain":
-            response = RunChain(
-                query, search_type=search_type, compute_location=compute_location
+    # Asynchronously stream graph steps for a single input
+    # https://langchain-ai.lang.chat/langgraph/reference/graphs/#langgraph.graph.state.CompiledStateGraph
+    async for step in graph.astream(
+        # Appends the user query to the graph state
+        {"messages": [{"role": "user", "content": query}]},
+        config=config,
+    ):
+        # Get the node name and output chunk
+        node, chunk = next(iter(step.items()))
+        if node == "respond_or_retrieve":
+            # Get the message (AIMessage class in LangChain)
+            message = chunk["messages"][0]
+            if hasattr(message, "tool_calls"):
+                tool_call = message.tool_calls[0]
+                messages.append(
+                    gr.ChatMessage(
+                        role="assistant",
+                        content=tool_call["args"]["query"],
+                        metadata={"title": f"🔍 Running tool {tool_call['name']}"},
+                    )
+                )
+                yield messages, [], []
+        if node == "tools":
+            # Get the artifact of the retrieve_emails tool
+            artifact = chunk["messages"][0].artifact
+            # Get the number of retrieved emails
+            n_emails = len(artifact)
+            # Get the list of months for retrieved emails
+            month_list = [email.metadata["source"] for email in artifact]
+            # Format into text
+            month_text = (
+                ", ".join(month_list).replace("R-help/", "").replace(".txt", "")
             )
-            return response
-        elif app_type == "graph":
-            result = RunGraph(
-                query=query,
-                search_type=search_type,
-                compute_location=compute_location,
-                think_retrieve=False,
-                think_generate=False,
+            messages.append(
+                gr.ChatMessage(
+                    role="assistant",
+                    content=month_text,
+                    metadata={"title": f"📤 Retrieved {n_emails} emails"},
+                )
             )
-            # Extract the answer from the graph result
-            if isinstance(result, dict) and "answer" in result:
-                return result["answer"]
-            elif hasattr(result, "messages") and result.messages:
-                # Get the last message content
-                last_message = result.messages[-1]
-                if hasattr(last_message, "content"):
-                    return last_message.content
-                else:
-                    return str(last_message)
-            else:
-                return str(result)
-        else:
-            return (
-                f"Error: Unknown app_type '{app_type}'. Please use 'chain' or 'graph'."
-            )
-
-    except Exception as e:
-        return f"Error: {str(e)}"
+            yield messages, chunk, []
+        if node == "generate":
+            messages.append(gr.ChatMessage(role="assistant", content=chunk["answer"]))
+            yield messages, None, chunk
 
 
-# Create the Gradio interface
+def update_emails(chunk, emails):
+    if chunk is None:
+        # This keeps the retrieved emails when the generate step is run
+        return emails
+    elif chunk != []:
+        # This gets the retrieved emails from a non-empty retrieve_chunk
+        return chunk["messages"][0].content
+    else:
+        # This blanks out the textbox when a new chat is started
+        return ""
+
+
+def update_citations(chunk):
+    if chunk and "citations" in chunk:
+        return chunk["citations"]
+    return ""
+
+
+def clear_all():
+    return [], "", "", ""
+
+
 with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
+
+    # Make the interface
     gr.Markdown(
         """
-        # 🤖 R-help-chat
-        
-        Chat with the R-help mailing list archives using AI. Ask questions about R programming and get answers based on real discussions from the R-help community.
-        
-        **How to use:**
-        1. Select your preferred model settings (cloud/edge for embeddings and chat)
-        2. Choose the application type (chain or graph)
-        3. Enter your R programming question
-        4. Get an AI-generated answer based on R-help archives
-        """
+    # 🤖 R-help-chat
+    
+    Chat with the R-help mailing list archives using AI. Ask questions about R programming and get answers based on real discussions from the R-help community.
+    """
     )
-
     with gr.Row():
-        with gr.Column(scale=1):
-            # Configuration options
-            gr.Markdown("### ⚙️ Configuration")
-
-            compute_dropdown = gr.Dropdown(
-                choices=["cloud", "edge"],
-                value="cloud",
-                label="Compute Location",
-                info="Cloud: OpenAI API, Edge: Local models (requires GPU)",
-            )
-
-            app_dropdown = gr.Dropdown(
-                choices=["chain", "graph"],
-                value="graph",
-                label="App Type",
-                info="Chain: Simple RAG, Graph: Conversational RAG with sources",
-            )
-
-            search_dropdown = gr.Dropdown(
-                choices=["dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"],
-                value="hybrid_rr",
-                label="Search Type",
-                info="Different retrieval strategies",
-            )
-
-            # GPU status indicator
-            gpu_status = gr.Markdown(
-                f"🟢 GPU Available: {gpu_available}"
-                if check_gpu_availability()
-                else "🔴 GPU Not Available - Local models will not work"
-            )
-
-        with gr.Column(scale=2):
-            # Chat interface
-            gr.Markdown("### 💬 Chat Interface")
-
-            query_input = gr.Textbox(
-                label="Your Question",
-                placeholder="Ask about R programming... (e.g., 'How do I read a CSV file in R?')",
-                lines=3,
-            )
-
-            submit_btn = gr.Button("Ask Question", variant="primary", size="lg")
-
-            response_output = gr.Textbox(
-                label="AI Response", lines=10, interactive=False
-            )
-
-    # Add some helpful examples
-    with gr.Accordion("💡 Example Questions", open=False):
-        gr.Markdown(
-            """
-            Here are some example questions you can try:
-            
-            - How can I get a named argument from '...'?
-            - Help with parsing REST API response.
-            - How to print line numbers where errors occur?
-            - What are the differences between data.frame and tibble?
-            - How do I install packages from GitHub?
-            - What's the best way to handle missing values in R?
-            """
+        compute_location = gr.Radio(
+            choices=["cloud", "edge"],
+            value="cloud",
+            label="Compute Location",
+            info="Cloud: OpenAI API, Edge: Local models (requires GPU)",
         )
-
-    # Add information about the system
-    with gr.Accordion("ℹ️ About This System", open=False):
-        gr.Markdown(
-            """
-            **R-help Chatbot** is built on the R-help mailing list archives, providing AI-powered answers to R programming questions.
-            
-            **Features:**
-            - **Hybrid Retrieval**: Combines dense vector search and sparse BM25 search
-            - **Source Citations**: Graph mode provides citations from R-help discussions
-            - **Multiple Models**: Support for both cloud (OpenAI) and edge models
-            - **Conversational RAG**: Graph mode supports multi-turn conversations
-            
-            **Model Options:**
-            - **Remote**: Uses OpenAI API (requires API key)
-            - **Local**: Uses edge models (requires GPU)
-            
-            **Application Types:**
-            - **Chain**: Simple retrieval-augmented generation
-            - **Graph**: Advanced conversational RAG with tool calls and structured output
-            
-            **Search Types:**
-            - **dense**: Vector similarity search
-            - **sparse**: BM25 keyword search
-            - **sparse_rr**: BM25 with reranking
-            - **hybrid**: Combination of dense and sparse
-            - **hybrid_rr**: Hybrid with reranking (recommended)
-            """
+        search_type = gr.Radio(
+            choices=["dense", "sparse", "hybrid"],
+            value="hybrid",
+            label="Search Type",
+            info="Different retrieval strategies",
         )
+        reranking = gr.Checkbox(
+            value=True,
+            label="Reranking",
+            info="Option for sparse search",
+        )
+    chatbot = gr.Chatbot(type="messages", label="Chatbot")
+    with gr.Row():
+        query = gr.Textbox(lines=1, label="Your Question")
+    with gr.Row():
+        citations = gr.Textbox(label="Citations", interactive=False)
+    with gr.Row():
+        emails = gr.Textbox(label="Retrieved emails", interactive=False)
 
-    # Connect the submit button to the chat function
-    submit_btn.click(
-        fn=chat_with_r_help,
-        inputs=[
-            query_input,
-            compute_dropdown,
-            app_dropdown,
-            search_dropdown,
-        ],
-        outputs=response_output,
+    # Define states for the retrieve and generate chunks
+    retrieve_chunk = gr.State([])
+    generate_chunk = gr.State([])
+
+    # Set graph/config when search type changes
+    search_type.change(
+        set_graph_config,
+        [compute_location, search_type, reranking],
+        None,
+    )
+    reranking.change(
+        set_graph_config,
+        [compute_location, search_type, reranking],
+        None,
     )
 
-    # Also allow Enter key to submit
-    query_input.submit(
-        fn=chat_with_r_help,
-        inputs=[
-            query_input,
-            compute_dropdown,
-            app_dropdown,
-            search_dropdown,
-        ],
-        outputs=response_output,
+    # Submit a query to the chatbot
+    query.submit(
+        interact_with_langchain_agent,
+        [query, chatbot, compute_location, search_type, reranking],
+        [chatbot, retrieve_chunk, generate_chunk],
     )
-
+    # Update the emails when ready
+    retrieve_chunk.change(update_emails, [retrieve_chunk, emails], emails)
+    # Update the citations when ready, and blank it out when a new query is submitted
+    generate_chunk.change(update_citations, generate_chunk, citations)
+    # Add a clear button
+    gr.Button("Clear Chat").click(clear_all, None, [chatbot, query, citations, emails])
 
 if __name__ == "__main__":
-    # Launch the interface
-    demo.launch(
-        server_name="0.0.0.0",  # Allow external connections
-        server_port=7860,  # Default Gradio port
-        share=False,  # Set to True to create a public link
-        debug=True,  # Enable debug mode for development
-    )
+    demo.launch()

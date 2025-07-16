@@ -94,7 +94,6 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         "Do not give an answer based on your own knowledge or memory. "
         "For example, a question about macros should not be answered with 'knitr' and 'markdown' if those packages aren't described in the retrieved emails. "
         "Respond with 200 words maximum and 20 lines of code maximum. "
-        "Your structured response should include an answer to the question with sources used, if any. "
     )
 
     # Define retrieval tool
@@ -106,9 +105,8 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     def retrieve_emails(query: str):
         """Retrieve emails related to a query from the R-help mailing list archives"""
         retrieved_docs = retriever.invoke(query)
-        serialized = "\n\n".join(
-            (f"Source: {doc.metadata}\n" f"Content: {doc.page_content}")
-            for doc in retrieved_docs
+        serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
+            doc.page_content for doc in retrieved_docs
         )
         return serialized, retrieved_docs
 
@@ -127,8 +125,8 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         answer: str
         # Add a context key to the state to store retrieved documents
         context: List[Document]
-        # Add a sources key that contains the cited sources
-        sources: List[str]
+        # Add a citations key that contains the source citations
+        citations: List[str]
 
     # Define response or retrieval step (entry point)
     # NOTE: This has to be ChatMessagesState, not MessagesState, to access step["context"]
@@ -153,14 +151,14 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
     tools = ToolNode([retrieve_emails])
 
     # Desired schema for response
-    class AnswerWithSources(TypedDict):
-        """An answer to the question with sources used."""
+    class AnswerWithCitations(TypedDict):
+        """Answer the question with citations of the emails used (senders and dates)."""
 
         answer: str
-        sources: Annotated[
+        citations: Annotated[
             List[str],
             ...,
-            "Senders and dates of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31",
+            "Citations of emails used to answer the question, e.g. Duncan Murdoch, 2025-05-31",
         ]
 
     # Define generation step
@@ -191,7 +189,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
 
             {
               "answer": <An answer to the question>,
-              "sources": <Senders and dates of email messages used to answer the question, e.g. Duncan Murdoch, 2025-05-31>
+              "citations": <Citations of emails used to answer the question, e.g. Duncan Murdoch, 2025-05-31>
             }
 
             ### Retrieved Emails:
@@ -220,26 +218,30 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         if hasattr(chat_model, "model_id"):
             ## Our system prompt has instructions for formatting the output into the desired schema, so we use json_mode
             # structured_chat_model = chat_model.with_structured_output(
-            #    AnswerWithSources, method="json_mode"
+            #    AnswerWithCitations, method="json_mode"
             # )
             # response = structured_chat_model.invoke(prompt)
             messages = chat_model.invoke(prompt)
             return {"messages": messages, "context": context}
         else:
-            structured_chat_model = chat_model.with_structured_output(AnswerWithSources)
+            structured_chat_model = chat_model.with_structured_output(
+                AnswerWithCitations
+            )
             response = structured_chat_model.invoke(prompt)
-            # Add the answer to the state as an AIMessage
+            # Add the answer to the state as an AIMessage and as a separate key for convenience
             answer = response["answer"]
+            # Sometimes OpenAI API returns an answer without citations, so test that it's present
+            if "citations" in response:
+                citations = response["citations"]
+            else:
+                citations = "No citations by chat model."
+                # warnings.warn("No citations by chat model.")
             result = {
                 "messages": AIMessage(answer),
                 "answer": answer,
                 "context": context,
+                "citations": citations,
             }
-            # Sometimes OpenAI API returns an answer without sources, so test that it's present
-            if "sources" in response:
-                result["sources"] = response["sources"]
-            else:
-                warnings.warn("No sources in response.")
             return result
 
     # Initialize a graph object

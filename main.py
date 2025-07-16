@@ -197,18 +197,16 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid_
     return result
 
 
-def RunGraph(
-    query: str,
+def GetGraphAndConfig(
     compute_location="cloud",
     search_type: str = "hybrid_rr",
     think_retrieve=False,
     think_generate=False,
     thread_id=None,
 ):
-    """Run graph for conversational RAG app
+    """Get graph for conversational RAG app
 
     Args:
-        query: User query to start the chat
         compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", "sparse_rr", "hybrid", "hybrid_rr"
         think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
@@ -231,10 +229,6 @@ def RunGraph(
         think_generate=think_generate,
     )
 
-    # FIXME: Use thread id for memory if given
-    # TypeError: Type is not msgpack serializable: ToolMessage
-    # https://github.com/langchain-ai/langgraph/issues/5054
-    # https://github.com/langchain-ai/langgraph/pull/5115
     if thread_id is None:
         graph = graph_builder.compile()
         config = None
@@ -248,7 +242,27 @@ def RunGraph(
         # Specify an ID for the thread
         config = {"configurable": {"thread_id": thread_id}}
 
-    # When executing a search, we can stream the steps to observe the query generation, retrieval, and answer generation:
+    return graph, config
+
+
+def RunGraph(
+    query: str,
+    **kwargs,
+):
+    """Run graph for conversational RAG app
+
+    Args:
+        query: User query to start the chat
+        **kwargs: Keyword arguments for GetGraph()
+
+    Example:
+        RunGraph("Help with parsing REST API response.")
+    """
+
+    # Get graph and config
+    graph, config = GetGraphAndConfig(**kwargs)
+
+    # Stream the steps to observe the query generation, retrieval, and answer generation:
     for step in graph.stream(
         {"messages": [{"role": "user", "content": query}]},
         stream_mode="values",
@@ -257,8 +271,4 @@ def RunGraph(
         if not step["messages"][-1].type == "tool":
             step["messages"][-1].pretty_print()
 
-    # To get the last message content: step["messages"][-1].content
-    # To get the retrieved context and cited sources:
-    # step["context"]
-    # step["sources"]
     return step
