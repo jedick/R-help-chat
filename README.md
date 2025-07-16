@@ -103,7 +103,7 @@ To run evals:
 - Set `search_type` to dense, sparse, or hybrid
 
 ```sh
-python eval.py --app_type graph --search_type hybrid
+python eval.py --compute_location cloud --app_type graph --search_type hybrid
 ```
 
 ## Evaluations

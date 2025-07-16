@@ -1,7 +1,7 @@
 import sys
 import os
 import csv
-from main import RunChain, RunGraph, compute_location
+from main import RunChain, RunGraph
 from retriever import BuildRetriever
 from ragas import EvaluationDataset, evaluate
 from ragas.llms import LangchainLLMWrapper
@@ -33,7 +33,7 @@ def load_queries_and_references(csv_path):
     return queries, references
 
 
-def build_eval_dataset(queries, references, app_type, search_type):
+def build_eval_dataset(queries, references, compute_location, app_type, search_type):
     """Build dataset for evaluation"""
     dataset = []
     for query, reference in zip(queries, references):
@@ -63,6 +63,12 @@ def main():
         description="Evaluate RAG retrieval and generation."
     )
     parser.add_argument(
+        "--compute_location",
+        choices=["cloud", "edge"],
+        required=True,
+        help="Compute location: cloud or edge.",
+    )
+    parser.add_argument(
         "--app_type",
         choices=["chain", "graph"],
         required=True,
@@ -75,11 +81,14 @@ def main():
         help="Search type: dense, sparse, or hybrid.",
     )
     args = parser.parse_args()
+    compute_location = args.compute_location
     app_type = args.app_type
     search_type = args.search_type
 
     queries, references = load_queries_and_references("eval.csv")
-    dataset = build_eval_dataset(queries, references, app_type, search_type)
+    dataset = build_eval_dataset(
+        queries, references, compute_location, app_type, search_type
+    )
     evaluation_dataset = EvaluationDataset.from_list(dataset)
 
     # Set up LLM for evaluation

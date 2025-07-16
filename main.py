@@ -198,7 +198,7 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
 
 
 def GetGraphAndConfig(
-    compute_location="cloud",
+    compute_location: str = "cloud",
     search_type: str = "hybrid",
     think_retrieve=False,
     think_generate=False,
@@ -247,20 +247,24 @@ def GetGraphAndConfig(
 
 def RunGraph(
     query: str,
+    compute_location: str = "cloud",
+    search_type: str = "hybrid",
     **kwargs,
 ):
     """Run graph for conversational RAG app
 
     Args:
         query: User query to start the chat
-        **kwargs: Keyword arguments for GetGraph()
+        compute_location: Compute location for embedding and chat models (cloud or edge)
+        search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
+        **kwargs: Additional keyword arguments for GetGraphAndConfig()
 
     Example:
         RunGraph("Help with parsing REST API response.")
     """
 
     # Get graph and config
-    graph, config = GetGraphAndConfig(**kwargs)
+    graph, config = GetGraphAndConfig(compute_location, search_type, **kwargs)
 
     # Stream the steps to observe the query generation, retrieval, and answer generation:
     for step in graph.stream(
@@ -272,14 +276,3 @@ def RunGraph(
             step["messages"][-1].pretty_print()
 
     return step
-
-
-def ListSources(compute_location):
-
-    # Get retriever instance
-    retriever = BuildRetriever(compute_location, "dense")
-    # Get the generator for documents
-    get = retriever.vectorstore.get()
-    # Return the unique source names, e.g. 'R-help/2024-April.txt', 'R-help/2024-August.txt', etc.
-    sources = set([d["source"] for d in get["metadatas"]])
-    return sources

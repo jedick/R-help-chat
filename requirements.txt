@@ -11,7 +11,6 @@ einops==0.8.1
 transfomers>=4.53
 tool-calling-llm==0.1.2
 bm25s==0.2.12
-flashrank
 ragas==0.2.15
 # Temporary fix for ChromaDB telemetry error log messages
 # https://github.com/vanna-ai/vanna/issues/917
