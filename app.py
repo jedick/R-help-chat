@@ -44,9 +44,6 @@ async def interact_with_langchain_agent(
     if graph == None:
         set_graph_config(compute_location, search_type, reranking)
 
-    print("hello")
-    print(graph)
-
     # This shows the user query as a chatbot message
     messages.append(gr.ChatMessage(role="user", content=query))
     # Return the messages for chatbot and chunks for emails and citations texboxes (blank at first)
@@ -98,24 +95,6 @@ async def interact_with_langchain_agent(
             yield messages, None, chunk
 
 
-def update_emails(chunk, emails):
-    if chunk is None:
-        # This keeps the retrieved emails when the generate step is run
-        return emails
-    elif chunk != []:
-        # This gets the retrieved emails from a non-empty retrieve_chunk
-        return chunk["messages"][0].content
-    else:
-        # This blanks out the textbox when a new chat is started
-        return ""
-
-
-def update_citations(chunk):
-    if chunk and "citations" in chunk:
-        return chunk["citations"]
-    return ""
-
-
 def clear_all():
     return [], "", "", ""
 
@@ -131,30 +110,86 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
     """
     )
     with gr.Row():
-        compute_location = gr.Radio(
-            choices=["cloud", "edge"],
-            value="cloud",
-            label="Compute Location",
-            info="Cloud: OpenAI API, Edge: Local models (requires GPU)",
-        )
-        search_type = gr.Radio(
-            choices=["dense", "sparse", "hybrid"],
-            value="hybrid",
-            label="Search Type",
-            info="Different retrieval strategies",
-        )
-        reranking = gr.Checkbox(
-            value=True,
-            label="Reranking",
-            info="Option for sparse search",
-        )
-    chatbot = gr.Chatbot(type="messages", label="Chatbot")
+        with gr.Column():
+            compute_location = gr.Radio(
+                choices=["cloud", "edge"],
+                value="cloud",
+                label="Compute Location",
+                info="Cloud: OpenAI API, Edge: Local models (requires GPU)",
+            )
+        with gr.Column():
+            search_type = gr.Radio(
+                choices=["dense", "sparse", "hybrid"],
+                value="hybrid",
+                label="Search Type",
+            )
+            reranking = gr.Checkbox(
+                value=True,
+                label="Reranking (for sparse search)",
+            )
+        with gr.Column():
+            moreinfo = gr.Checkbox(
+                value=False,
+                label="More info",
+            )
+            ## Add a clear button
+            # gr.Button("Clear Chat").click(clear_all, None, [chatbot, query, citations, emails])
+
     with gr.Row():
-        query = gr.Textbox(lines=1, label="Your Question")
+
+        with gr.Column(scale=2):
+            # The chatbot interface
+            chatbot = gr.Chatbot(type="messages", show_label=False)
+
+        with gr.Column(scale=1, visible=False) as info_column:
+            # Add some helpful examples
+            with gr.Accordion("💡 Example Questions", open=False):
+                gr.Markdown(
+                    """
+                    Here are some example questions you can try:
+                    
+                    - How can I get a named argument from '...'?
+                    - Help with parsing REST API response.
+                    - How to print line numbers where errors occur?
+                    - What are the differences between data.frame and tibble?
+                    - How do I install packages from GitHub?
+                    - What's the best way to handle missing values in R?
+                    """
+                )
+
+            # Add information about the system
+            with gr.Accordion("ℹ️ About This System", open=False):
+                gr.Markdown(
+                    """
+                    **R-help Chatbot** is built on the R-help mailing list archives, providing AI-powered answers to R programming questions.
+                    
+                    **Features:**
+                    - **Hybrid Retrieval**: Combines dense vector search and sparse BM25 search
+                    - **Source Citations**: Provides citations to emails
+                    
+                    **Compute Location:**
+                    - **Cloud**: Uses OpenAI API (requires API key)
+                    - **Edge**: Uses edge models (requires GPU)
+                    
+                    **Search Types:**
+                    - **dense**: Vector similarity search
+                    - **sparse**: BM25 keyword search
+                    - **sparse_rr**: BM25 with reranking
+                    - **hybrid**: Combination of dense and sparse
+                    - **hybrid_rr**: Hybrid with reranking (recommended)
+                    """
+                )
+
     with gr.Row():
-        citations = gr.Textbox(label="Citations", interactive=False)
+        with gr.Column():
+            query = gr.Textbox(lines=1, label="Your Question")
+        with gr.Column(visible=False) as citations_column:
+            citations = gr.Textbox(label="Citations")
     with gr.Row():
-        emails = gr.Textbox(label="Retrieved emails", interactive=False)
+        emails = gr.Textbox(label="Retrieved Emails", visible=False)
+
+    # Show more info
+    moreinfo.change(visible, moreinfo, info_column)
 
     # Define states for the retrieve and generate chunks
     retrieve_chunk = gr.State([])
@@ -172,18 +207,45 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft()) as demo:
         None,
     )
 
+    def visible(show):
+        # Return updated visibility state for a component
+        return gr.update(visible=show)
+
     # Submit a query to the chatbot
     query.submit(
         interact_with_langchain_agent,
         [query, chatbot, compute_location, search_type, reranking],
         [chatbot, retrieve_chunk, generate_chunk],
     )
+
+    def update_emails(chunk, emails):
+        if chunk is None:
+            # This keeps the retrieved emails when the generate step is run
+            return emails, visible(True)
+        elif not chunk == []:
+            # This gets the retrieved emails from a non-empty retrieve_chunk
+            return chunk["messages"][0].content, visible(True)
+        else:
+            # This blanks out the textbox when a new chat is started
+            return "", visible(False)
+
     # Update the emails when ready
-    retrieve_chunk.change(update_emails, [retrieve_chunk, emails], emails)
+    retrieve_chunk.change(update_emails, [retrieve_chunk, emails], [emails, emails])
+
+    def update_citations(chunk):
+        # No response yet
+        if not chunk == []:
+            # Response with no citations
+            if not chunk["citations"] == []:
+                # Format citations
+                citations = "; ".join(chunk["citations"])
+                return citations, visible(True)
+        return "", visible(False)
+
     # Update the citations when ready, and blank it out when a new query is submitted
-    generate_chunk.change(update_citations, generate_chunk, citations)
-    # Add a clear button
-    gr.Button("Clear Chat").click(clear_all, None, [chatbot, query, citations, emails])
+    generate_chunk.change(
+        update_citations, generate_chunk, [citations, citations_column]
+    )
 
 if __name__ == "__main__":
     demo.launch()
