@@ -5,37 +5,41 @@ import torch
 from util import list_sources, get_start_end_months
 
 
-def get_graph_and_config(compute_location, search_type):
-    """Helper to get the graph and config for the agent"""
-    return GetGraphAndConfig(compute_location, search_type)
-
-
 # Global state for graph/config (recreated on config change)
 graph = None
 config = None
 
+# Initial settings as global variables, used to emit messages when settings are changed
+COMPUTE = "cloud"
+SEARCH = "hybrid"
+
 
 def set_graph_config(compute_location, search_type):
-    """Helper to set the graph and config in the app"""
+    """Helper to set the graph and config for the agent"""
 
     global graph, config
-    graph, config = get_graph_and_config(compute_location, search_type)
+    graph, config = GetGraphAndConfig(compute_location, search_type)
 
-    # global COMPUTE, SEARCH
-    # if not search_type == SEARCH:
-    #    SEARCH = search_type
-    if search_type in ["dense", "sparse"]:
-        message = f"{search_type}: up to 6 emails"
-    elif search_type == "hybrid":
-        message = "hybrid (dense + sparse): up to 3+3 emails"
-    gr.Success(message, duration=4, title=f"Set search type!")
+    global COMPUTE
+    if not compute_location == COMPUTE:
+        gr.Success(f"{compute_location}", duration=4, title=f"Set compute location!")
+        COMPUTE = compute_location
+
+    global SEARCH
+    if not search_type == SEARCH:
+        if search_type in ["dense", "sparse"]:
+            message = f"{search_type}: up to 6 emails"
+        elif search_type == "hybrid":
+            message = "hybrid (dense + sparse): up to 3+3 emails"
+        gr.Success(message, duration=4, title=f"Set search type!")
+        SEARCH = search_type
 
 
 async def interact_with_langchain_agent(query, messages, compute_location, search_type):
 
     # Set initial graph/config
     if graph == None:
-        set_graph_config(compute_location, search_type)
+        set_graph_config(compute_location=COMPUTE, search_type=SEARCH)
 
     # This shows the user query as a chatbot message
     messages.append(gr.ChatMessage(role="user", content=query))
@@ -67,7 +71,6 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
                     )
                 )
             else:
-                # A response with no tool call
                 messages.append(
                     gr.ChatMessage(role="assistant", content=message.content)
                 )
@@ -94,7 +97,8 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
             yield messages, chunk, []
 
         if node == "generate":
-            messages.append(gr.ChatMessage(role="assistant", content=chunk["answer"]))
+            message = chunk["messages"]
+            messages.append(gr.ChatMessage(role="assistant", content=message.content))
             yield messages, None, chunk
 
 
@@ -102,9 +106,10 @@ def clear_all():
     return [], "", "", ""
 
 
-font = ["ui-sans-serif", "system-ui", "sans-serif"]
-
-with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
+with gr.Blocks(
+    title="R-help-chat",
+    theme=gr.themes.Soft(font=["ui-sans-serif", "system-ui", "sans-serif"]),
+) as demo:
 
     # Define components before rendering them
     compute_location = gr.Radio(
@@ -114,6 +119,11 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
         ],
         value="cloud",
         label="Compute Location",
+        info=(
+            "Loading edge models takes some time (wait for notification)"
+            if torch.cuda.is_available()
+            else None
+        ),
         interactive=torch.cuda.is_available(),
         render=False,
     )
@@ -132,6 +142,16 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
     help = gr.Checkbox(
         value=False,
         label="❓ Help",
+        render=False,
+    )
+    # The chatbot interface
+    chatbot = gr.Chatbot(
+        type="messages",
+        show_label=False,
+        avatar_images=(
+            None,
+            "cloud.png",
+        ),
         render=False,
     )
 
@@ -158,8 +178,7 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
     with gr.Row():
 
         with gr.Column(scale=2):
-            # The chatbot interface
-            chatbot = gr.Chatbot(type="messages", show_label=False)
+            chatbot.render()
 
         with gr.Column(scale=1, visible=False) as about:
             # Add some helpful examples
@@ -170,7 +189,7 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
                     "How can I get a named argument from '...'?",
                     "How to print line numbers where errors occur?",
                     "Who discussed ways to handle missing values?",
-                    "Were there bugs mentioned last month?",
+                    "Were any bugs discussed last month?",
                     "When was has.HLC mentioned?",
                 ]
                 gr.Examples(
@@ -197,12 +216,12 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
                     - **Source citations**: Provides citations to emails
                     
                     **Compute Location:**
-                    - **cloud**: Uses OpenAI API (requires API key)
-                    - **edge**: Uses edge models (requires GPU)
+                    - **cloud**: Uses OpenAI API for embeddings and chat (requires API key)
+                    - **edge**: Uses [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3-3B](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model (requires GPU)
                     
                     **Search Types:**
                     - **dense**: Vector embeddings (semantic similarity)
-                    - **sparse**: Keyword search (good for function names)
+                    - **sparse**: Keyword search with [BM25S](https://github.com/xhluca/bm25s) (good for function names)
                     - **hybrid**: Combination of dense and sparse
                     """
                 )
@@ -224,6 +243,31 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
     # Define states for the retrieve and generate chunks
     retrieve_chunk = gr.State([])
     generate_chunk = gr.State([])
+
+    def set_avatar(compute_location):
+        if compute_location == "cloud":
+            image_file = "cloud.png"
+        if compute_location == "edge":
+            image_file = "chip.png"
+        return gr.update(
+            avatar_images=(
+                None,
+                image_file,
+            ),
+        )
+
+    # Set graph/config when compute location changes
+    compute_location.change(
+        set_graph_config,
+        [compute_location, search_type],
+        None,
+    ).then(
+        # This changes the avatar for cloud or edge
+        # TODO: make the change apply to only future messages
+        set_avatar,
+        compute_location,
+        chatbot,
+    )
 
     # Set graph/config when search type changes
     search_type.change(
@@ -254,13 +298,15 @@ with gr.Blocks(title="R-help-chat", theme=gr.themes.Soft(font=font)) as demo:
     retrieve_chunk.change(update_emails, [retrieve_chunk, emails], [emails, emails])
 
     def update_citations(chunk):
-        # No response yet
+        # The chunk has a response
         if not chunk == []:
-            # Response with no citations
-            if not chunk["citations"] == []:
-                # Format citations
-                citations = "; ".join(chunk["citations"])
-                return citations, visible(True)
+            # And the response has citations
+            if "citations" in chunk:
+                # And the citation list is not empty
+                if not chunk["citations"] == []:
+                    # Format citations
+                    citations = "; ".join(chunk["citations"])
+                    return citations, visible(True)
         return "", visible(False)
 
     # Update the citations when ready, and blank it out when a new query is submitted

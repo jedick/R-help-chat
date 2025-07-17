@@ -132,5 +132,5 @@ For a fair comparison of different search types, each one retrieves up to 6 emai
 
 This project wouldn't be what it is without these awesome codes. Thank you!
 
-- The retriever for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
+- The retriever class for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
 - [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is imported to add LangChain-compatible tooling to local Hugging Face models
