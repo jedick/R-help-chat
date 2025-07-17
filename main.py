@@ -200,7 +200,7 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
 def GetGraphAndConfig(
     compute_location: str = "cloud",
     search_type: str = "hybrid",
-    think_retrieve=False,
+    think_retrieve=True,
     think_generate=False,
     thread_id=None,
 ):

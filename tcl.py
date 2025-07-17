@@ -25,6 +25,7 @@ from langchain_core.callbacks import (
 )
 from langchain_core.language_models import BaseChatModel, LanguageModelInput
 from langchain_core.messages import (
+    SystemMessage,
     AIMessage,
     BaseMessage,
     BaseMessageChunk,
@@ -238,6 +239,8 @@ class ToolCallingLLM(BaseChatModel, ABC):
     """  # noqa: E501
 
     tool_system_prompt_template: str = DEFAULT_SYSTEM_TEMPLATE
+    # Suffix to add to the system prompt that is not templated (variable names are not interpreted)
+    system_message_suffix: str = ""
 
     override_bind_tools: bool = True
 
@@ -297,6 +300,10 @@ class ToolCallingLLM(BaseChatModel, ABC):
         )
         system_message = system_message_prompt_template.format(
             tools=json.dumps(functions, indent=2)
+        )
+        # Add extra context after the formatted system message
+        system_message = SystemMessage(
+            system_message.content + self.system_message_suffix
         )
         return system_message, functions
 

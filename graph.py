@@ -11,7 +11,7 @@ import os
 import warnings
 
 # Local modules
-from prompts import system_message, smollm3_tools_template
+from prompts import retrieve_message, generate_message, smollm3_tools_template
 
 # For tracing
 os.environ["LANGSMITH_TRACING"] = "true"
@@ -20,7 +20,7 @@ os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
 load_dotenv(dotenv_path=".env", override=True)
 
 
-def ToolifySmolLM3(chat_model, system_message, retrieved_emails="", think=False):
+def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=False):
     """
     Get a SmolLM3 model ready for bind_tools().
     """
@@ -31,9 +31,7 @@ def ToolifySmolLM3(chat_model, system_message, retrieved_emails="", think=False)
 
     # NOTE: The first two nonblank lines are taken from the chat template for HuggingFaceTB/SmolLM3-3B
     # The rest are taken from the default system template for ToolCallingLLM
-    tool_system_prompt_template = (
-        system_message + smollm3_tools_template + retrieved_emails
-    )
+    tool_system_prompt_template = system_message + smollm3_tools_template
 
     class HuggingFaceWithTools(ToolCallingLLM, ChatHuggingFace):
 
@@ -44,6 +42,7 @@ def ToolifySmolLM3(chat_model, system_message, retrieved_emails="", think=False)
     chat_model = HuggingFaceWithTools(
         llm=chat_model.llm,
         tool_system_prompt_template=tool_system_prompt_template,
+        system_message_suffix=system_message_suffix,
     )
 
     # The 'model' attribute is needed for ToolCallingLLM to print the response if it can't be parsed
@@ -52,7 +51,7 @@ def ToolifySmolLM3(chat_model, system_message, retrieved_emails="", think=False)
     return chat_model
 
 
-def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False):
+def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False):
     """
     Build graph for chat (conversational RAG with memory)
 
@@ -97,13 +96,13 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         # Edge models (ChatHuggingFace) have a "model_id" attribute
         if hasattr(chat_model, "model_id"):
             model_for_tools = ToolifySmolLM3(
-                chat_model, system_message, "", think_retrieve
+                chat_model, retrieve_message, "", think_retrieve
             )
             tooled_model = model_for_tools.bind_tools([retrieve_emails])
             invoke_messages = state["messages"]
         else:
             tooled_model = chat_model.bind_tools([retrieve_emails])
-            invoke_messages = [SystemMessage(system_message)] + state["messages"]
+            invoke_messages = [SystemMessage(retrieve_message)] + state["messages"]
         response = tooled_model.invoke(invoke_messages)
         # MessagesState appends messages to state instead of overwriting
         return {"messages": [response]}
@@ -136,7 +135,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         ]
 
         ## Run the "naked" chat model (keep this here for testing)
-        # messages = chat_model.invoke([SystemMessage(system_message + retrieved_emails)] + conversation_messages)
+        # messages = chat_model.invoke([SystemMessage(generate_message + retrieved_emails)] + conversation_messages)
         # return {"messages": [messages], "context": context}
 
         # Setup the chat model for structured output
@@ -154,28 +153,39 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
                 """
                 return answer, citations
 
-            system_message_extended = (
-                system_message
-                + "Use answer_with_citations to respond with an answer and citations. "
-                # TODO: how to add retrieved_emails to the system message without breakage?
-                # + retrieved_emails
-            )
             model_for_tools = ToolifySmolLM3(
                 chat_model,
-                system_message_extended,
+                # Add instruction to use tool
+                generate_message
+                + "Use answer_with_citations to respond with an answer and citations. ",
+                # Tried adding retrieved emails to system message, but the model forgot about tool calling
+                # retrieved_emails,
                 "",
                 think_generate,
             )
             tooled_model = model_for_tools.bind_tools([answer_with_citations])
+            ## Putting the query and retrieved emails in separate messages might lead to more hallucinations ...
+            # messages = tooled_model.invoke(conversation_messages + [HumanMessage(retrieved_emails)])
+            # ... so let's keep them together
+            conversation_content = "\n\n".join(
+                [message.content for message in conversation_messages]
+            )
             messages = tooled_model.invoke(
-                [AIMessage(retrieved_emails)] + conversation_messages
+                [HumanMessage(conversation_content + retrieved_emails)]
             )
             # Extract the tool calls
             tool_calls = messages.tool_calls
             if tool_calls:
+                args = tool_calls[0]["args"]
                 new_state = {
-                    "messages": [AIMessage(tool_calls[0]["args"]["answer"])],
-                    "citations": [tool_calls[0]["args"]["citations"]],
+                    "messages": [AIMessage(args["answer"])],
+                    "citations": [
+                        (
+                            args["citations"]
+                            if "citations" in args
+                            else "No citations generated by chat model."
+                        )
+                    ],
                 }
             else:
                 new_state = {
@@ -200,7 +210,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             )
             # Invoke model with system and conversation messages
             response = structured_chat_model.invoke(
-                [SystemMessage(system_message + retrieved_emails)]
+                [SystemMessage(generate_message + retrieved_emails)]
                 + conversation_messages
             )
 
