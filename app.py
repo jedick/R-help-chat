@@ -72,7 +72,7 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
                 )
             else:
                 messages.append(
-                    gr.ChatMessage(role="assistant", content=message.content)
+                    gr.ChatMessage(role="assistant", content=chunk_messages.content)
                 )
             yield messages, [], []
 

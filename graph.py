@@ -11,7 +11,7 @@ import os
 import warnings
 
 # Local modules
-from prompts import retrieve_message, generate_message, smollm3_tools_template
+from prompts import retrieve_prompt, generate_prompt, smollm3_tools_template
 
 # For tracing
 os.environ["LANGSMITH_TRACING"] = "true"
@@ -96,13 +96,13 @@ def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False)
         # Edge models (ChatHuggingFace) have a "model_id" attribute
         if hasattr(chat_model, "model_id"):
             model_for_tools = ToolifySmolLM3(
-                chat_model, retrieve_message, "", think_retrieve
+                chat_model, retrieve_prompt, "", think_retrieve
             )
             tooled_model = model_for_tools.bind_tools([retrieve_emails])
             invoke_messages = state["messages"]
         else:
             tooled_model = chat_model.bind_tools([retrieve_emails])
-            invoke_messages = [SystemMessage(retrieve_message)] + state["messages"]
+            invoke_messages = [SystemMessage(retrieve_prompt)] + state["messages"]
         response = tooled_model.invoke(invoke_messages)
         # MessagesState appends messages to state instead of overwriting
         return {"messages": [response]}
@@ -135,7 +135,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False)
         ]
 
         ## Run the "naked" chat model (keep this here for testing)
-        # messages = chat_model.invoke([SystemMessage(generate_message + retrieved_emails)] + conversation_messages)
+        # messages = chat_model.invoke([SystemMessage(generate_prompt + retrieved_emails)] + conversation_messages)
         # return {"messages": [messages], "context": context}
 
         # Setup the chat model for structured output
@@ -156,7 +156,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False)
             model_for_tools = ToolifySmolLM3(
                 chat_model,
                 # Add instruction to use tool
-                generate_message
+                generate_prompt
                 + "Use answer_with_citations to respond with an answer and citations. ",
                 # Tried adding retrieved emails to system message, but the model forgot about tool calling
                 # retrieved_emails,
@@ -210,7 +210,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False)
             )
             # Invoke model with system and conversation messages
             response = structured_chat_model.invoke(
-                [SystemMessage(generate_message + retrieved_emails)]
+                [SystemMessage(generate_prompt + retrieved_emails)]
                 + conversation_messages
             )
 

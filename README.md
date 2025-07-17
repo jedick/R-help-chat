@@ -106,6 +106,11 @@ To run evals:
 python eval.py --compute_location cloud --app_type graph --search_type hybrid
 ```
 
+For a fair comparison of different search types, each one retrieves up to 6 emails:
+
+- `dense` or `sparse` (6)
+- `hybrid` = `dense` + `sparse` (3 + 3)
+
 ## Evaluations
 
 Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas](https://docs.ragas.io/en/stable/concepts/metrics/available_metrics/nvidia_metrics/) for details) with OpenAI's `gpt-4o-mini` as the judge:
@@ -116,21 +121,16 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 
 Results for queries and reference answers in `eval.csv` with retrieval from six months of the R-help archives (January-June 2025):
 
-| Compute | App | Search type | Relevance | Groundedness | Accuracy |
-|-|-|-|-|-|-|
-| Cloud | Chain | `hybrid_rr` | 0.77     | 0.56     | 0.67     |
-| Cloud | Graph | `hybrid`    | **0.81** | 0.71     | 0.71     |
-| Cloud | Graph | `hybrid_rr` | 0.75     | **0.79** | **0.73** |
-| Edge  | Graph | `hybrid_rr` | 0.80     | 0.39     | 0.27     |
-
-For a fair comparison of different search types, each one retrieves up to 6 emails:
-
-- `dense` or `sparse` (6)
-- `hybrid` = `dense` + `sparse` (3 + 3)
+| Compute | App | Relevance | Groundedness | Accuracy |
+|-|-|-|-|-|
+| Cloud | Chain | 0.75     | **0.87** | **0.65** |
+| Cloud | Graph | 0.60     | 0.72     | **0.65** |
+| Edge  | Chain | **0.77** | 0.75     | 0.35     |
+| Edge  | Graph | 0.57     | 0.39     | 0.23     |
 
 ## Acknowledgments
 
 This project wouldn't be what it is without these awesome codes. Thank you!
 
 - The retriever class for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) is imported to add LangChain-compatible tooling to local Hugging Face models
+- Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) (modified here as `tcl.py`) adds LangChain-compatible tooling to local Hugging Face models

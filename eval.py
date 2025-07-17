@@ -13,6 +13,7 @@ from ragas.metrics import (
 from langchain_openai import ChatOpenAI
 import argparse
 import logging
+import traceback
 
 # Suppress these messages:
 # INFO:openai._base_client:Retrying request to /chat/completions in ___ seconds
@@ -37,24 +38,31 @@ def build_eval_dataset(queries, references, compute_location, app_type, search_t
     """Build dataset for evaluation"""
     dataset = []
     for query, reference in zip(queries, references):
-        if app_type == "chain":
-            response = RunChain(query, compute_location, search_type)
-            # Retrieve context documents for a query
-            retriever = BuildRetriever(compute_location, search_type)
-            docs = retriever.invoke(query)
-            retrieved_contexts = [doc.page_content for doc in docs]
-        if app_type == "graph":
-            result = RunGraph(query, compute_location, search_type)
-            retrieved_contexts = [doc.page_content for doc in result["context"]]
-            response = result["messages"][-1].content
-        dataset.append(
-            {
-                "user_input": query,
-                "retrieved_contexts": retrieved_contexts,
-                "response": response,
-                "reference": reference,
-            }
-        )
+        try:
+            if app_type == "chain":
+                response = RunChain(query, compute_location, search_type)
+                # Retrieve context documents for a query
+                retriever = BuildRetriever(compute_location, search_type)
+                docs = retriever.invoke(query)
+                retrieved_contexts = [doc.page_content for doc in docs]
+            if app_type == "graph":
+                result = RunGraph(query, compute_location, search_type)
+                retrieved_contexts = []
+                if "context" in result:
+                    retrieved_contexts = [doc.page_content for doc in result["context"]]
+                response = result["messages"][-1].content
+            dataset.append(
+                {
+                    "user_input": query,
+                    "retrieved_contexts": retrieved_contexts,
+                    "response": response,
+                    "reference": reference,
+                }
+            )
+        except:
+            print(f"--- Query omitted from evals due to failed generation: {query} ---")
+            print(traceback.format_exc())
+
     return dataset
 
 

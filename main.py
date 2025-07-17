@@ -19,6 +19,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from index import ProcessFile
 from retriever import BuildRetriever, GetRetrieverParam
 from graph import BuildGraph
+from prompts import generate_prompt
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
@@ -177,10 +178,17 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
 
     # Create a prompt template
     prompt = ChatPromptTemplate.from_template(
-        """Use only the provided context to answer the following question.
-        If the context does not have enough information to answer the question, say so.
-        Context: {context}
-        Question: {question}
+        f"{generate_prompt}"
+        + """"
+
+        ### Question:
+
+        {question}
+
+        ### Retrieved Emails:
+
+        {context}
+
         """
     )
 
