@@ -32,7 +32,7 @@ Domain-specific features for mailing list chatbots, like providing source citati
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sender and date for each answer
 - Options for cloud or edge computing to balance performance, price, and privacy
     - Cloud (remote) models: OpenAI API for embeddings and chat model
-    - Edge (local) models (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embedding and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
+    - Edge (local) models (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
         - Current implementation has relatively low groundedness and accuracy scores
 
 Planned features:

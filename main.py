@@ -267,6 +267,10 @@ def RunGraph(
     graph, config = GetGraphAndConfig(compute_location, search_type, **kwargs)
 
     # Stream the steps to observe the query generation, retrieval, and answer generation:
+    #   - User input as a HumanMessage
+    #   - Vector store query as an AIMessage with tool calls
+    #   - Retrieved documents as a ToolMessage.
+    #   - Final response as a AIMessage
     for step in graph.stream(
         {"messages": [{"role": "user", "content": query}]},
         stream_mode="values",

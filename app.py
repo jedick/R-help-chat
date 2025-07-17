@@ -97,7 +97,7 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
             yield messages, chunk, []
 
         if node == "generate":
-            message = chunk["messages"]
+            message = chunk["messages"][0]
             messages.append(gr.ChatMessage(role="assistant", content=message.content))
             yield messages, None, chunk
 
@@ -160,7 +160,7 @@ with gr.Blocks(
         """
     # 🤖 R-help-chat
     
-    Chat with the R-help mailing list archives. Get AI-powered answers about R programming based on discussions from the R-help community.
+    Chat with the R-help mailing list archives. Get AI-powered answers about R programming backed by email retrieval and source citations.
     """
     )
 
@@ -186,8 +186,8 @@ with gr.Blocks(
                 "💡 Example Questions", open=True, visible=False
             ) as examples:
                 example_questions = [
-                    "How can I get a named argument from '...'?",
                     "How to print line numbers where errors occur?",
+                    "Combine numeric and character vectors.",
                     "Who discussed ways to handle missing values?",
                     "Were any bugs discussed last month?",
                     "When was has.HLC mentioned?",
@@ -210,7 +210,7 @@ with gr.Blocks(
                     For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
                     
                     **Features:**
-                    - **Tool usage**: LLM rewrites your query for search
+                    - **Tool usage**: LLM rewrites your query for retrieval
                     - **Hybrid retrieval**: Combines dense and sparse search
                     - **Chat generation**: Answers based on retrieved emails
                     - **Source citations**: Provides citations to emails
