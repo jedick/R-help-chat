@@ -59,10 +59,10 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
 
         if node == "respond_or_retrieve":
             # Get the message (AIMessage class in LangChain)
-            message = chunk["messages"][0]
+            chunk_messages = chunk["messages"][0]
             # Look for a tool call
-            if message.tool_calls:
-                tool_call = message.tool_calls[0]
+            if chunk_messages.tool_calls:
+                tool_call = chunk_messages.tool_calls[0]
                 messages.append(
                     gr.ChatMessage(
                         role="assistant",
@@ -97,8 +97,10 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
             yield messages, chunk, []
 
         if node == "generate":
-            message = chunk["messages"][0]
-            messages.append(gr.ChatMessage(role="assistant", content=message.content))
+            chunk_messages = chunk["messages"][0]
+            messages.append(
+                gr.ChatMessage(role="assistant", content=chunk_messages.content)
+            )
             yield messages, None, chunk
 
 

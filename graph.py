@@ -5,7 +5,7 @@ from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from typing_extensions import List, Annotated, TypedDict
 from langchain_huggingface import ChatHuggingFace
-from tool_calling_llm import ToolCallingLLM
+from tcl import ToolCallingLLM
 from dotenv import load_dotenv
 import os
 import warnings
@@ -20,7 +20,7 @@ os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
 load_dotenv(dotenv_path=".env", override=True)
 
 
-def ToolifySmolLM3(chat_model, system_message, docs_content="", think=False):
+def ToolifySmolLM3(chat_model, system_message, retrieved_emails="", think=False):
     """
     Get a SmolLM3 model ready for bind_tools().
     """
@@ -31,7 +31,9 @@ def ToolifySmolLM3(chat_model, system_message, docs_content="", think=False):
 
     # NOTE: The first two nonblank lines are taken from the chat template for HuggingFaceTB/SmolLM3-3B
     # The rest are taken from the default system template for ToolCallingLLM
-    tool_system_prompt_template = system_message + smollm3_tools_template + docs_content
+    tool_system_prompt_template = (
+        system_message + smollm3_tools_template + retrieved_emails
+    )
 
     class HuggingFaceWithTools(ToolCallingLLM, ChatHuggingFace):
 
@@ -114,17 +116,17 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         """Generate a response using the retrieved emails"""
 
         # Get generated ToolMessages
-        recent_tool_messages = []
-        for message in reversed(state["messages"]):
-            if message.type == "tool":
-                recent_tool_messages.append(message)
-            else:
-                break
-        tool_messages = recent_tool_messages[::-1]
+        tool_messages = [
+            message for message in state["messages"] if message.type == "tool"
+        ]
         # Format retrieved emails to add to prompt
-        docs_content = "\n\n### Retrieved Emails:\n\n" + "\n\n".join(
+        retrieved_emails = "\n\n### Retrieved Emails:\n\n" + "\n\n".join(
             doc.content for doc in tool_messages
         )
+        # Format retrieved emails to add to state
+        context = []
+        for tool_message in tool_messages:
+            context.extend(tool_message.artifact)
         # Combine conversation messages
         conversation_messages = [
             message
@@ -134,13 +136,11 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
         ]
 
         ## Run the "naked" chat model (keep this here for testing)
-        # messages = chat_model.invoke(prompt)
-        # return {"messages": messages, "context": context}
+        # messages = chat_model.invoke([SystemMessage(system_message + retrieved_emails)] + conversation_messages)
+        # return {"messages": [messages], "context": context}
 
         # Setup the chat model for structured output
         if hasattr(chat_model, "model_id"):
-            # messages = chat_model.invoke([SystemMessage(system_message + docs_content)] + conversation_messages)
-            # return {"messages": messages, "context": context}
 
             # Local model: .with_structured_output() isn't supported, but we can use a tool
             @tool(response_format="content_and_artifact")
@@ -157,9 +157,10 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             system_message_extended = (
                 system_message
                 + "Use answer_with_citations to respond with an answer and citations. "
+                # TODO: how to add retrieved_emails to the system message without breakage?
+                # + retrieved_emails
             )
             model_for_tools = ToolifySmolLM3(
-                # TODO: how to add docs_content to the system message without breakage?
                 chat_model,
                 system_message_extended,
                 "",
@@ -167,7 +168,7 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             )
             tooled_model = model_for_tools.bind_tools([answer_with_citations])
             messages = tooled_model.invoke(
-                conversation_messages + [HumanMessage(docs_content)]
+                [AIMessage(retrieved_emails)] + conversation_messages
             )
             # Extract the tool calls
             tool_calls = messages.tool_calls
@@ -199,24 +200,16 @@ def BuildGraph(retriever, chat_model, think_retrieve=False, think_generate=False
             )
             # Invoke model with system and conversation messages
             response = structured_chat_model.invoke(
-                [SystemMessage(system_message + docs_content)] + conversation_messages
+                [SystemMessage(system_message + retrieved_emails)]
+                + conversation_messages
             )
+
+            new_state = {"messages": [AIMessage(response["answer"])]}
             # Sometimes OpenAI API returns an answer without citations, so test that it's present
             if "citations" in response:
-                citations = response["citations"]
-            else:
-                citations = "No citations generated by chat model."
-                # warnings.warn("No citations generated by chat model.")
-
-            new_state = {
-                "messages": [AIMessage(response["answer"])],
-                "citations": citations,
-            }
+                new_state["citations"] = response["citations"]
 
         # Add retrieved emails (tool artifacts) to the state
-        context = []
-        for tool_message in tool_messages:
-            context.extend(tool_message.artifact)
         new_state["context"] = context
 
         return new_state
