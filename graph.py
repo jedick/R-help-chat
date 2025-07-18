@@ -11,6 +11,7 @@ import os
 import warnings
 
 # Local modules
+from retriever import BuildRetriever
 from prompts import retrieve_prompt, generate_prompt, smollm3_tools_template
 
 # For tracing
@@ -51,14 +52,23 @@ def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=F
     return chat_model
 
 
-def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False):
+def BuildGraph(
+    chat_model,
+    compute_location,
+    search_type,
+    top_k=6,
+    think_retrieve=True,
+    think_generate=False,
+):
     """
     Build graph for chat (conversational RAG with memory)
 
     Args:
-        retriever: retriever instance from BuildRetriever()
         chat_model: LangChain chat model from GetChatModel()
-        think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
+        compute_location: cloud or edge (for retriever)
+        search_type: dense, sparse, or hybrid (for retriever)
+        top_k: number of documents to retrieve
+        think_retrieve: Whether to use thinking mode for retrieval
         think_generate: Whether to use thinking mode for generation
 
     Example: RunGraph("What R functions are discussed?")
@@ -77,11 +87,21 @@ def BuildGraph(retriever, chat_model, think_retrieve=True, think_generate=False)
         # Add a citations key that contains the source citations
         citations: List[str]
 
-    # Define retrieval tool with response format as "content_and_artifact"
-    # (artifact lets us show the retrieved documents in the web interface)
+    # Use "content_and_artifact" response format to use artifact for display in web interface
     @tool(response_format="content_and_artifact")
-    def retrieve_emails(query: str):
-        """Retrieve emails related to a query from the R-help mailing list archives"""
+    def retrieve_emails(query: str, start_year: int = None, end_year: int = None):
+        """
+        Retrieve emails related to a query from the R-help mailing list archives.
+        Use optional start_year and end_year to filter by years.
+
+        Arguments:
+            query: User's query
+            start_year: Starting year for emails (optiona)
+            end_year: Ending year for emails (optional)
+        """
+        retriever = BuildRetriever(
+            compute_location, search_type, top_k, start_year, end_year
+        )
         retrieved_docs = retriever.invoke(query)
         serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
             doc.page_content for doc in retrieved_docs

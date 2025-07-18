@@ -208,6 +208,7 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
 def GetGraphAndConfig(
     compute_location: str = "cloud",
     search_type: str = "hybrid",
+    top_k: int = 6,
     think_retrieve=True,
     think_generate=False,
     thread_id=None,
@@ -217,6 +218,7 @@ def GetGraphAndConfig(
     Args:
         compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
+        top_k: Number of documents to retrieve
         think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
         think_generate: Whether to use thinking mode for generation
         thread_id: Thread ID for memory (optional)
@@ -225,16 +227,16 @@ def GetGraphAndConfig(
         RunGraph("Help with parsing REST API response.")
     """
 
-    # Get retriever instance
-    retriever = BuildRetriever(compute_location, search_type)
     # Get chat model used in both respond_or_retrieve and generate steps
     chat_model = GetChatModel(compute_location)
     # Build the graph
     graph_builder = BuildGraph(
-        retriever=retriever,
-        chat_model=chat_model,
-        think_retrieve=think_retrieve,
-        think_generate=think_generate,
+        chat_model,
+        compute_location,
+        search_type,
+        top_k,
+        think_retrieve,
+        think_generate,
     )
 
     if thread_id is None:
@@ -257,6 +259,7 @@ def RunGraph(
     query: str,
     compute_location: str = "cloud",
     search_type: str = "hybrid",
+    top_k: int = 6,
     **kwargs,
 ):
     """Run graph for conversational RAG app
@@ -265,6 +268,7 @@ def RunGraph(
         query: User query to start the chat
         compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
+        top_k: Number of documents to retrieve
         **kwargs: Additional keyword arguments for GetGraphAndConfig()
 
     Example:

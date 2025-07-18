@@ -4,9 +4,14 @@ from langchain_community.document_loaders import TextLoader
 from langchain_chroma import Chroma
 from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain.storage.file_system import LocalFileStore
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever, RetrieverLike
+from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from typing import Any, Optional
 import chromadb
 import torch
 import os
+import re
 
 # To use OpenAI models (cloud)
 from langchain_openai import OpenAIEmbeddings
@@ -34,7 +39,13 @@ def GetRetrieverParam(param_name: str):
     return globals()[param_name]
 
 
-def BuildRetriever(compute_location, search_type: str = "hybrid", top_k=6):
+def BuildRetriever(
+    compute_location,
+    search_type: str = "hybrid",
+    top_k=6,
+    start_year=None,
+    end_year=None,
+):
     """
     Build retriever instance.
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
@@ -43,19 +54,44 @@ def BuildRetriever(compute_location, search_type: str = "hybrid", top_k=6):
         compute_location: Compute location for embeddings (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
         top_k: Number of documents to retrieve for "dense" and "sparse"
+        start_year: Start year (optional)
+        end_year: End year (optional)
     """
     if search_type == "dense":
-        return BuildRetrieverDense(compute_location, top_k)
+        if not (start_year or end_year):
+            # No year filtering, so directly use base retriever
+            return BuildRetrieverDense(compute_location, top_k=top_k)
+        else:
+            # Get 1000 documents then keep top_k filtered by year
+            base_retriever = BuildRetrieverDense(compute_location, top_k=1000)
+            return TopKRetriever(
+                base_retriever=base_retriever,
+                top_k=top_k,
+                start_year=start_year,
+                end_year=end_year,
+            )
     if search_type == "sparse":
-        # This gets top_k documents
-        sparse_retriever = BuildRetrieverSparse(top_k)
-        return sparse_retriever
+        if not (start_year or end_year):
+            return BuildRetrieverSparse(top_k=top_k)
+        else:
+            base_retriever = BuildRetrieverSparse(top_k=1000)
+            return TopKRetriever(
+                base_retriever=base_retriever,
+                top_k=top_k,
+                start_year=start_year,
+                end_year=end_year,
+            )
     elif search_type == "hybrid":
         # Hybrid search (dense + sparse) - use ensemble method
         # https://python.langchain.com/api_reference/langchain/retrievers/langchain.retrievers.ensemble.EnsembleRetriever.html
-        # Combine 2 retrievers with 3 docs each
-        dense_retriever = BuildRetriever(compute_location, "dense", top_k=3)
-        sparse_retriever = BuildRetriever(compute_location, "sparse", top_k=3)
+        # Use floor (top_k // 2) and ceiling -(top_k // -2) to divide odd values of top_k
+        # https://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
+        dense_retriever = BuildRetriever(
+            compute_location, "dense", (top_k // 2), start_year, end_year
+        )
+        sparse_retriever = BuildRetriever(
+            compute_location, "sparse", -(top_k // -2), start_year, end_year
+        )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
         )
@@ -153,3 +189,66 @@ def BuildRetrieverDense(compute_location: str, top_k=6):
     ## https://github.com/langchain-ai/langchain/discussions/10668
     # torch.cuda.empty_cache()
     return retriever
+
+
+class TopKRetriever(BaseRetriever):
+    """Retriever that wraps a base retriever and returns the top k documents, optionally matching given start and/or end years."""
+
+    # Code adapted from langchain/retrievers/contextual_compression.py
+
+    base_retriever: RetrieverLike
+    """Base Retriever to use for getting relevant documents."""
+
+    top_k: int = 6
+    """Number of documents to return."""
+
+    start_year: Optional[int] = None
+    end_year: Optional[int] = None
+
+    def _get_relevant_documents(
+        self,
+        query: str,
+        *,
+        run_manager: CallbackManagerForRetrieverRun,
+        **kwargs: Any,
+    ) -> list[Document]:
+        """Return the top k documents within start and end years if given.
+
+        Returns:
+            Sequence of documents
+        """
+        # Run the search with the base retriever
+        filtered_docs = retrieved_docs = self.base_retriever.invoke(
+            query, config={"callbacks": run_manager.get_child()}, **kwargs
+        )
+        if retrieved_docs:
+
+            # Get the sources (file names) and years
+            sources = [doc.metadata["source"] for doc in filtered_docs]
+            years = [
+                re.sub(r"-[A-Za-z]+\.txt", "", source.replace("R-help/", ""))
+                for source in sources
+            ]
+            # Convert years to integer
+            years = [int(year) for year in years]
+
+            # Filtering by year
+            if self.start_year:
+                in_range = after_start = [year >= self.start_year for year in years]
+            if self.end_year:
+                in_range = before_end = [year <= self.end_year for year in years]
+            if self.start_year and self.end_year:
+                in_range = [
+                    after and before for after, before in zip(after_start, before_end)
+                ]
+            if self.start_year or self.end_year:
+                # Extract docs where the year is in the start-end range
+                filtered_docs = [
+                    doc for doc, in_range in zip(retrieved_docs, in_range) if in_range
+                ]
+
+            # Return the top k docs
+            return filtered_docs[: self.top_k]
+
+        else:
+            return []

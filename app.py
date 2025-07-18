@@ -63,10 +63,17 @@ async def interact_with_langchain_agent(query, messages, compute_location, searc
             # Look for a tool call
             if chunk_messages.tool_calls:
                 tool_call = chunk_messages.tool_calls[0]
+                # Show the tool call with arguments used
+                args = tool_call["args"]
+                content = args["query"]
+                start_year = args["start_year"] if "start_year" in args else None
+                end_year = args["end_year"] if "end_year" in args else None
+                if start_year or end_year:
+                    content = f"{content} ({start_year or ''} - {end_year or ''})"
                 messages.append(
                     gr.ChatMessage(
                         role="assistant",
-                        content=tool_call["args"]["query"],
+                        content=content,
                         metadata={"title": f"🔍 Running tool {tool_call['name']}"},
                     )
                 )
@@ -143,7 +150,7 @@ with gr.Blocks(
     )
     help = gr.Checkbox(
         value=False,
-        label="❓ Help",
+        label="❓ Show Examples and Info",
         render=False,
     )
     # The chatbot interface
@@ -162,7 +169,7 @@ with gr.Blocks(
         """
     # 🤖 R-help-chat
     
-    Chat with the R-help mailing list archives. Get AI-powered answers about R programming backed by email retrieval and source citations.
+    Chat with the R-help mailing list archives. Get AI-powered answers about R programming backed by email retrieval with year ranges and source citations.
     """
     )
 
@@ -188,11 +195,13 @@ with gr.Blocks(
                 "💡 Example Questions", open=True, visible=False
             ) as examples:
                 example_questions = [
-                    "How to print line numbers where errors occur?",
-                    "Combine numeric and character vectors.",
-                    "Who discussed ways to handle missing values?",
-                    "Were any bugs discussed last month?",
+                    "How to use lapply()?",
+                    "Summarize last month's emails",
+                    "Who discussed missing values in 2024?",
+                    "Any emails about COVID-19 in 2024-2025?",
+                    "emails with bugs.r-project.org 2025",
                     "When was has.HLC mentioned?",
+                    "What is today's date?",
                 ]
                 gr.Examples(
                     examples=[[q] for q in example_questions],
@@ -201,7 +210,7 @@ with gr.Blocks(
                     elem_id="example-questions",
                 )
             # Add information about the system
-            with gr.Accordion("ℹ️ About This System", open=True):
+            with gr.Accordion("ℹ️ About this System", open=False):
 
                 # Get start and end months from database
                 start, end = get_start_end_months(list_sources(compute_location.value))
@@ -212,10 +221,10 @@ with gr.Blocks(
                     For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
                     
                     **Features:**
-                    - **Tool usage**: LLM rewrites your query for retrieval
-                    - **Hybrid retrieval**: Combines dense and sparse search
-                    - **Chat generation**: Answers based on retrieved emails
-                    - **Source citations**: Provides citations to emails
+                    - **Date awareness**: The chat model knows today's date,
+                    - **Tool usage**: rewrites your query for retrieval,
+                    - **Chat generation**: answers based on retrieved emails, and
+                    - **Source citations**: provides citations to emails.
                     
                     **Compute Location:**
                     - **cloud**: Uses OpenAI API for embeddings and chat (requires API key)
