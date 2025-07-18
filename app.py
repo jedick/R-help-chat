@@ -129,9 +129,9 @@ with gr.Blocks(
         value="cloud",
         label="Compute Location",
         info=(
-            "Loading edge models takes some time (wait for notification)"
+            "edge models load in ca. 30 seconds; pop-up notifies when ready"
             if torch.cuda.is_available()
-            else None
+            else "edge models require GPU"
         ),
         interactive=torch.cuda.is_available(),
         render=False,
@@ -148,9 +148,9 @@ with gr.Blocks(
         info="Press Enter to submit",
         render=False,
     )
-    help = gr.Checkbox(
+    show_examples = gr.Checkbox(
         value=False,
-        label="❓ Show Examples and Info",
+        label="💡 Example Questions",
         render=False,
     )
     # The chatbot interface
@@ -180,7 +180,7 @@ with gr.Blocks(
             with gr.Accordion("⚙️ Settings", open=False):
                 compute_location.render()
                 search_type.render()
-            help.render()
+            show_examples.render()
             ## Add a clear button
             # gr.Button("Clear Chat").click(clear_all, None, [chatbot, query, citations, emails])
 
@@ -189,26 +189,29 @@ with gr.Blocks(
         with gr.Column(scale=2):
             chatbot.render()
 
-        with gr.Column(scale=1, visible=False) as about:
+        with gr.Column(scale=1, visible=False) as examples:
             # Add some helpful examples
-            with gr.Accordion(
-                "💡 Example Questions", open=True, visible=False
-            ) as examples:
-                example_questions = [
-                    "How to use lapply()?",
-                    "Summarize last month's emails",
-                    "Who discussed missing values in 2024?",
-                    "Any emails about COVID-19 in 2024-2025?",
-                    "emails with bugs.r-project.org 2025",
-                    "When was has.HLC mentioned?",
-                    "What is today's date?",
-                ]
-                gr.Examples(
-                    examples=[[q] for q in example_questions],
-                    inputs=[query],
-                    label="Click an example to fill the question box",
-                    elem_id="example-questions",
-                )
+            example_questions = [
+                "How to use lapply()?",
+                "Summarize last month's emails",
+                "Who discussed missing values in 2024?",
+                "Any emails about COVID-19 in 2023?",
+                "emails with bugs.r-project.org 2025",
+                "When was has.HLC mentioned?",
+                "What is today's date?",
+            ]
+            gr.Examples(
+                examples=[[q] for q in example_questions],
+                inputs=[query],
+                label="Click an example to fill the question box",
+                elem_id="example-questions",
+            )
+
+    with gr.Row():
+        with gr.Column(scale=2):
+            emails = gr.Textbox(label="Retrieved Emails", lines=2, visible=False)
+        with gr.Column():
+            citations = gr.Textbox(label="Citations", lines=2, visible=False)
             # Add information about the system
             with gr.Accordion("ℹ️ About this System", open=False):
 
@@ -227,8 +230,8 @@ with gr.Blocks(
                     - **Source citations**: provides citations to emails.
                     
                     **Compute Location:**
-                    - **cloud**: Uses OpenAI API for embeddings and chat (requires API key)
-                    - **edge**: Uses [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3-3B](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model (requires GPU)
+                    - **cloud**: OpenAI API for embeddings and chat
+                    - **edge**: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3-3B](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
                     
                     **Search Types:**
                     - **dense**: Vector embeddings (semantic similarity)
@@ -237,19 +240,12 @@ with gr.Blocks(
                     """
                 )
 
-    with gr.Row():
-        with gr.Column(scale=2):
-            emails = gr.Textbox(label="Retrieved Emails", lines=2, visible=False)
-        with gr.Column(visible=False) as citations_column:
-            citations = gr.Textbox(label="Citations", lines=2)
-
     def visible(show):
         # Return updated visibility state for a component
         return gr.update(visible=show)
 
     # Show more info
-    help.change(visible, help, about)
-    help.change(visible, help, examples)
+    show_examples.change(visible, show_examples, examples)
 
     # Define states for the retrieve and generate chunks
     retrieve_chunk = gr.State([])
@@ -321,9 +317,7 @@ with gr.Blocks(
         return "", visible(False)
 
     # Update the citations when ready, and blank it out when a new query is submitted
-    generate_chunk.change(
-        update_citations, generate_chunk, [citations, citations_column]
-    )
+    generate_chunk.change(update_citations, generate_chunk, [citations, citations])
 
 if __name__ == "__main__":
     demo.launch()

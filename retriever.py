@@ -33,7 +33,7 @@ def GetRetrieverParam(param_name: str):
     Get a parameter define in this file
 
     Args:
-        param_name: Name of parameter, e.g. "file_store"
+        param_name: Name of parameter, e.g. "db_dir"
     """
     # Return a variable named in param_name for use outside the module
     return globals()[param_name]

@@ -20,15 +20,22 @@ def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "
     """
 
     # Preprocess: remove quoted lines and handle email boundaries
+    # Truncate emails at 500 lines and line lengths to 500 characters
     temp_fd, cleaned_temp_file = tempfile.mkstemp(suffix=".txt", prefix="preproc_")
     with open(file_path, "r", encoding="utf-8", errors="ignore") as infile, open(
         cleaned_temp_file, "w", encoding="utf-8"
     ) as outfile:
+        line_count = 0
         for line in infile:
+            if line_count >= 500:
+                break
             # Remove lines that start with '>' or whitespace before '>'
             if line.lstrip().startswith(">"):
                 continue
-            outfile.write(line)
+            # Truncate line to 500 characters
+            truncated_line = line[:500]
+            outfile.write(truncated_line)
+            line_count += 1
     try:
         os.close(temp_fd)
     except Exception:
