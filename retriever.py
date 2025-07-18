@@ -172,7 +172,7 @@ def BuildRetrieverDense(compute_location: str, top_k=6):
     )
     # Text splitter for parent documents
     parent_splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0
+        separators=["\n\n\nFrom"], chunk_size=1, chunk_overlap=0
     )
     # Instantiate a retriever
     retriever = ParentDocumentRetriever(

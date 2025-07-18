@@ -2,7 +2,7 @@ import gradio as gr
 from main import GetGraphAndConfig
 import asyncio
 import torch
-from util import list_sources, get_start_end_months
+from util import get_collection, get_sources, get_start_end_months
 
 
 # Global state for graph/config (recreated on config change)
@@ -216,11 +216,13 @@ with gr.Blocks(
             with gr.Accordion("ℹ️ About this System", open=False):
 
                 # Get start and end months from database
-                start, end = get_start_end_months(list_sources(compute_location.value))
+                start, end = get_start_end_months(get_sources(compute_location.value))
+                # Get number of emails in database
+                n_emails = len(get_collection(compute_location.value)["ids"])
                 gr.Markdown(
                     f"""
                     **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
-                    Current coverage is from {start} to {end}.
+                    Current coverage is {n_emails} emails from {start} to {end}.
                     For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
                     
                     **Features:**

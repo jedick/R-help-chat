@@ -3,13 +3,20 @@ from calendar import month_name
 from retriever import BuildRetriever
 
 
-def list_sources(compute_location):
+def get_collection(compute_location):
     """
-    Return a set of unique source files indexed in the database, e.g. 'R-help/2024-April.txt'.
+    Returns the vectorstore collection.
     """
     retriever = BuildRetriever(compute_location, "dense")
-    get = retriever.vectorstore.get()
-    sources = set([d["source"] for d in get["metadatas"]])
+    return retriever.vectorstore.get()
+
+
+def get_sources(compute_location):
+    """
+    Return the source files indexed in the database, e.g. 'R-help/2024-April.txt'.
+    """
+    collection = get_collection(compute_location)
+    sources = [m["source"] for m in collection["metadatas"]]
     return sources
 
 
@@ -19,7 +26,9 @@ def get_start_end_months(sources):
     """
     pattern = re.compile(r"R-help/(\d{4})-([A-Za-z]+)\.txt")
     months = []
-    for src in sources:
+    # Start with the unique sources
+    unique_sources = set(sources)
+    for src in unique_sources:
         m = pattern.match(src)
         if m:
             year = int(m.group(1))

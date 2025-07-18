@@ -20,40 +20,58 @@ def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "
     """
 
     # Preprocess: remove quoted lines and handle email boundaries
-    # Truncate emails at 500 lines and line lengths to 500 characters
     temp_fd, cleaned_temp_file = tempfile.mkstemp(suffix=".txt", prefix="preproc_")
     with open(file_path, "r", encoding="utf-8", errors="ignore") as infile, open(
         cleaned_temp_file, "w", encoding="utf-8"
     ) as outfile:
-        line_count = 0
         for line in infile:
-            if line_count >= 500:
-                break
             # Remove lines that start with '>' or whitespace before '>'
             if line.lstrip().startswith(">"):
                 continue
-            # Truncate line to 500 characters
-            truncated_line = line[:500]
-            outfile.write(truncated_line)
-            line_count += 1
+            outfile.write(line)
     try:
         os.close(temp_fd)
+    except Exception:
+        pass
+
+    # Truncate each email at 500 lines and each line to 500 characters
+    temp_fd2, truncated_temp_file = tempfile.mkstemp(suffix=".txt", prefix="truncated_")
+    with open(cleaned_temp_file, "r", encoding="utf-8") as infile:
+        content = infile.read()
+    # Split into emails using '\n\n\nFrom' as the separator
+    emails = content.split("\n\n\nFrom")
+    processed_emails = []
+    for i, email in enumerate(emails):
+        lines = email.splitlines()
+        # Truncate to 500 lines and each line to 500 characters
+        truncated_lines = [line[:500] for line in lines[:500]]
+        # Add [Email truncated] line to truncated emails
+        if len(lines) > len(truncated_lines):
+            truncated_lines.append("[Email truncated]")
+        processed_emails.append("\n".join(truncated_lines))
+    # Join emails back together with '\n\n\nFrom'
+    result = "\n\n\nFrom".join(processed_emails)
+    with open(truncated_temp_file, "w", encoding="utf-8") as outfile:
+        outfile.write(result)
+    try:
+        os.close(temp_fd2)
     except Exception:
         pass
 
     try:
         if search_type == "sparse":
             # Handle sparse search with BM25
-            ProcessFileSparse(cleaned_temp_file, file_path)
+            ProcessFileSparse(truncated_temp_file, file_path)
         elif search_type == "dense":
             # Handle dense search with ChromaDB
-            ProcessFileDense(cleaned_temp_file, file_path, compute_location)
+            ProcessFileDense(truncated_temp_file, file_path, compute_location)
         else:
             raise ValueError(f"Unsupported search type: {search_type}")
     finally:
-        # Clean up the temporary file
+        # Clean up the temporary files
         try:
             os.remove(cleaned_temp_file)
+            os.remove(truncated_temp_file)
         except Exception:
             pass
 
@@ -88,7 +106,7 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
     # Split archive file into emails for BM25
     # Using two blank lines followed by "From", and no limits on chunk size
     splitter = RecursiveCharacterTextSplitter(
-        separators=["\n\nFrom"], chunk_size=1, chunk_overlap=0
+        separators=["\n\n\nFrom"], chunk_size=1, chunk_overlap=0
     )
     ## Using 'EmailFrom' as the separator (requires preprocesing)
     # splitter = RecursiveCharacterTextSplitter(separators=["EmailFrom"])

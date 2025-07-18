@@ -139,9 +139,11 @@ def BuildGraph(
             message for message in state["messages"] if message.type == "tool"
         ]
         # Format retrieved emails to add to prompt
-        retrieved_emails = "\n\n### Retrieved Emails:\n\n" + "\n\n".join(
-            doc.content for doc in tool_messages
+        retrieved_email_text = (
+            "\n\n".join(doc.content for doc in tool_messages)
+            or "No emails were retrieved."
         )
+        retrieved_emails = "\n\n### Retrieved Emails:\n\n" + retrieved_email_text
         # Format retrieved emails to add to state
         context = []
         for tool_message in tool_messages:
