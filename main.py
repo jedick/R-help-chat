@@ -1,13 +1,16 @@
+from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import ToolMessage
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from datetime import datetime
 import os
 import glob
 import torch
 import logging
+import ast
 
 # To use OpenAI models (cloud)
 from langchain_openai import ChatOpenAI
@@ -155,7 +158,12 @@ def GetChatModel(compute_location):
     return chat_model
 
 
-def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"):
+def RunChain(
+    query,
+    compute_location: str = "cloud",
+    search_type: str = "hybrid",
+    think: bool = False,
+):
     """
     Run chain to retrieve documents and send to chat
 
@@ -163,6 +171,7 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
         query: User's query
         compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
+        think: Control thinking mode for SmolLM3
 
     Example:
         RunChain("What R functions are discussed?")
@@ -177,11 +186,15 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
     # Get chat model (LLM)
     chat_model = GetChatModel(compute_location)
 
-    # Create a prompt template
-    prompt = ChatPromptTemplate.from_template(
-        f"{generate_prompt}"
-        + """"
+    # Control thinking for SmolLM3
+    system_prompt = generate_prompt
+    if hasattr(chat_model, "model_id") and not think:
+        system_prompt = f"/no_think\n{system_prompt}"
 
+    # Create a prompt template
+    system_template = ChatPromptTemplate.from_messages([SystemMessage(system_prompt)])
+    human_template = ChatPromptTemplate.from_template(
+        """"
         ### Question:
 
         {question}
@@ -189,14 +202,14 @@ def RunChain(query, compute_location: str = "cloud", search_type: str = "hybrid"
         ### Retrieved Emails:
 
         {context}
-
         """
     )
+    prompt_template = system_template + human_template
 
     # Build an LCEL retrieval chain
     chain = (
         {"context": retriever, "question": RunnablePassthrough()}
-        | prompt
+        | prompt_template
         | chat_model
         | StrOutputParser()
     )
@@ -244,9 +257,6 @@ def GetGraphAndConfig(
         graph = graph_builder.compile()
         config = None
     else:
-        # FIXME: TypeError: Type is not msgpack serializable: ToolMessage
-        # https://github.com/langchain-ai/langgraph/issues/5054
-        # https://github.com/langchain-ai/langgraph/pull/5115
         # Compile our application with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
@@ -284,12 +294,36 @@ def RunGraph(
     #   - Vector store query as an AIMessage with tool calls
     #   - Retrieved documents as a ToolMessage.
     #   - Final response as a AIMessage
-    for step in graph.stream(
+    for state in graph.stream(
         {"messages": [{"role": "user", "content": query}]},
         stream_mode="values",
         config=config,
     ):
-        if not step["messages"][-1].type == "tool":
-            step["messages"][-1].pretty_print()
+        if not state["messages"][-1].type == "tool":
+            state["messages"][-1].pretty_print()
 
-    return step
+    # Parse the state to return the results
+    try:
+        answer, citations = ast.literal_eval(state["messages"][-1].content)
+    except:
+        # In case we get an answer without citations
+        answer = state["messages"][-1].content
+        citations = None
+    result = {"answer": answer}
+    if citations:
+        result["citations"] = citations
+    # Parse tool messages to get context
+    tool_messages = [msg for msg in state["messages"] if type(msg) == ToolMessage]
+    # Get content from the most recent retrieve_emails response
+    content = None
+    for msg in tool_messages:
+        if msg.name == "retrieve_emails":
+            content = msg.content
+    # Parse it into a list of emails
+    if content:
+        retrieved_emails = content.replace("### Retrieved Emails:\n\n\n\n", "").split(
+            "--- --- --- --- Next Email --- --- --- ---\n\n"
+        )
+        result["retrieved_emails"] = retrieved_emails
+
+    return result

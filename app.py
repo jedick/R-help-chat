@@ -115,9 +115,19 @@ def clear_all():
     return [], "", "", ""
 
 
+# Custom CSS for bottom alignment
+css = """
+.row-container {
+    display: flex;
+    align-items: flex-end; /* Align components at the bottom */
+    gap: 10px; /* Optional: Add spacing between components */
+}
+"""
+
 with gr.Blocks(
     title="R-help-chat",
     theme=gr.themes.Soft(font=["ui-sans-serif", "system-ui", "sans-serif"]),
+    css=css,
 ) as demo:
 
     # Define components before rendering them
@@ -153,7 +163,6 @@ with gr.Blocks(
         label="💡 Example Questions",
         render=False,
     )
-    # The chatbot interface
     chatbot = gr.Chatbot(
         type="messages",
         show_label=False,
@@ -165,13 +174,47 @@ with gr.Blocks(
     )
 
     # Make the interface
-    gr.Markdown(
-        """
-    # 🤖 R-help-chat
-    
-    Chat with the R-help mailing list archives. Get AI-powered answers about R programming backed by email retrieval with year ranges and source citations.
-    """
-    )
+    with gr.Row(elem_classes=["row-container"]):
+        with gr.Column(scale=2):
+            gr.Markdown(
+                """
+            # 🤖 R-help-chat
+            
+            Chat with the R-help mailing list archives. Get AI-powered answers about R programming backed by email retrieval.<br>
+            You can specify years or year ranges, ask follow-up questions, and get source citations.
+            """
+            )
+        with gr.Column(scale=1):
+            # Add information about the system
+            with gr.Accordion("ℹ️ About This System", open=False):
+
+                # Get start and end months from database
+                start, end = get_start_end_months(get_sources(compute_location.value))
+                # Get number of emails (unique doc ids) in vector database
+                collection = get_collection(compute_location.value)
+                n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
+                gr.Markdown(
+                    f"""
+                    **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
+                    Current coverage is {n_emails} emails from {start} to {end}.
+                    For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
+                    
+                    **Features:**
+                    - **Date awareness**: The chat model knows today's date,
+                    - **Tool usage**: rewrites your query for retrieval,
+                    - **Chat generation**: answers based on retrieved emails, and
+                    - **Source citations**: provides citations to emails.
+                    
+                    **Compute Location:**
+                    - **cloud**: OpenAI API for embeddings and chat
+                    - **edge**: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3-3B](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
+                    
+                    **Search Types:**
+                    - **dense**: Vector embeddings (semantic similarity)
+                    - **sparse**: Keyword search with [BM25S](https://github.com/xhluca/bm25s) (good for function names)
+                    - **hybrid**: Combination of dense and sparse
+                    """
+                )
 
     with gr.Row():
         with gr.Column(scale=2):
@@ -198,6 +241,7 @@ with gr.Blocks(
                 "Any emails about COVID-19 in 2023?",
                 "emails with bugs.r-project.org 2025",
                 "When was has.HLC mentioned?",
+                "Recommend ML packages with examples",
                 "What is today's date?",
             ]
             gr.Examples(
@@ -212,35 +256,6 @@ with gr.Blocks(
             emails = gr.Textbox(label="Retrieved Emails", lines=2, visible=False)
         with gr.Column():
             citations = gr.Textbox(label="Citations", lines=2, visible=False)
-            # Add information about the system
-            with gr.Accordion("ℹ️ About this System", open=False):
-
-                # Get start and end months from database
-                start, end = get_start_end_months(get_sources(compute_location.value))
-                # Get number of emails in database
-                n_emails = len(get_collection(compute_location.value)["ids"])
-                gr.Markdown(
-                    f"""
-                    **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
-                    Current coverage is {n_emails} emails from {start} to {end}.
-                    For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
-                    
-                    **Features:**
-                    - **Date awareness**: The chat model knows today's date,
-                    - **Tool usage**: rewrites your query for retrieval,
-                    - **Chat generation**: answers based on retrieved emails, and
-                    - **Source citations**: provides citations to emails.
-                    
-                    **Compute Location:**
-                    - **cloud**: OpenAI API for embeddings and chat
-                    - **edge**: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3-3B](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
-                    
-                    **Search Types:**
-                    - **dense**: Vector embeddings (semantic similarity)
-                    - **sparse**: Keyword search with [BM25S](https://github.com/xhluca/bm25s) (good for function names)
-                    - **hybrid**: Combination of dense and sparse
-                    """
-                )
 
     def visible(show):
         # Return updated visibility state for a component

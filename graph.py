@@ -1,18 +1,20 @@
-from langchain_core.documents import Document
-from langchain_core.messages import SystemMessage, AIMessage, HumanMessage
+from langchain_core.messages import SystemMessage, ToolMessage, HumanMessage, AIMessage
+from langgraph.graph import START, END, MessagesState, StateGraph
 from langchain_core.tools import tool
-from langgraph.graph import END, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
-from typing_extensions import List, Annotated, TypedDict
 from langchain_huggingface import ChatHuggingFace
-from tcl import ToolCallingLLM
+from typing import Optional
 from dotenv import load_dotenv
+import datetime
 import os
-import warnings
 
 # Local modules
 from retriever import BuildRetriever
 from prompts import retrieve_prompt, generate_prompt, smollm3_tools_template
+from tcl import ToolCallingLLM
+
+# Local modules
+from retriever import BuildRetriever
 
 # For tracing
 os.environ["LANGSMITH_TRACING"] = "true"
@@ -26,7 +28,7 @@ def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=F
     Get a SmolLM3 model ready for bind_tools().
     """
 
-    # Add \no_think flag to turn off thinking mode
+    # Add /no_think flag to turn off thinking mode
     if not think:
         system_message = "/no_think\n" + system_message
 
@@ -46,7 +48,7 @@ def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=F
         system_message_suffix=system_message_suffix,
     )
 
-    # The 'model' attribute is needed for ToolCallingLLM to print the response if it can't be parsed
+    # The "model" attribute is needed for ToolCallingLLM to print the response if it can't be parsed
     chat_model.model = chat_model.model_id + "_for_tools"
 
     return chat_model
@@ -61,7 +63,7 @@ def BuildGraph(
     think_generate=False,
 ):
     """
-    Build graph for chat (conversational RAG with memory)
+    Build conversational RAG graph for email retrieval and answering with citations.
 
     Args:
         chat_model: LangChain chat model from GetChatModel()
@@ -71,32 +73,46 @@ def BuildGraph(
         think_retrieve: Whether to use thinking mode for retrieval
         think_generate: Whether to use thinking mode for generation
 
-    Example: RunGraph("What R functions are discussed?")
-
     Based on:
-        https://python.langchain.com/docs/tutorials/qa_chat_history
         https://python.langchain.com/docs/how_to/qa_sources
+        https://python.langchain.com/docs/tutorials/qa_chat_history
+        https://python.langchain.com/docs/how_to/chatbots_memory/
+
+    Usage Example:
+
+        # Build graph with chat model
+        from langchain_openai import ChatOpenAI
+        chat_model = ChatOpenAI(model="gpt-4o-mini")
+        graph = BuildGraph(chat_model, "cloud", "hybrid")
+
+        # Add simple in-memory checkpointer
+        from langgraph.checkpoint.memory import MemorySaver
+        memory = MemorySaver()
+        # Compile app and draw graph
+        app = graph.compile(checkpointer=memory)
+        #app.get_graph().draw_mermaid_png(output_file_path="graph.png")
+
+        # Run app
+        from langchain_core.messages import HumanMessage
+        query = "When was has.HLC mentioned?"
+        state = app.invoke(
+            {"messages": [HumanMessage(content=query)]},
+            config={"configurable": {"thread_id": "1"}},
+        )
+
     """
 
-    # Represent the state of our RAG application using a sequence of messages to enable:
-    #   - Tool-calling features of chat models (rewrite user queries)
-    #   - A "back-and-forth" conversational user experience
-    class ChatMessagesState(MessagesState):
-        # Add a context key to the state to store retrieved documents
-        context: List[Document]
-        # Add a citations key that contains the source citations
-        citations: List[str]
-
-    # Use "content_and_artifact" response format to use artifact for display in web interface
-    @tool(response_format="content_and_artifact")
-    def retrieve_emails(query: str, start_year: int = None, end_year: int = None):
+    @tool(parse_docstring=True)
+    def retrieve_emails(
+        query: str, start_year: Optional[int] = None, end_year: Optional[int] = None
+    ) -> str:
         """
         Retrieve emails related to a query from the R-help mailing list archives.
         Use optional start_year and end_year to filter by years.
 
-        Arguments:
-            query: User's query
-            start_year: Starting year for emails (optiona)
+        Args:
+            query: Search query (required)
+            start_year: Starting year for emails (optional)
             end_year: Ending year for emails (optional)
         """
         retriever = BuildRetriever(
@@ -104,167 +120,98 @@ def BuildGraph(
         )
         retrieved_docs = retriever.invoke(query)
         serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
-            doc.page_content for doc in retrieved_docs
+            # source key has file names (e.g. R-help/2024-December.txt), useful for retrieval and reporting
+            "\n\n" + doc.metadata["source"] + doc.page_content
+            for doc in retrieved_docs
         )
-        return serialized, retrieved_docs
-
-    # Define response or retrieval step (entry point)
-    # NOTE: This has to be ChatMessagesState, not MessagesState, to access step["context"]
-    def respond_or_retrieve(state: ChatMessagesState):
-        """Generate AI response or tool call for retrieval"""
-        # Add tools to the edge or cloud chat model
-        # Edge models (ChatHuggingFace) have a "model_id" attribute
-        if hasattr(chat_model, "model_id"):
-            model_for_tools = ToolifySmolLM3(
-                chat_model, retrieve_prompt, "", think_retrieve
-            )
-            tooled_model = model_for_tools.bind_tools([retrieve_emails])
-            invoke_messages = state["messages"]
-        else:
-            tooled_model = chat_model.bind_tools([retrieve_emails])
-            invoke_messages = [SystemMessage(retrieve_prompt)] + state["messages"]
-        response = tooled_model.invoke(invoke_messages)
-        # MessagesState appends messages to state instead of overwriting
-        return {"messages": [response]}
-
-    # Define retrieval step
-    tools = ToolNode([retrieve_emails])
-
-    # Define generation step
-    def generate(state: MessagesState):
-        """Generate a response using the retrieved emails"""
-
-        # Get generated ToolMessages
-        tool_messages = [
-            message for message in state["messages"] if message.type == "tool"
-        ]
-        # Format retrieved emails to add to prompt
-        retrieved_email_text = (
-            "\n\n".join(doc.content for doc in tool_messages)
-            or "No emails were retrieved."
+        retrieved_emails = (
+            "### Retrieved Emails:\n\n" + serialized
+            if serialized
+            else "### No emails were retrieved"
         )
-        retrieved_emails = "\n\n### Retrieved Emails:\n\n" + retrieved_email_text
-        # Format retrieved emails to add to state
-        context = []
-        for tool_message in tool_messages:
-            context.extend(tool_message.artifact)
-        # Combine conversation messages
-        conversation_messages = [
-            message
-            for message in state["messages"]
-            if message.type == "human"
-            or (message.type == "ai" and not message.tool_calls)
-        ]
+        return retrieved_emails
 
-        ## Run the "naked" chat model (keep this here for testing)
-        # messages = chat_model.invoke([SystemMessage(generate_prompt + retrieved_emails)] + conversation_messages)
-        # return {"messages": [messages], "context": context}
+    @tool(parse_docstring=True)
+    def answer_with_citations(answer: str, citations: str) -> str:
+        """
+        An answer to the question, with citations of the emails used (senders and dates).
 
-        # Setup the chat model for structured output
-        if hasattr(chat_model, "model_id"):
+        Args:
+            answer: An answer to the question
+            citations: Citations of emails used to answer the question, e.g. Jane Doe, 2025-07-04; John Smith, 2020-01-01
+        """
+        return answer, citations
 
-            # Local model: .with_structured_output() isn't supported, but we can use a tool
-            @tool(response_format="content_and_artifact")
-            def answer_with_citations(answer: str, citations: str):
-                """
-                An answer to the question, with citations of the emails used (senders and dates)
+    # Add tools to the edge or cloud chat model
+    if hasattr(chat_model, "model_id"):
+        # For edge model (ChatHuggingFace)
+        query_model = ToolifySmolLM3(
+            chat_model, retrieve_prompt, "", think_retrieve
+        ).bind_tools([retrieve_emails])
+        answer_model = ToolifySmolLM3(
+            chat_model, generate_prompt, "", think_generate
+        ).bind_tools([answer_with_citations])
+    else:
+        # For cloud model (OpenAI API)
+        query_model = chat_model.bind_tools([retrieve_emails])
+        answer_model = chat_model.bind_tools([answer_with_citations])
 
-                Args:
-                    answer: An answer to the question
-                    citations: Citations of emails used to answer the question, e.g. Duncan Murdoch, 2025-05-31
-                """
-                return answer, citations
+    # Initialize the graph object
+    graph = StateGraph(MessagesState)
 
-            model_for_tools = ToolifySmolLM3(
-                chat_model,
-                # Add instruction to use tool
-                generate_prompt
-                + "Use answer_with_citations to respond with an answer and citations. ",
-                # Tried adding retrieved emails to system message, but the model forgot about tool calling
-                # retrieved_emails,
-                "",
-                think_generate,
-            )
-            tooled_model = model_for_tools.bind_tools([answer_with_citations])
-            ## Putting the query and retrieved emails in separate messages might lead to more hallucinations ...
-            # messages = tooled_model.invoke(conversation_messages + [HumanMessage(retrieved_emails)])
-            # ... so let's keep them together
-            conversation_content = "\n\n".join(
-                [message.content for message in conversation_messages]
-            )
-            messages = tooled_model.invoke(
-                [HumanMessage(conversation_content + retrieved_emails)]
-            )
-            # Extract the tool calls
-            tool_calls = messages.tool_calls
-            if tool_calls:
-                args = tool_calls[0]["args"]
-                new_state = {
-                    "messages": [AIMessage(args["answer"])],
-                    "citations": [
-                        (
-                            args["citations"]
-                            if "citations" in args
-                            else "No citations generated by chat model."
-                        )
-                    ],
-                }
+    # Define the function that calls the model
+    def call_model(state: MessagesState):
+        # For edge models, don't include the system message here because it's defined in ToolCallingLLM
+        messages = state["messages"]
+        if type(state["messages"][-1]) is ToolMessage:
+            # Generate an answer if we retrieved emails in the last step
+            if not hasattr(chat_model, "model_id"):
+                messages = [SystemMessage(generate_prompt)] + state["messages"]
             else:
-                new_state = {
-                    "messages": [messages],
-                    # citations = "No citations generated by chat model.",
-                }
-        else:
-            # OpenAI API: we can use .with_structured_output() method
-            # Desired schema for response
-            class AnswerWithCitations(TypedDict):
-                """Answer the question with citations of the emails used (senders and dates)."""
-
-                answer: str
-                citations: Annotated[
-                    List[str],
-                    ...,
-                    "Citations of emails used to answer the question, e.g. Duncan Murdoch, 2025-05-31",
+                # For edge, copy the most recent HumanMessage to the end
+                # (avoids ValueError: Last message must be a HumanMessage!)
+                messages = state["messages"]
+                for msg in reversed(messages):
+                    if type(msg) is HumanMessage:
+                        messages.append(msg)
+                # Convert ToolMessage to AIMessage
+                # (avoids ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
+                messages = [
+                    AIMessage(msg.content) if type(msg) is ToolMessage else msg
+                    for msg in messages
                 ]
+            response = answer_model.invoke(messages)
+        else:
+            # Otherwise, query and retrieve emails
+            if not hasattr(chat_model, "model_id"):
+                messages = [SystemMessage(retrieve_prompt)] + state["messages"]
+            response = query_model.invoke(messages)
 
-            structured_chat_model = chat_model.with_structured_output(
-                AnswerWithCitations
-            )
-            # Invoke model with system and conversation messages
-            response = structured_chat_model.invoke(
-                [SystemMessage(generate_prompt + retrieved_emails)]
-                + conversation_messages
-            )
+        return {"messages": response}
 
-            new_state = {"messages": [AIMessage(response["answer"])]}
-            # Sometimes OpenAI API returns an answer without citations, so test that it's present
-            if "citations" in response:
-                new_state["citations"] = response["citations"]
+    # Define model and tool nodes
+    graph.add_node("query", call_model)
+    graph.add_node("generate", call_model)
+    graph.add_node("retrieve_emails", ToolNode([retrieve_emails]))
+    graph.add_node("answer_with_citations", ToolNode([answer_with_citations]))
 
-        # Add retrieved emails (tool artifacts) to the state
-        new_state["context"] = context
+    # Define starting edge
+    graph.add_edge(START, "query")
 
-        return new_state
-
-    # Initialize a graph object
-    graph_builder = StateGraph(MessagesState)
-    # Add nodes
-    # A node that fields the user input, either responding directly or using a tool
-    graph_builder.add_node(respond_or_retrieve)
-    # A node for the retriever tool that executes the retrieval step
-    graph_builder.add_node(tools)
-    # A node that generates the final response using the retrieved context
-    graph_builder.add_node(generate)
-    # Set entry point
-    graph_builder.set_entry_point("respond_or_retrieve")
-    # Add edges
-    graph_builder.add_conditional_edges(
-        "respond_or_retrieve",
+    # Add conditional edges from model to tools
+    graph.add_conditional_edges(
+        "query",
         tools_condition,
-        # The first respond_or_retrieve step can respond directly to the user or generate a tool call
-        {END: END, "tools": "tools"},
+        {END: END, "tools": "retrieve_emails"},
     )
-    graph_builder.add_edge("tools", "generate")
-    graph_builder.set_finish_point("generate")
+    graph.add_conditional_edges(
+        "generate",
+        tools_condition,
+        {END: END, "tools": "answer_with_citations"},
+    )
 
-    return graph_builder
+    # Add edges from the tool nodes
+    graph.add_edge("retrieve_emails", "generate")
+
+    # Done!
+    return graph

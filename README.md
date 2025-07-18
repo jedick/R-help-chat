@@ -79,22 +79,21 @@ RunChain("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
-Use the graph app to allow the chat model (i.e., LLM) to rewrite your query for retrieval and to return the retrieved emails and cited sources.
-In this example, the chat model cited 3 out of 5 emails retrieved as context for the query.
+Use the graph app to allow the chat model to rewrite your query for retrieval and to return the retrieved emails and cited sources.
+In this example, the chat model cited 2 out of 6 emails retrieved for the query.
 
 ```python
+# The console output shows the AI-rewritten query: print line numbers errors
 result = RunGraph("How to print line numbers where errors occur?")
 
-result["messages"][-1].content
-# 'To print line numbers where errors occur in R, you can use the `options()` function to set `show.error.locations` to `TRUE`. ...',
+result["answer"]
+# 'To print line numbers where errors occur in R, you can use the option `options(show.error.locations = TRUE)`. ...'
 
-len(result["context"])
+len(result["retrieved_emails"])
 # 5 
 
 result["sources"]
-# ['Duncan Murdoch, Sat, 18 Jan 2025',
-# 'Luke Tierney, Sun, 19 Jan 2025',
-# 'Duncan Murdoch, Mon, 20 Jan 2025']
+# 'Duncan Murdoch, 2025-01-20; Jeff Newmiller, 2025-01-18'
 ```
 
 To run evals:
