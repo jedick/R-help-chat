@@ -270,9 +270,9 @@ with gr.Blocks(
 
     def set_avatar(compute_location):
         if compute_location == "cloud":
-            image_file = "cloud.png"
+            image_file = "images/cloud.png"
         if compute_location == "edge":
-            image_file = "chip.png"
+            image_file = "images/chip.png"
         return gr.update(
             avatar_images=(
                 None,
