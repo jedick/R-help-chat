@@ -59,7 +59,7 @@ def BuildGraph(
     compute_location,
     search_type,
     top_k=6,
-    think_retrieve=True,
+    think_retrieve=False,
     think_generate=False,
 ):
     """
@@ -107,19 +107,25 @@ def BuildGraph(
         search_query: str,
         start_year: Optional[int] = None,
         end_year: Optional[int] = None,
+        months: Optional[str] = None,
     ) -> str:
         """
         Retrieve emails related to a search query from the R-help mailing list archives.
-        Use optional start_year and end_year to filter by years.
+        Use optional "start_year" and "end_year" arguments to filter by years.
+        Use optional "months" argument to search by month.
 
         Args:
             search_query: Search query (required)
+            months: One or more months (optional)
             start_year: Starting year for emails (optional)
             end_year: Ending year for emails (optional)
         """
         retriever = BuildRetriever(
             compute_location, search_type, top_k, start_year, end_year
         )
+        # For now, just add the months to the search query
+        if months:
+            search_query = search_query + " " + months
         retrieved_docs = retriever.invoke(search_query)
         serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
             # source key has file names (e.g. R-help/2024-December.txt), useful for retrieval and reporting

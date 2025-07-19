@@ -17,15 +17,14 @@ def retrieve_prompt(compute_location):
         f"The current date is {date.today()}. "
         "You are a helpful RAG chatbot designed to answer questions about R programming based on the R-help mailing list. "
         "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
-        f"You can retrieve emails from {start} to {end} using a search query. "
+        f"The emails available for retrieval are from {start} to {end}. "
         "Write a search query based on the user's question, but do not answer the question just yet. "
         "For questions about differences or comparison between X and Y, retrieve emails about X and Y. "
-        "Only use a year range that can be inferred from the user's question. "
-        "Use the search_query argument to specify months. "
+        "Use the 'months' argument to search for months. "
         # This confuses gpt-4o-mini (empty search_query - token problem?)
         # "Use 3-letter month abbreviations (Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec). "
-        "Example: If the current month is July 2025, then the previous month is June 2025. "
-        "You can retrieve emails from June 2025 using retrieve_emails(search_query='June', start_year=2025, end_year=2025). "
+        "You can retrieve emails about R from <month> using retrieve_emails(search_query='R', months='<month>'). "
+        "If you can infer start or end years from the user's question, use retrieve_emails(search_query=, start_year=, end_year=). "
         "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list. "
     )
     # A sanity check that we don't have unassigned variables
@@ -47,9 +46,10 @@ def answer_prompt():
         "Do not give an answer based on your own knowledge or memory, and do not include examples that aren't based on the retrieved emails. "
         "Example: For a question about writing formulas for lm(), make your answer about formulas for lm() from the retrieved emails. "
         "Do not respond with packages that are only listed under sessionInfo, session info, or other attached packages. "
-        "Include citations (email senders and dates) in your response. "
+        "Include inline citations (email senders and dates) in your response. "
+        "Use answer_with_citations to provide the answer and all citations used. "
         "Respond with 300 words maximum and 30 lines of code maximum and include any relevant URLs from the retrieved emails. "
-        "Use answer_with_citations to respond with the answer and citations of emails used in your response. "
+        "Only answer general questions about R if the answer is given in the retrieved emails. "
     )
     matches = re.findall(r"\{.*?\}", "".join(answer_prompt))
     if matches:

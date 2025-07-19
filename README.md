@@ -121,14 +121,14 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for queries and reference answers in `eval.csv` with retrieval from six months of the R-help archives (January-June 2025):
+Results for queries and reference answers in `eval.csv` with retrieval from 2.5 years of the R-help archives (January 2022-June 2025):
 
 | Compute | App | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
-| Cloud | Chain | 0.75     | **0.87** | **0.65** |
-| Cloud | Graph | 0.60     | 0.72     | **0.65** |
-| Edge  | Chain | **0.77** | 0.75     | 0.35     |
-| Edge  | Graph | 0.57     | 0.39     | 0.23     |
+| Cloud | Chain | **0.80** | **0.78** | **0.72** |
+| Cloud | Graph | 0.62 | 0.60     | 0.65 |
+| Edge  | Chain | 0.67 | 0.60     | 0.40 |
+| Edge  | Graph | 0.52 | 0.57     | 0.10 |
 
 ## Acknowledgments
 

@@ -88,6 +88,8 @@ async def run_graph(input, messages, compute_location, search_type, thread_id):
                     end_year = args["end_year"] if "end_year" in args else None
                     if start_year or end_year:
                         content = f"{content} ({start_year or ''} - {end_year or ''})"
+                    if "months" in args:
+                        content = f"{content} {args['months']}"
                     messages.append(
                         gr.ChatMessage(
                             role="assistant",
@@ -235,7 +237,8 @@ with gr.Blocks(
             Use natural langauge to ask R-related questions including years or year ranges (coverage is {start} to {end}).<br>
             The chat model can rewrite your query for retrieval, make multiple retrievals in one turn, and provide source citations.<br>
             You can ask follow-up questions or clear the chat if you want to start over.<br>
-            **Privacy Notice:** User questions and AI responses are logged using LangSmith for app usage and performance monitoring.<br>
+            **_Answers may be incorrect._**<br>
+            **Privacy Notice:** User questions and AI responses are logged for usage and performance monitoring.<br>
             Additionally, data sharing ("Input to the Services for Development Purposes") is enabled for the OpenAI API key used in this deployment.<br>
             """
             )
@@ -287,12 +290,12 @@ with gr.Blocks(
         with gr.Column(scale=1, visible=False) as examples:
             # Add some helpful examples
             example_questions = [
+                # "What is today's date?",
+                "Summarize emails from the last two months",
                 "What plotmath examples have been discussed?",
                 "When was has.HLC mentioned?",
                 "Who discussed profiling in 2023?",
                 "Any messages about installation problems in 2023-2024?",
-                "Summarize emails from the last two months",
-                # "What is today's date?",
             ]
             gr.Examples(
                 examples=[[q] for q in example_questions],
@@ -302,7 +305,7 @@ with gr.Blocks(
             )
             multi_tool_questions = [
                 "Speed differences between lapply and for loops",
-                "Compare the sentiment about the pipe operator between 2022 and 2023",
+                "Compare usage of pipe operator between 2022 and 2024",
             ]
             gr.Examples(
                 examples=[[q] for q in multi_tool_questions],
@@ -325,7 +328,7 @@ with gr.Blocks(
         with gr.Column(scale=2):
             emails_textbox = gr.Textbox(
                 label="Retrieved Emails",
-                lines=2,
+                lines=10,
                 visible=False,
                 info="Hint: Look for 'Tool Call' and 'Next Email' separators",
             )

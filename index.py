@@ -51,6 +51,9 @@ def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "
         processed_emails.append("\n".join(truncated_lines))
     # Join emails back together with '\n\n\nFrom'
     result = "\n\n\nFrom".join(processed_emails)
+    # Add two blank lines to the first email so all emails have the same formatting
+    # (needed for removing prepended source file names in evals)
+    result = "\n\n" + result
     with open(truncated_temp_file, "w", encoding="utf-8") as outfile:
         outfile.write(result)
     try:

@@ -40,7 +40,11 @@ def build_eval_dataset(queries, references, compute_location, app_type, search_t
     for query, reference in zip(queries, references):
         try:
             if app_type == "chain":
+                print("\n\n--- Query ---")
+                print(query)
                 response = RunChain(query, compute_location, search_type)
+                print("--- Response ---")
+                print(response)
                 # Retrieve context documents for a query
                 retriever = BuildRetriever(compute_location, search_type)
                 docs = retriever.invoke(query)
@@ -48,9 +52,13 @@ def build_eval_dataset(queries, references, compute_location, app_type, search_t
             if app_type == "graph":
                 result = RunGraph(query, compute_location, search_type)
                 retrieved_contexts = []
-                if "context" in result:
-                    retrieved_contexts = [doc.page_content for doc in result["context"]]
-                response = result["messages"][-1].content
+                if "retrieved_emails" in result:
+                    # Remove the source files (e.g. R-help/2022-September.txt) as it confuses the evaluator
+                    retrieved_contexts = [
+                        "\n\nFrom" + email.split("\n\nFrom")[1]
+                        for email in result["retrieved_emails"]
+                    ]
+                response = result["answer"]
             dataset.append(
                 {
                     "user_input": query,

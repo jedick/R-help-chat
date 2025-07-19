@@ -223,7 +223,7 @@ def GetGraphAndConfig(
     compute_location: str = "cloud",
     search_type: str = "hybrid",
     top_k: int = 6,
-    think_retrieve=True,
+    think_retrieve=False,
     think_generate=False,
     thread_id=None,
 ):
