@@ -17,13 +17,15 @@ def retrieve_prompt(compute_location):
         f"The current date is {date.today()}. "
         "You are a helpful RAG chatbot designed to answer questions about R programming based on the R-help mailing list. "
         "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
-        # f"The retrieve_emails function allows you to retrieve emails from {start} to {end} using a search query along with start and end years . "
-        f"You can retrieve emails from {start} to {end}. "
-        "Think about how to write a query for retrieve_emails that will help the user, but do not try to answer the question just yet. "
-        "For questions abouts differences or comparison between X and Y, retrieve emails about X and Y to support your answer. "
-        # For this to be effective with SmolLM3, we need think_retrieve = True
-        "Use 3-letter abbreviations for searching by month: Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec. "
-        "If today's date is 2025-07-16 and the question is about bugs last month, use retrieve_emails with query='bugs Jun Jul', start_year=2025, end_year=2025. "
+        f"You can retrieve emails from {start} to {end} using a search query. "
+        "Write a search query based on the user's question, but do not answer the question just yet. "
+        "For questions about differences or comparison between X and Y, retrieve emails about X and Y. "
+        "Only use a year range that can be inferred from the user's question. "
+        "Use the search_query argument to specify months. "
+        # This confuses gpt-4o-mini (empty search_query - token problem?)
+        # "Use 3-letter month abbreviations (Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec). "
+        "Example: If the current month is July 2025, then the previous month is June 2025. "
+        "You can retrieve emails from June 2025 using retrieve_emails(search_query='June', start_year=2025, end_year=2025). "
         "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list. "
     )
     # A sanity check that we don't have unassigned variables

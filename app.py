@@ -10,28 +10,28 @@ import os
 # Global state for chatbot app
 graph = None
 config = None
-thread_id = None
 
 # Initial settings, used to emit messages when settings are changed
 COMPUTE = "cloud"
 SEARCH = "hybrid"
 
 
-def set_graph_config(compute_location, search_type, my_thread_id=None):
+def generate_thread_id():
+    """Generate a new thread ID"""
+    thread_id = uuid.uuid4()
+    print(f"Generated thread_id: {thread_id}")
+    return thread_id
+
+
+def set_graph_config(compute_location, search_type, thread_id=None):
     """Helper to set the graph and config for the agent"""
 
-    if my_thread_id is None:
-        # This starts a new chat with a random thread ID
-        global thread_id
-        thread_id = uuid.uuid4()
-        my_thread_id = thread_id
-        print(f"Generated thread_id: {thread_id}")
-    else:
-        print(f"Using thread_id: {thread_id}")
+    if thread_id is None:
+        thread_id = generate_thread_id()
 
     global graph, config
     graph, config = GetGraphAndConfig(
-        compute_location, search_type, thread_id=my_thread_id
+        compute_location, search_type, thread_id=thread_id
     )
 
     global COMPUTE
@@ -48,17 +48,15 @@ def set_graph_config(compute_location, search_type, my_thread_id=None):
         gr.Success(message, duration=4, title=f"Set search type!")
         SEARCH = search_type
 
-    # Return the current value of thread_id
-    return my_thread_id
 
-
-async def interact_with_langchain_agent(input, messages, compute_location, search_type):
+async def run_graph(input, messages, compute_location, search_type, thread_id):
 
     # Set initial graph/config
     if graph == None:
         set_graph_config(
-            compute_location=COMPUTE, search_type=SEARCH, my_thread_id=thread_id
+            compute_location=COMPUTE, search_type=SEARCH, thread_id=thread_id
         )
+    print(f"Using thread_id: {thread_id}")
 
     # This shows the user input as a chatbot message
     messages.append(gr.ChatMessage(role="user", content=input))
@@ -85,7 +83,7 @@ async def interact_with_langchain_agent(input, messages, compute_location, searc
                 for tool_call in chunk_messages.tool_calls:
                     # Show the tool call with arguments used
                     args = tool_call["args"]
-                    content = args["query"]
+                    content = args["search_query"]
                     start_year = args["start_year"] if "start_year" in args else None
                     end_year = args["end_year"] if "end_year" in args else None
                     if start_year or end_year:
@@ -122,13 +120,14 @@ async def interact_with_langchain_agent(input, messages, compute_location, searc
                 )
                 # Get the number of retrieved emails
                 n_emails = len(email_list)
+                title = f"🛒 Retrieved {n_emails} emails"
                 if email_list[0] == "### No emails were retrieved":
-                    n_emails = 0
+                    title = "❌ Retrieved 0 emails"
                 messages.append(
                     gr.ChatMessage(
                         role="assistant",
                         content=month_text,
-                        metadata={"title": f"✉ Retrieved {n_emails} emails"},
+                        metadata={"title": title},
                     )
                 )
                 # Format the retrieved emails with Tool Call heading
@@ -189,7 +188,7 @@ with gr.Blocks(
         value="cloud",
         label="Compute Location",
         info=(
-            "The edge model is experimental and may produce low-quality answers. Pop-up will notify when it's ready (loading time is about 20 seconds)."
+            "The edge model is experimental and may produce lower-quality answers. Pop-up will notify when it's ready (loading time is about 20 seconds)."
             if torch.cuda.is_available()
             else "NOTE: edge model requires GPU"
         ),
@@ -233,12 +232,11 @@ with gr.Blocks(
             # 🤖 R-help-chat
             
             **Chat with the R-help mailing list archives.** Get AI-powered answers about R programming backed by email retrieval.<br>
-            Use natural langauge to ask any R-related question, including years or year ranges (coverage is {start} to {end}).<br>
-            Feel free to ask follow-up questions, or reload this page if you want to start over.<br>
+            Use natural langauge to ask R-related questions including years or year ranges (coverage is {start} to {end}).<br>
             The chat model can rewrite your query for retrieval, make multiple retrievals in one turn, and provide source citations.<br>
-            **Privacy Notice:** User questions and AI responses are logged using LangSmith for performance monitoring and detecting potential abuses.<br>
+            You can ask follow-up questions or clear the chat if you want to start over.<br>
+            **Privacy Notice:** User questions and AI responses are logged using LangSmith for app usage and performance monitoring.<br>
             Additionally, data sharing ("Input to the Services for Development Purposes") is enabled for the OpenAI API key used in this deployment.<br>
-            If you are concerned about privacy, then do not use this app, or duplicate it to use your own API key or edge models on resources you control.
             """
             )
         with gr.Column(scale=1):
@@ -250,8 +248,10 @@ with gr.Blocks(
                 n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
                 gr.Markdown(
                     f"""
-                    **R-help-chat** is a chat interface to the {n_emails} from the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
-                    For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
+                    **R-help-chat** is a chat interface to {n_emails} emails from the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
+                    For technical details, see the [GitHub repository](https://github.com/jedick/R-help-chat).
+
+                    **Open Source:** The source code for this app is distributed under the terms of the MIT license.
                     
                     **Features:**
                     - **Date awareness**: The chat model knows today's date,
@@ -287,13 +287,12 @@ with gr.Blocks(
         with gr.Column(scale=1, visible=False) as examples:
             # Add some helpful examples
             example_questions = [
-                "How can I write formulas for lm()?",
-                "What ML packages were discussed recently?",
+                "What plotmath examples have been discussed?",
                 "When was has.HLC mentioned?",
                 "Who discussed profiling in 2023?",
                 "Any messages about installation problems in 2023-2024?",
-                "Summarize last month's emails",
-                "What is today's date?",
+                "Summarize emails from the last two months",
+                # "What is today's date?",
             ]
             gr.Examples(
                 examples=[[q] for q in example_questions],
@@ -302,17 +301,18 @@ with gr.Blocks(
                 elem_id="example-questions",
             )
             multi_tool_questions = [
-                "Compare the sentiment about the pipe operator between 2023 and 2024",
+                "Speed differences between lapply and for loops",
+                "Compare the sentiment about the pipe operator between 2022 and 2023",
             ]
             gr.Examples(
                 examples=[[q] for q in multi_tool_questions],
                 inputs=[input],
-                label="Example prompt for multiple retrievals",
+                label="Example prompts for multiple retrievals",
                 elem_id="example-questions",
             )
             multi_turn_questions = [
                 "Lookup emails that reference bugs.r-project.org in 2025",
-                "Did those authors report bugs in 2024?",
+                "Did those authors report bugs before 2025?",
             ]
             gr.Examples(
                 examples=[[q] for q in multi_turn_questions],
@@ -332,18 +332,24 @@ with gr.Blocks(
         with gr.Column():
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
 
+    # Handle events
+
+    # Define session state for thread_id
+    thread_id = gr.State(generate_thread_id())
+    # Define states for the output textboxes
+    retrieved_emails = gr.State([])
+    citations_text = gr.State([])
+
+    # Start a new thread when the user presses the clear (trash) button
+    # https://github.com/gradio-app/gradio/issues/9722
+    chatbot.clear(generate_thread_id, outputs=[thread_id])
+
     def visible(show):
-        # Return updated visibility state for a component
+        """Return updated visibility state for a component"""
         return gr.update(visible=show)
 
     # Show more info
     show_examples.change(visible, show_examples, examples)
-
-    # Define state to keep track of global thread_id
-    thread_id_state = gr.State(thread_id)
-    # Define states for the output textboxes
-    retrieved_emails = gr.State([])
-    citations_text = gr.State([])
 
     def set_avatar(compute_location):
         if compute_location == "cloud":
@@ -360,9 +366,9 @@ with gr.Blocks(
     # Set graph/config when compute location changes
     compute_location.change(
         set_graph_config,
-        # This resets global thread_id and assigns it to thread_id_state
+        # Input with missing thread_id means that a new one will be assigned
         [compute_location, search_type],
-        [thread_id_state],
+        [thread_id],
     ).then(
         # This changes the avatar for cloud or edge
         # TODO: make the change apply to only future messages
@@ -374,15 +380,15 @@ with gr.Blocks(
     # Set graph/config when search type changes
     search_type.change(
         set_graph_config,
-        # This reuses global thread_id
-        [compute_location, search_type, thread_id_state],
-        [thread_id_state],
+        # This keeps the current thread_id
+        [compute_location, search_type, thread_id],
+        [thread_id],
     )
 
     # Submit input to the chatbot
     input.submit(
-        interact_with_langchain_agent,
-        [input, chatbot, compute_location, search_type],
+        run_graph,
+        [input, chatbot, compute_location, search_type, thread_id],
         [chatbot, retrieved_emails, citations_text],
     )
 
@@ -415,6 +421,7 @@ with gr.Blocks(
     citations_text.change(
         update_citations, citations_text, [citations_textbox, citations_textbox]
     )
+
 
 if __name__ == "__main__":
 

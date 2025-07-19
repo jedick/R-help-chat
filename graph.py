@@ -94,9 +94,9 @@ def BuildGraph(
 
         # Run app
         from langchain_core.messages import HumanMessage
-        query = "When was has.HLC mentioned?"
+        input = "When was has.HLC mentioned?"
         state = app.invoke(
-            {"messages": [HumanMessage(content=query)]},
+            {"messages": [HumanMessage(content=input)]},
             config={"configurable": {"thread_id": "1"}},
         )
 
@@ -104,21 +104,23 @@ def BuildGraph(
 
     @tool(parse_docstring=True)
     def retrieve_emails(
-        query: str, start_year: Optional[int] = None, end_year: Optional[int] = None
+        search_query: str,
+        start_year: Optional[int] = None,
+        end_year: Optional[int] = None,
     ) -> str:
         """
-        Retrieve emails related to a query from the R-help mailing list archives.
+        Retrieve emails related to a search query from the R-help mailing list archives.
         Use optional start_year and end_year to filter by years.
 
         Args:
-            query: Search query (required)
+            search_query: Search query (required)
             start_year: Starting year for emails (optional)
             end_year: Ending year for emails (optional)
         """
         retriever = BuildRetriever(
             compute_location, search_type, top_k, start_year, end_year
         )
-        retrieved_docs = retriever.invoke(query)
+        retrieved_docs = retriever.invoke(search_query)
         serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
             # source key has file names (e.g. R-help/2024-December.txt), useful for retrieval and reporting
             "\n\n" + doc.metadata["source"] + doc.page_content
