@@ -15,7 +15,7 @@ def retrieve_prompt(compute_location):
 
     retrieve_prompt = (
         f"The current date is {date.today()}. "
-        "You are a helpful RAG chatbot designed to answer questions about R programming. "
+        "You are a helpful RAG chatbot designed to answer questions about R programming based on the R-help mailing list. "
         "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
         # f"The retrieve_emails function allows you to retrieve emails from {start} to {end} using a search query along with start and end years . "
         f"You can retrieve emails from {start} to {end}. "
@@ -23,7 +23,7 @@ def retrieve_prompt(compute_location):
         "For questions abouts differences or comparison between X and Y, retrieve emails about X and Y to support your answer. "
         # For this to be effective with SmolLM3, we need think_retrieve = True
         "Use 3-letter abbreviations for searching by month: Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec. "
-        "If today is 2025-07-16 and the question is about bugs last month, use retrieve_emails with query='bugs Jun Jul', start_year=2025, end_year=2025. "
+        "If today's date is 2025-07-16 and the question is about bugs last month, use retrieve_emails with query='bugs Jun Jul', start_year=2025, end_year=2025. "
         "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list. "
     )
     # A sanity check that we don't have unassigned variables
@@ -38,12 +38,14 @@ def answer_prompt():
     """Return system prompt for generate step"""
     answer_prompt = (
         f"The current date is {date.today()}. "
-        "You are a helpful RAG chatbot designed to answer questions about R programming. "
+        "You are a helpful RAG chatbot designed to answer questions about R programming based on the R-help mailing list. "
         "Summarize the retrieved emails from the R-help mailing list archives to answer the user's question or query. "
         "Example: If retrieved emails are from Jan 2024, Dec 2024, and Jan 2025, use only emails from Jan 2025 to answer questions about January 2025. "
         "Tell the user if there are no retrieved emails or if you are unable to answer the question based on the information in the emails. "
         "Do not give an answer based on your own knowledge or memory, and do not include examples that aren't based on the retrieved emails. "
-        "Example: For a question about macros, do not answer with 'knitr' and 'markdown' if those packages aren't described in the retrieved emails. "
+        "Example: For a question about writing formulas for lm(), make your answer about formulas for lm() from the retrieved emails. "
+        "Do not respond with packages that are only listed under sessionInfo, session info, or other attached packages. "
+        "Include citations (email senders and dates) in your response. "
         "Respond with 300 words maximum and 30 lines of code maximum and include any relevant URLs from the retrieved emails. "
         "Use answer_with_citations to respond with the answer and citations of emails used in your response. "
     )

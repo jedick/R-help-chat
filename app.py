@@ -25,7 +25,9 @@ def set_graph_config(compute_location, search_type, my_thread_id=None):
         global thread_id
         thread_id = uuid.uuid4()
         my_thread_id = thread_id
-        # print(f"Generated thread_id: {thread_id}")
+        print(f"Generated thread_id: {thread_id}")
+    else:
+        print(f"Using thread_id: {thread_id}")
 
     global graph, config
     graph, config = GetGraphAndConfig(
@@ -34,7 +36,7 @@ def set_graph_config(compute_location, search_type, my_thread_id=None):
 
     global COMPUTE
     if not compute_location == COMPUTE:
-        gr.Success(f"{compute_location}", duration=4, title=f"Set compute location!")
+        gr.Success(f"{compute_location}", duration=4, title=f"Model is ready!")
         COMPUTE = compute_location
 
     global SEARCH
@@ -53,7 +55,6 @@ def set_graph_config(compute_location, search_type, my_thread_id=None):
 async def interact_with_langchain_agent(input, messages, compute_location, search_type):
 
     # Set initial graph/config
-    # print(f"Using thread_id: {thread_id}")
     if graph == None:
         set_graph_config(
             compute_location=COMPUTE, search_type=SEARCH, my_thread_id=thread_id
@@ -78,23 +79,24 @@ async def interact_with_langchain_agent(input, messages, compute_location, searc
         if node == "query":
             # Get the message (AIMessage class in LangChain)
             chunk_messages = chunk["messages"]
-            # Look for a tool call
+            # Look for tool calls
             if chunk_messages.tool_calls:
-                tool_call = chunk_messages.tool_calls[0]
-                # Show the tool call with arguments used
-                args = tool_call["args"]
-                content = args["query"]
-                start_year = args["start_year"] if "start_year" in args else None
-                end_year = args["end_year"] if "end_year" in args else None
-                if start_year or end_year:
-                    content = f"{content} ({start_year or ''} - {end_year or ''})"
-                messages.append(
-                    gr.ChatMessage(
-                        role="assistant",
-                        content=content,
-                        metadata={"title": f"🔍 Running tool {tool_call['name']}"},
+                # Loop over tool calls
+                for tool_call in chunk_messages.tool_calls:
+                    # Show the tool call with arguments used
+                    args = tool_call["args"]
+                    content = args["query"]
+                    start_year = args["start_year"] if "start_year" in args else None
+                    end_year = args["end_year"] if "end_year" in args else None
+                    if start_year or end_year:
+                        content = f"{content} ({start_year or ''} - {end_year or ''})"
+                    messages.append(
+                        gr.ChatMessage(
+                            role="assistant",
+                            content=content,
+                            metadata={"title": f"🔍 Running tool {tool_call['name']}"},
+                        )
                     )
-                )
             if chunk_messages.content:
                 messages.append(
                     gr.ChatMessage(role="assistant", content=chunk_messages.content)
@@ -102,29 +104,42 @@ async def interact_with_langchain_agent(input, messages, compute_location, searc
             yield messages, [], []
 
         if node == "retrieve_emails":
-            # Get the retrieved emails
-            chunk_messages = chunk["messages"][0]
-            retrieved_emails = chunk_messages.content.replace(
-                "### Retrieved Emails:\n\n\n\n", ""
-            ).split("--- --- --- --- Next Email --- --- --- ---\n\n")
-            # print("--- retrieved_emails ---")
-            # print(retrieved_emails)
-
-            # Get the number of retrieved emails
-            n_emails = len(retrieved_emails)
-            # Get the list of source files (e.g. R-help/2024-December.txt) for retrieved emails
-            month_list = [text.splitlines()[0] for text in retrieved_emails]
-            # Format months (e.g. 2024-December) into text
-            month_text = (
-                ", ".join(month_list).replace("R-help/", "").replace(".txt", "")
-            )
-            messages.append(
-                gr.ChatMessage(
-                    role="assistant",
-                    content=month_text,
-                    metadata={"title": f"📤 Retrieved {n_emails} emails"},
+            chunk_messages = chunk["messages"]
+            # Loop over tool calls
+            count = 0
+            retrieved_emails = []
+            for message in chunk_messages:
+                count += 1
+                # Get the retrieved emails as a list
+                email_list = message.content.replace(
+                    "### Retrieved Emails:\n\n\n\n", ""
+                ).split("--- --- --- --- Next Email --- --- --- ---\n\n")
+                # Get the list of source files (e.g. R-help/2024-December.txt) for retrieved emails
+                month_list = [text.splitlines()[0] for text in email_list]
+                # Format months (e.g. 2024-December) into text
+                month_text = (
+                    ", ".join(month_list).replace("R-help/", "").replace(".txt", "")
                 )
-            )
+                # Get the number of retrieved emails
+                n_emails = len(email_list)
+                if email_list[0] == "### No emails were retrieved":
+                    n_emails = 0
+                messages.append(
+                    gr.ChatMessage(
+                        role="assistant",
+                        content=month_text,
+                        metadata={"title": f"✉ Retrieved {n_emails} emails"},
+                    )
+                )
+                # Format the retrieved emails with Tool Call heading
+                retrieved_emails.append(
+                    message.content.replace(
+                        "### Retrieved Emails:\n\n\n\n",
+                        f"### ### ### ### Tool Call {count} ### ### ### ###\n\n",
+                    )
+                )
+            # Combine all the Tool Call results
+            retrieved_emails = "\n\n".join(retrieved_emails)
             yield messages, retrieved_emails, []
 
         if node == "generate":
@@ -174,9 +189,9 @@ with gr.Blocks(
         value="cloud",
         label="Compute Location",
         info=(
-            "edge models load in ca. 20 seconds; pop-up notifies when ready"
+            "The edge model is experimental and may produce low-quality answers. Pop-up will notify when it's ready (loading time is about 20 seconds)."
             if torch.cuda.is_available()
-            else "edge models require GPU"
+            else "NOTE: edge model requires GPU"
         ),
         interactive=torch.cuda.is_available(),
         render=False,
@@ -211,13 +226,17 @@ with gr.Blocks(
     # Make the interface
     with gr.Row(elem_classes=["row-container"]):
         with gr.Column(scale=2):
+            # Get start and end months from database
+            start, end = get_start_end_months(get_sources(compute_location.value))
             gr.Markdown(
-                """
+                f"""
             # 🤖 R-help-chat
             
             **Chat with the R-help mailing list archives.** Get AI-powered answers about R programming backed by email retrieval.<br>
-            You can specify years or year ranges, ask follow-up questions, and get source citations.<br>
-            **Privacy Note:** User questions and AI responses are logged using LangSmith for performance monitoring and detecting potential abuses.<br>
+            Use natural langauge to ask any R-related question, including years or year ranges (coverage is {start} to {end}).<br>
+            Feel free to ask follow-up questions, or reload this page if you want to start over.<br>
+            The chat model can rewrite your query for retrieval, make multiple retrievals in one turn, and provide source citations.<br>
+            **Privacy Notice:** User questions and AI responses are logged using LangSmith for performance monitoring and detecting potential abuses.<br>
             Additionally, data sharing ("Input to the Services for Development Purposes") is enabled for the OpenAI API key used in this deployment.<br>
             If you are concerned about privacy, then do not use this app, or duplicate it to use your own API key or edge models on resources you control.
             """
@@ -226,15 +245,12 @@ with gr.Blocks(
             # Add information about the system
             with gr.Accordion("ℹ️ About This System", open=False):
 
-                # Get start and end months from database
-                start, end = get_start_end_months(get_sources(compute_location.value))
                 # Get number of emails (unique doc ids) in vector database
                 collection = get_collection(compute_location.value)
                 n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
                 gr.Markdown(
                     f"""
-                    **R-help-chat** is a chat interface to the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
-                    Current coverage is {n_emails} emails from {start} to {end}.
+                    **R-help-chat** is a chat interface to the {n_emails} from the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
                     For technical details, see the [R-help-chat GitHub repo](https://github.com/jedick/R-help-chat).
                     
                     **Features:**
@@ -271,8 +287,8 @@ with gr.Blocks(
         with gr.Column(scale=1, visible=False) as examples:
             # Add some helpful examples
             example_questions = [
-                "How to use lapply()?",
-                "Recommend ML packages with examples",
+                "How can I write formulas for lm()?",
+                "What ML packages were discussed recently?",
                 "When was has.HLC mentioned?",
                 "Who discussed profiling in 2023?",
                 "Any messages about installation problems in 2023-2024?",
@@ -283,6 +299,15 @@ with gr.Blocks(
                 examples=[[q] for q in example_questions],
                 inputs=[input],
                 label="Click an example to fill the question box",
+                elem_id="example-questions",
+            )
+            multi_tool_questions = [
+                "Compare the sentiment about the pipe operator between 2023 and 2024",
+            ]
+            gr.Examples(
+                examples=[[q] for q in multi_tool_questions],
+                inputs=[input],
+                label="Example prompt for multiple retrievals",
                 elem_id="example-questions",
             )
             multi_turn_questions = [
@@ -299,7 +324,10 @@ with gr.Blocks(
     with gr.Row():
         with gr.Column(scale=2):
             emails_textbox = gr.Textbox(
-                label="Retrieved Emails", lines=2, visible=False
+                label="Retrieved Emails",
+                lines=2,
+                visible=False,
+                info="Hint: Look for 'Tool Call' and 'Next Email' separators",
             )
         with gr.Column():
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
@@ -363,11 +391,8 @@ with gr.Blocks(
             # This keeps the content of the textbox when the answer step occurs
             return emails_textbox, visible(True)
         elif not retrieved_emails == []:
-            # This formats a non-empty list of retrieved emails for the textbox
-            emails_text = "--- --- --- --- Next Email --- --- --- ---\n\n".join(
-                retrieved_emails
-            )
-            return emails_text, visible(True)
+            # This adds the retrieved emails to the textbox
+            return retrieved_emails, visible(True)
         else:
             # This blanks out the textbox when a new chat is started
             return "", visible(False)
