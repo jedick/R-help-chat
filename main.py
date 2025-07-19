@@ -22,7 +22,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from index import ProcessFile
 from retriever import BuildRetriever, GetRetrieverParam
 from graph import BuildGraph
-from prompts import generate_prompt
+from prompts import answer_prompt
 
 # R-help-chat
 # First version by Jeffrey Dick on 2025-06-29
@@ -187,7 +187,7 @@ def RunChain(
     chat_model = GetChatModel(compute_location)
 
     # Control thinking for SmolLM3
-    system_prompt = generate_prompt
+    system_prompt = answer_prompt()
     if hasattr(chat_model, "model_id") and not think:
         system_prompt = f"/no_think\n{system_prompt}"
 
@@ -302,17 +302,17 @@ def RunGraph(
         if not state["messages"][-1].type == "tool":
             state["messages"][-1].pretty_print()
 
-    # Parse the state to return the results
+    # Parse the messages for the answer and citations
     try:
         answer, citations = ast.literal_eval(state["messages"][-1].content)
     except:
-        # In case we get an answer without citations
+        # In case we got an answer without citations
         answer = state["messages"][-1].content
         citations = None
     result = {"answer": answer}
     if citations:
         result["citations"] = citations
-    # Parse tool messages to get context
+    # Parse tool messages to get retrieved emails
     tool_messages = [msg for msg in state["messages"] if type(msg) == ToolMessage]
     # Get content from the most recent retrieve_emails response
     content = None

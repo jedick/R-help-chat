@@ -10,7 +10,7 @@ import os
 
 # Local modules
 from retriever import BuildRetriever
-from prompts import retrieve_prompt, generate_prompt, smollm3_tools_template
+from prompts import retrieve_prompt, answer_prompt, smollm3_tools_template
 from tcl import ToolCallingLLM
 
 # Local modules
@@ -143,59 +143,69 @@ def BuildGraph(
         return answer, citations
 
     # Add tools to the edge or cloud chat model
-    if hasattr(chat_model, "model_id"):
+    is_edge = hasattr(chat_model, "model_id")
+    if is_edge:
         # For edge model (ChatHuggingFace)
         query_model = ToolifySmolLM3(
-            chat_model, retrieve_prompt, "", think_retrieve
+            chat_model, retrieve_prompt(compute_location), "", think_retrieve
         ).bind_tools([retrieve_emails])
-        answer_model = ToolifySmolLM3(
-            chat_model, generate_prompt, "", think_generate
+        generate_model = ToolifySmolLM3(
+            chat_model, answer_prompt(), "", think_generate
         ).bind_tools([answer_with_citations])
     else:
         # For cloud model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
-        answer_model = chat_model.bind_tools([answer_with_citations])
+        generate_model = chat_model.bind_tools([answer_with_citations])
 
     # Initialize the graph object
     graph = StateGraph(MessagesState)
 
-    # Define the function that calls the model
-    def call_model(state: MessagesState):
-        # For edge models, don't include the system message here because it's defined in ToolCallingLLM
-        messages = state["messages"]
-        if type(state["messages"][-1]) is ToolMessage:
-            # Generate an answer if we retrieved emails in the last step
-            if not hasattr(chat_model, "model_id"):
-                messages = [SystemMessage(generate_prompt)] + state["messages"]
-            else:
-                # For edge, copy the most recent HumanMessage to the end
-                # (avoids ValueError: Last message must be a HumanMessage!)
-                messages = state["messages"]
-                for msg in reversed(messages):
-                    if type(msg) is HumanMessage:
-                        messages.append(msg)
-                # Convert ToolMessage to AIMessage
-                # (avoids ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
-                messages = [
-                    AIMessage(msg.content) if type(msg) is ToolMessage else msg
-                    for msg in messages
-                ]
-            response = answer_model.invoke(messages)
+    def query(state: MessagesState):
+        """Queries the retriever with the chat model"""
+        if is_edge:
+            # Don't include the system message here because it's defined in ToolCallingLLM
+            messages = state["messages"]
+            # Convert ToolMessage (from previous turns) to AIMessage
+            # (avoids ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
+            messages = [
+                AIMessage(msg.content) if type(msg) is ToolMessage else msg
+                for msg in messages
+            ]
         else:
-            # Otherwise, query and retrieve emails
-            if not hasattr(chat_model, "model_id"):
-                messages = [SystemMessage(retrieve_prompt)] + state["messages"]
-            response = query_model.invoke(messages)
+            messages = [SystemMessage(retrieve_prompt(compute_location))] + state[
+                "messages"
+            ]
+        response = query_model.invoke(messages)
+
+        return {"messages": response}
+
+    def generate(state: MessagesState):
+        """Generates an answer with the chat model"""
+        if is_edge:
+            messages = state["messages"]
+            # Copy the most recent HumanMessage to the end
+            # (avoids ValueError: Last message must be a HumanMessage!)
+            for msg in reversed(messages):
+                if type(msg) is HumanMessage:
+                    messages.append(msg)
+            # Convert ToolMessage to AIMessage
+            messages = [
+                AIMessage(msg.content) if type(msg) is ToolMessage else msg
+                for msg in messages
+            ]
+        else:
+            messages = [SystemMessage(answer_prompt())] + state["messages"]
+        response = generate_model.invoke(messages)
 
         return {"messages": response}
 
     # Define model and tool nodes
-    graph.add_node("query", call_model)
-    graph.add_node("generate", call_model)
+    graph.add_node("query", query)
+    graph.add_node("generate", generate)
     graph.add_node("retrieve_emails", ToolNode([retrieve_emails]))
     graph.add_node("answer_with_citations", ToolNode([answer_with_citations]))
 
-    # Define starting edge
+    # Route the user's input to the query model
     graph.add_edge(START, "query")
 
     # Add conditional edges from model to tools
@@ -210,7 +220,7 @@ def BuildGraph(
         {END: END, "tools": "answer_with_citations"},
     )
 
-    # Add edges from the tool nodes
+    # Add edge from the retrieval tool to the generating model
     graph.add_edge("retrieve_emails", "generate")
 
     # Done!

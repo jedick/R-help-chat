@@ -7,7 +7,7 @@ General-purpose AI tools like ChatGPT have knowledge of public mailing lists.
 However, list users could benefit from more focused AI-powered search and chat with up-to-date list indexing.
 
 R-help-chat is a chatbot for the R-help archives.
-The end-to-end scope of this project includes data processing, email retrieval, conversational chat, model evaluation, and deployment.
+The end-to-end scope of this project includes data processing, email retrieval, conversational RAG, model evaluation, and deployment with a user-friendly web interface.
 Domain-specific features for mailing list chatbots, like providing source citations and retrieving whole emails for context, are also included.
 Here's a picture of the chatbot workflow representing a single turn (follow-up questions allow for more in-depth conversations):
 
