@@ -345,14 +345,14 @@ with gr.Blocks(
 
     # Start a new thread when the user presses the clear (trash) button
     # https://github.com/gradio-app/gradio/issues/9722
-    chatbot.clear(generate_thread_id, outputs=[thread_id])
+    chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
 
     def visible(show):
         """Return updated visibility state for a component"""
         return gr.update(visible=show)
 
     # Show more info
-    show_examples.change(visible, show_examples, examples)
+    show_examples.change(visible, show_examples, examples, api_name=False)
 
     def set_avatar(compute_location):
         if compute_location == "cloud":
@@ -372,12 +372,14 @@ with gr.Blocks(
         # Input with missing thread_id means that a new one will be assigned
         [compute_location, search_type],
         [thread_id],
+        api_name=False,
     ).then(
         # This changes the avatar for cloud or edge
         # TODO: make the change apply to only future messages
         set_avatar,
         compute_location,
         chatbot,
+        api_name=False,
     )
 
     # Set graph/config when search type changes
@@ -386,6 +388,7 @@ with gr.Blocks(
         # This keeps the current thread_id
         [compute_location, search_type, thread_id],
         [thread_id],
+        api_name=False,
     )
 
     # Submit input to the chatbot
@@ -393,6 +396,7 @@ with gr.Blocks(
         run_graph,
         [input, chatbot, compute_location, search_type, thread_id],
         [chatbot, retrieved_emails, citations_text],
+        api_name=False,
     )
 
     def update_emails(retrieved_emails, emails_textbox):
@@ -411,6 +415,7 @@ with gr.Blocks(
         update_emails,
         [retrieved_emails, emails_textbox],
         [emails_textbox, emails_textbox],
+        api_name=False,
     )
 
     def update_citations(citations):
@@ -422,7 +427,10 @@ with gr.Blocks(
 
     # Update the citations textbox when ready
     citations_text.change(
-        update_citations, citations_text, [citations_textbox, citations_textbox]
+        update_citations,
+        citations_text,
+        [citations_textbox, citations_textbox],
+        api_name=False,
     )
 
 

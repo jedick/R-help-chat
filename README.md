@@ -62,14 +62,13 @@ Setup:
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
-- Choose cloud or edge models with the `compute_location` variable in `main.py`
-- If using cloud processing, set your `OPENAI_API_KEY` environment variable
+- Set your `OPENAI_API_KEY` environment variable (not needed if using edge instead of cloud computing)
 
 Run this Python code to create the vector database:
 
 ```python
 from main import *
-ProcessDirectory("R-help")
+ProcessDirectory("R-help", "cloud")
 ```
 
 Now you're ready to run the chain or graph. Here are some examples of RAG with the chain app:
@@ -136,4 +135,4 @@ This project wouldn't be what it is without the codes copied from other projects
 
 - The retriever class for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
 - Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) adds LangChain-compatible tooling to local Hugging Face models
-- A modified version of LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) is used to create subdirectories to reduce per-directory file counts.
+- LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) was modified to create subdirectories to reduce per-directory file counts.
