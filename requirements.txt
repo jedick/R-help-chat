@@ -8,8 +8,9 @@ sentence-transformers>=4.1.0
 # Required by Nomic embeddings
 einops==0.8.1
 # Required by SmolLM3
-transfomers>=4.53
-tool-calling-llm==0.1.2
+transformers>=4.53
+# Commented because we have local modifications
+#tool-calling-llm==0.1.2
 bm25s==0.2.12
 ragas==0.2.15
 # Temporary fix for ChromaDB telemetry error log messages

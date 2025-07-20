@@ -219,7 +219,7 @@ with gr.Blocks(
         show_label=False,
         avatar_images=(
             None,
-            "cloud.png",
+            "images/cloud.png",
         ),
         render=False,
     )
@@ -330,7 +330,7 @@ with gr.Blocks(
                 label="Retrieved Emails",
                 lines=10,
                 visible=False,
-                info="Hint: Look for 'Tool Call' and 'Next Email' separators",
+                info="Hint: Look for 'Tool Call' and 'Next Email' separators. Note: Quoted lines (starting with '>') are removed before indexing.",
             )
         with gr.Column():
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)

@@ -11,7 +11,7 @@ import os
 # Local modules
 from retriever import BuildRetriever
 from prompts import retrieve_prompt, answer_prompt, smollm3_tools_template
-from tcl import ToolCallingLLM
+from mods.tool_calling_llm import ToolCallingLLM
 
 # Local modules
 from retriever import BuildRetriever

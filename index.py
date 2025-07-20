@@ -6,7 +6,7 @@ import os
 
 # Local modules
 from retriever import BuildRetriever, GetRetrieverParam
-from bm25s_r import BM25SRetriever
+from mods.bm25s_retriever import BM25SRetriever
 
 
 def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "cloud"):

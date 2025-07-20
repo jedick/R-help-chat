@@ -9,7 +9,7 @@ However, list users could benefit from more focused AI-powered search and chat w
 R-help-chat is a chatbot for the R-help archives.
 The end-to-end scope of this project includes data processing, email retrieval, conversational RAG, model evaluation, and deployment with a user-friendly web interface.
 Domain-specific features for mailing list chatbots, like providing source citations and retrieving whole emails for context, are also included.
-Here's a picture of the chatbot workflow representing a single turn (follow-up questions allow for more in-depth conversations):
+Here's a picture of the chatbot workflow representing a single turn:
 
 ![R-help-chat workflow](images/graph_LR.png)
 
@@ -132,7 +132,8 @@ Results for queries and reference answers in `eval.csv` with retrieval from 2.5 
 
 ## Acknowledgments
 
-This project wouldn't be what it is without these awesome codes. Thank you!
+This project wouldn't be what it is without the codes copied from other projects with local modifications (see `mods` directory). Thank you!
 
 - The retriever class for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) (modified here as `tcl.py`) adds LangChain-compatible tooling to local Hugging Face models
+- Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) adds LangChain-compatible tooling to local Hugging Face models
+- A modified version of LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) is used to create subdirectories to reduce per-directory file counts.

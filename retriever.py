@@ -22,7 +22,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
 # Local module
-from bm25s_r import BM25SRetriever
+from mods.bm25s_retriever import BM25SRetriever
 
 # Database directory
 db_dir = "db"
