@@ -76,7 +76,8 @@ class LocalFileStore(ByteStore):
         """
         if not re.match(r"^[a-zA-Z0-9_.\-/]+$", key):
             raise InvalidKeyException(f"Invalid characters in key: {key}")
-        full_path = os.path.abspath(self.root_path / key)
+        # Add key[0] to path to make subdirectories 20250720 jmd
+        full_path = os.path.abspath(self.root_path / key[0] / key)
         common_path = os.path.commonpath([str(self.root_path), full_path])
         if common_path != str(self.root_path):
             raise InvalidKeyException(

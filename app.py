@@ -231,7 +231,7 @@ with gr.Blocks(
             start, end = get_start_end_months(get_sources(compute_location.value))
             gr.Markdown(
                 f"""
-            # 🤖 R-help-chat
+            <!-- # 🤖 R-help-chat -->
             
             **Chat with the R-help mailing list archives.** Get AI-powered answers about R programming backed by email retrieval.<br>
             Use natural langauge to ask R-related questions including years or year ranges (coverage is {start} to {end}).<br>
@@ -330,7 +330,7 @@ with gr.Blocks(
                 label="Retrieved Emails",
                 lines=10,
                 visible=False,
-                info="Hint: Look for 'Tool Call' and 'Next Email' separators. Note: Quoted lines (starting with '>') are removed before indexing.",
+                info="Hint: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
             )
         with gr.Column():
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)

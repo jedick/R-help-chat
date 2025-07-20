@@ -3,7 +3,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain_chroma import Chroma
 from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
-from langchain.storage.file_system import LocalFileStore
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever, RetrieverLike
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
@@ -21,8 +20,9 @@ from langchain_openai import OpenAIEmbeddings
 # For more control over BGE and Nomic embeddings
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
-# Local module
+# Local modules
 from mods.bm25s_retriever import BM25SRetriever
+from mods.file_system import LocalFileStore
 
 # Database directory
 db_dir = "db"
