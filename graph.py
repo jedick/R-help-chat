@@ -15,6 +15,12 @@ from mods.tool_calling_llm import ToolCallingLLM
 # Local modules
 from retriever import BuildRetriever
 
+## For LANGCHAIN_API_KEY
+# from dotenv import load_dotenv
+# load_dotenv(dotenv_path=".env", override=True)
+# os.environ["LANGSMITH_TRACING"] = "true"
+# os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
+
 
 def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=False):
     """
@@ -150,9 +156,9 @@ def BuildGraph(
         query_model = ToolifySmolLM3(
             chat_model, retrieve_prompt(compute_location), "", think_retrieve
         ).bind_tools([retrieve_emails])
-        generate_model = ToolifySmolLM3(
-            chat_model, answer_prompt(), "", think_generate
-        ).bind_tools([answer_with_citations])
+        generate_model = ToolifySmolLM3(chat_model, answer_prompt(), "", think_generate)
+        # For testing with Gemma, don't bind tool for now
+        # ).bind_tools([answer_with_citations])
     else:
         # For cloud model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
@@ -167,7 +173,7 @@ def BuildGraph(
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
             # Convert ToolMessage (from previous turns) to AIMessage
-            # (avoids ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
+            # (avoids SmolLM3 ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
             messages = [
                 AIMessage(msg.content) if type(msg) is ToolMessage else msg
                 for msg in messages
@@ -185,15 +191,27 @@ def BuildGraph(
         if is_edge:
             messages = state["messages"]
             # Copy the most recent HumanMessage to the end
-            # (avoids ValueError: Last message must be a HumanMessage!)
+            # (avoids SmolLM3 ValueError: Last message must be a HumanMessage!)
             for msg in reversed(messages):
                 if type(msg) is HumanMessage:
                     messages.append(msg)
-            # Convert ToolMessage to AIMessage
+            # Convert tool output (ToolMessage) to AIMessage
+            # (avoids SmolLM3 ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
             messages = [
                 AIMessage(msg.content) if type(msg) is ToolMessage else msg
                 for msg in messages
             ]
+            # Delete tool call (AIMessage)
+            # (avoids Gemma TemplateError: Conversation roles must alternate user/assistant/user/assistant/...)
+            filtered_messages = []
+            for msg in messages:
+                if hasattr(msg, "tool_calls"):
+                    if msg.tool_calls:
+                        ## Save the arguments for insertion into ToolMessage if there is an error with the tool call
+                        # handle_tool_errors = str(msg.tool_calls[0]["args"])
+                        break
+                filtered_messages.append(msg)
+            messages = filtered_messages
         else:
             messages = [SystemMessage(answer_prompt())] + state["messages"]
         response = generate_model.invoke(messages)

@@ -133,7 +133,8 @@ def GetChatModel(compute_location):
 
         # Define the pipeline to pass to the HuggingFacePipeline class
         # https://huggingface.co/blog/langchain
-        model_id = "HuggingFaceTB/SmolLM3-3B"
+        # model_id = "HuggingFaceTB/SmolLM3-3B"
+        model_id = "google/gemma-3-1b-it"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(
             model_id,
@@ -219,7 +220,8 @@ def RunChain(
     return result
 
 
-def GetGraphAndConfig(
+def RunGraph(
+    query: str,
     compute_location: str = "cloud",
     search_type: str = "hybrid",
     top_k: int = 6,
@@ -227,9 +229,10 @@ def GetGraphAndConfig(
     think_generate=False,
     thread_id=None,
 ):
-    """Get graph for conversational RAG app
+    """Run graph for conversational RAG app
 
     Args:
+        query: User query to start the chat
         compute_location: Compute location for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         top_k: Number of documents to retrieve
@@ -253,41 +256,11 @@ def GetGraphAndConfig(
         think_generate,
     )
 
-    if thread_id is None:
-        graph = graph_builder.compile()
-        config = None
-    else:
-        # Compile the graph with an in-memory checkpointer
-        memory = MemorySaver()
-        graph = graph_builder.compile(checkpointer=memory)
-        # Specify an ID for the thread
-        config = {"configurable": {"thread_id": thread_id}}
-
-    return graph, config
-
-
-def RunGraph(
-    query: str,
-    compute_location: str = "cloud",
-    search_type: str = "hybrid",
-    top_k: int = 6,
-    **kwargs,
-):
-    """Run graph for conversational RAG app
-
-    Args:
-        query: User query to start the chat
-        compute_location: Compute location for embedding and chat models (cloud or edge)
-        search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
-        top_k: Number of documents to retrieve
-        **kwargs: Additional keyword arguments for GetGraphAndConfig()
-
-    Example:
-        RunGraph("Help with parsing REST API response.")
-    """
-
-    # Get graph and config
-    graph, config = GetGraphAndConfig(compute_location, search_type, **kwargs)
+    # Compile the graph with an in-memory checkpointer
+    memory = MemorySaver()
+    graph = graph_builder.compile(checkpointer=memory)
+    # Specify an ID for the thread
+    config = {"configurable": {"thread_id": thread_id}}
 
     # Stream the steps to observe the query generation, retrieval, and answer generation:
     #   - User input as a HumanMessage

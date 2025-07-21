@@ -12,7 +12,7 @@ import ast
 import os
 
 # Global settings for compute location and search type
-compute_location = "cloud"
+compute_location = "edge"
 search_type = "hybrid"
 
 # For LANGCHAIN_API_KEY (local deployment)
@@ -45,8 +45,8 @@ def run_workflow(messages, input, thread_id):
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
-        # Notify when model is ready
-        gr.Success(f"{compute_location}", duration=4, title=f"Model is ready!")
+        # Notify when model finishes loading
+        gr.Success(f"{compute_location}", duration=4, title=f"Model loaded!")
         print(f"Set graph for {compute_location}, {search_type}!")
 
     print(f"Using thread_id: {thread_id}")
@@ -76,7 +76,7 @@ def run_workflow(messages, input, thread_id):
                 for tool_call in chunk_messages.tool_calls:
                     # Show the tool call with arguments used
                     args = tool_call["args"]
-                    content = args["search_query"]
+                    content = args["search_query"] if "search_query" in args else ""
                     start_year = args["start_year"] if "start_year" in args else None
                     end_year = args["end_year"] if "end_year" in args else None
                     if start_year or end_year:
@@ -211,7 +211,7 @@ with gr.Blocks(
             **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).** Get AI-powered answers about R programming backed by email retrieval.<br>
             Use natural langauge to ask R-related questions including years or year ranges (coverage is *start* to *end*).<br>
             The chat model generates an answer based on emails it retrieves and provides source citations.<br>
-            You can ask follow-up questions or clear the chat if you want to start over.<br>
+            If you encounter errors or want to start a new chat, press the "trash" button to clear the chat history.<br>
             **_Answers may be incorrect._**<br>
             """
         return intro
@@ -307,7 +307,7 @@ with gr.Blocks(
                 label="Retrieved Emails",
                 lines=10,
                 visible=False,
-                info="Hint: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
+                info="Tip: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
             )
         with gr.Column():
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
