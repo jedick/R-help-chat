@@ -1,5 +1,7 @@
 # R-help-chat
 
+[![Open in Spaces](https://huggingface.co/datasets/huggingface/badges/resolve/main/open-in-hf-spaces-md.svg)](https://huggingface.co/spaces/jedick/R-help-chat)
+
 Mailing list subscribers often need a search facility to pull up old messages related to a topic of interest.
 The R-help mailing list is no exception.
 [The R-help Archives](https://stat.ethz.ch/pipermail/r-help/) are publicly available, but search tools are limited and inconsistently maintained (see the [R-help info page](https://stat.ethz.ch/mailman/listinfo/r-help)).
@@ -55,6 +57,10 @@ python app.py
 
 This launches an interactive chat interface in a web browser.
 The interface comes with example questions and allows choosing cloud or edge processing, chain or graph app, and the retrieval strategy.
+
+![R-help-chat screenshot](https://chnosz.net/images/R-help-chat.png)
+
+Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app!
 
 ## Command-Line Usage
 
