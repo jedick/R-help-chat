@@ -4,7 +4,6 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_huggingface import ChatHuggingFace
 from typing import Optional
-from dotenv import load_dotenv
 import datetime
 import os
 
@@ -15,12 +14,6 @@ from mods.tool_calling_llm import ToolCallingLLM
 
 # Local modules
 from retriever import BuildRetriever
-
-# For tracing
-os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
-# For LANGCHAIN_API_KEY
-load_dotenv(dotenv_path=".env", override=True)
 
 
 def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=False):

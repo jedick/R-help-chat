@@ -2,58 +2,52 @@ import gradio as gr
 from main import GetChatModel
 from graph import BuildGraph
 from langgraph.checkpoint.memory import MemorySaver
-from util import get_collection, get_sources, get_start_end_months
+from dotenv import load_dotenv
+
+# from util import get_collection, get_sources, get_start_end_months
 import spaces
 import torch
 import uuid
 import ast
 import os
 
-# Keep LangChain graph in a global variable
-# TODO: Use session state for non-deepcopyable objects
-# https://www.gradio.app/guides/state-in-blocks#session-state
+# Global settings for compute location and search type
+compute_location = "cloud"
+search_type = "hybrid"
 
+# For LANGCHAIN_API_KEY (local deployment)
+load_dotenv(dotenv_path=".env", override=True)
+
+if compute_location == "cloud":
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_PROJECT"] = "R-help-chat-cloud"
+
+if compute_location == "edge":
+    # Check for GPU
+    if not torch.cuda.is_available():
+        raise Exception("Can't use edge compute with no GPU")
+    os.environ["LANGSMITH_TRACING"] = "true"
+    os.environ["LANGSMITH_PROJECT"] = "R-help-chat-edge"
+
+# Keep LangChain graph in a global variable (shared across sessions)
 graph = None
 
 
-def do_set_graph(compute_location, search_type):
-    """Helper to set the graph for the workflow"""
-
-    # Get the chat model and build the graph
-    chat_model = GetChatModel(compute_location)
-    graph_builder = BuildGraph(chat_model, compute_location, search_type)
-    # Compile the graph with an in-memory checkpointer
-    memory = MemorySaver()
-    global graph
-    graph = graph_builder.compile(checkpointer=memory)
-    print(f"Set graph for {compute_location}, {search_type}!")
-
-
-def set_graph_cloud(search_type):
-    do_set_graph("cloud", search_type)
-
-
-@spaces.GPU
-def set_graph_edge(search_type):
-    do_set_graph("edge", search_type)
-
-
-def set_graph(compute_location, search_type):
-    """Route the Gradio call to the correct function"""
-    if compute_location == "cloud":
-        set_graph_cloud(search_type)
-    if compute_location == "edge":
-        set_graph_edge(search_type)
-
-
-async def run_workflow(messages, input, thread_id):
+@spaces.GPU(duration=60)
+def run_workflow(messages, input, thread_id):
     """The main function to run the chat workflow"""
 
     global graph
     if graph is None:
-        set_graph(
-            compute_location=compute_location.value, search_type=search_type.value
-        )
+        # Get the chat model and build the graph
+        chat_model = GetChatModel(compute_location)
+        graph_builder = BuildGraph(chat_model, compute_location, search_type)
+        # Compile the graph with an in-memory checkpointer
+        memory = MemorySaver()
+        graph = graph_builder.compile(checkpointer=memory)
+        # Notify when model is ready
+        gr.Success(f"{compute_location}", duration=4, title=f"Model is ready!")
+        print(f"Set graph for {compute_location}, {search_type}!")
 
     print(f"Using thread_id: {thread_id}")
 
@@ -64,7 +58,7 @@ async def run_workflow(messages, input, thread_id):
 
     # Asynchronously stream graph steps for a single input
     # https://langchain-ai.lang.chat/langgraph/reference/graphs/#langgraph.graph.state.CompiledStateGraph
-    async for step in graph.astream(
+    for step in graph.stream(
         # Appends the user input to the graph state
         {"messages": [{"role": "user", "content": input}]},
         config={"configurable": {"thread_id": thread_id}},
@@ -165,30 +159,6 @@ async def run_workflow(messages, input, thread_id):
             yield messages, None, citations
 
 
-# Wrapper functions for the workflow, with @spaces.GPU decorator for edge
-
-
-async def run_workflow_cloud(*args):
-    async for value in run_workflow(*args):
-        yield value
-
-
-@spaces.GPU(duration=120)
-async def run_workflow_edge(*args):
-    async for value in run_workflow(*args):
-        yield value
-
-
-async def to_workflow(compute_location, *args):
-    """Route the Gradio call to the correct workflow function"""
-    if compute_location == "cloud":
-        async for value in run_workflow_cloud(*args):
-            yield value
-    if compute_location == "edge":
-        async for value in run_workflow_edge(*args):
-            yield value
-
-
 # Custom CSS for bottom alignment
 css = """
 .row-container {
@@ -208,27 +178,6 @@ with gr.Blocks(
     # Define components
     # -----------------
 
-    compute_location = gr.Radio(
-        choices=[
-            "cloud",
-            "edge" if torch.cuda.is_available() else "edge (not available)",
-        ],
-        value="cloud",
-        label="Compute Location",
-        info=(
-            "The edge model is experimental and may produce lower-quality answers. Pop-up will notify when it's ready (loading time is about 20 seconds)."
-            if torch.cuda.is_available()
-            else "NOTE: edge model requires GPU"
-        ),
-        interactive=torch.cuda.is_available(),
-        render=False,
-    )
-    search_type = gr.Radio(
-        choices=["dense", "sparse", "hybrid"],
-        value="hybrid",
-        label="Search Type",
-        render=False,
-    )
     input = gr.Textbox(
         lines=1,
         label="Your Question",
@@ -245,7 +194,7 @@ with gr.Blocks(
         show_label=False,
         avatar_images=(
             None,
-            "images/cloud.png",
+            "images/cloud.png" if compute_location == "cloud" else "images/chip.png",
         ),
         render=False,
     )
@@ -255,17 +204,15 @@ with gr.Blocks(
     # ------------------
 
     def get_intro_text():
-        # Get start and end months from database
-        start, end = get_start_end_months(get_sources(compute_location.value))
+        ## Get start and end months from database
+        # start, end = get_start_end_months(get_sources(compute_location))
         intro = f"""<!-- # 🤖 R-help-chat -->
             
-            **Chat with the R-help mailing list archives.** Get AI-powered answers about R programming backed by email retrieval.<br>
-            Use natural langauge to ask R-related questions including years or year ranges (coverage is {start} to {end}).<br>
-            The chat model can rewrite your query for retrieval, make multiple retrievals in one turn, and provide source citations.<br>
+            **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).** Get AI-powered answers about R programming backed by email retrieval.<br>
+            Use natural langauge to ask R-related questions including years or year ranges (coverage is *start* to *end*).<br>
+            The chat model generates an answer based on emails it retrieves and provides source citations.<br>
             You can ask follow-up questions or clear the chat if you want to start over.<br>
             **_Answers may be incorrect._**<br>
-            **Privacy Notice:** User questions and AI responses are logged for usage and performance monitoring.<br>
-            Additionally, data sharing ("Input to the Services for Development Purposes") is enabled for the OpenAI API key used in this deployment.<br>
             """
         return intro
 
@@ -274,42 +221,42 @@ with gr.Blocks(
             intro = gr.Markdown(get_intro_text())
         with gr.Column(scale=1):
             # Add information about the system
-            with gr.Accordion("ℹ️ About This System", open=False):
+            with gr.Accordion("ℹ️ About This App", open=True):
 
-                # Get number of emails (unique doc ids) in vector database
-                collection = get_collection(compute_location.value)
-                n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
-                gr.Markdown(
-                    f"""
-                    **R-help-chat** is a chat interface to {n_emails} emails from the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).
-                    For technical details, see the [GitHub repository](https://github.com/jedick/R-help-chat).
-
-                    **Open Source:** The source code for this app is distributed under the terms of the MIT license.
-                    
-                    **Features:**
-                    - **Date awareness**: The chat model knows today's date,
-                    - **Tool usage**: queries the retrieval tool based on your question,
-                    - **Chat generation**: answers based on retrieved emails, and
-                    - **Source citations**: provides citations to emails.
-                    
-                    **Compute Location:**
-                    - **cloud**: OpenAI API for embeddings and chat
-                    - **edge**: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3-3B](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
-                    
-                    **Search Types:**
-                    - **dense**: Vector embeddings (semantic similarity)
-                    - **sparse**: Keyword search with [BM25S](https://github.com/xhluca/bm25s) (good for function names)
-                    - **hybrid**: Combination of dense and sparse
+                ## Get number of emails (unique doc ids) in vector database
+                # collection = get_collection(compute_location)
+                # n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
+                # gr.Markdown(
+                #    f"""
+                #    - **Database**: *n_emails* emails from the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/)
+                #    - **System**: retrieval and citation tools; system prompt has today's date
+                #    - **Retrieval**: hybrid of dense (vector embeddings) and sparse ([BM25S](https://github.com/xhluca/bm25s))
+                #    """
+                # )
+                if compute_location == "cloud":
+                    gr.Markdown(
+                        """
+                    📍 This is the **cloud** version, using the OpenAI API<br>
+                    ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled, and all interactions are logged<br>
+                    ➡️ You can use the *edge* version here: [R-help-chat-edge](https://huggingface.co/spaces/jedick/R-help-chat-edge)<br>
+                    🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
                     """
-                )
+                    )
+                if compute_location == "edge":
+                    gr.Markdown(
+                        """
+                    📍 This is the **edge** version, using [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) hardware<br>
+                    ⚠️ The edge model is experimental and may produce lower-quality answers<br>
+                    ⚠️ **_Privacy Notice_**: All interactions are logged<br>
+                    ➡️ You can use the *cloud* version here: [R-help-chat](https://huggingface.co/spaces/jedick/R-help-chat)<br>
+                    🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
+                    """
+                    )
 
     with gr.Row():
         with gr.Column(scale=2):
             input.render()
         with gr.Column(scale=1):
-            with gr.Accordion("⚙️ Settings", open=False):
-                compute_location.render()
-                search_type.render()
             show_examples.render()
 
     with gr.Row():
@@ -397,63 +344,10 @@ with gr.Blocks(
     # Show examples
     show_examples.change(visible, show_examples, examples, api_name=False)
 
-    def set_avatar(compute_location):
-        if compute_location == "cloud":
-            image_file = "images/cloud.png"
-        if compute_location == "edge":
-            image_file = "images/chip.png"
-        return gr.update(
-            avatar_images=(
-                None,
-                image_file,
-            ),
-        )
-
-    def notify_compute(compute_location):
-        """Notify when compute location changes"""
-        gr.Success(f"{compute_location}", duration=4, title=f"Model is ready!")
-
-    # Get graph when compute location changes
-    compute_location.change(
-        set_graph,
-        [compute_location, search_type],
-        api_name=False,
-    ).then(
-        notify_compute,
-        [compute_location],
-        api_name=False,
-    ).then(
-        # This sets the avatar for cloud or edge
-        # TODO: make the change apply to only future messages
-        set_avatar,
-        [compute_location],
-        [chatbot],
-        api_name=False,
-    )
-
-    def notify_search(search_type):
-        """Notify when search type changes"""
-        if search_type in ["dense", "sparse"]:
-            message = f"{search_type}: up to 6 emails"
-        elif search_type == "hybrid":
-            message = "hybrid (dense + sparse): up to 3+3 emails"
-        gr.Success(message, duration=4, title=f"Set search type!")
-
-    # Get graph when search type changes
-    search_type.change(
-        set_graph,
-        [compute_location, search_type],
-        api_name=False,
-    ).then(
-        notify_search,
-        [search_type],
-        api_name=False,
-    )
-
     # Submit input to the chatbot
     input.submit(
-        to_workflow,
-        [compute_location, chatbot, input, thread_id],
+        run_workflow,
+        [chatbot, input, thread_id],
         [chatbot, retrieved_emails, citations_text],
         api_name=False,
     )
