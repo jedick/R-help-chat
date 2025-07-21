@@ -16,7 +16,7 @@ import os
 graph = None
 
 
-def set_graph(compute_location, search_type):
+def do_set_graph(compute_location, search_type):
     """Helper to set the graph for the workflow"""
 
     # Get the chat model and build the graph
@@ -27,6 +27,23 @@ def set_graph(compute_location, search_type):
     global graph
     graph = graph_builder.compile(checkpointer=memory)
     print(f"Set graph for {compute_location}, {search_type}!")
+
+
+def set_graph_cloud(search_type):
+    do_set_graph("cloud", search_type)
+
+
+@spaces.GPU
+def set_graph_edge(search_type):
+    do_set_graph("edge", search_type)
+
+
+def set_graph(compute_location, search_type):
+    """Route the Gradio call to the correct function"""
+    if compute_location == "cloud":
+        set_graph_cloud(search_type)
+    if compute_location == "edge":
+        set_graph_edge(search_type)
 
 
 async def run_workflow(messages, input, thread_id):
@@ -162,10 +179,8 @@ async def run_workflow_edge(*args):
         yield value
 
 
-# Function to route the Gradio call to the correct workflow function
-
-
 async def to_workflow(compute_location, *args):
+    """Route the Gradio call to the correct workflow function"""
     if compute_location == "cloud":
         async for value in run_workflow_cloud(*args):
             yield value
