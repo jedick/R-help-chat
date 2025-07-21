@@ -1,64 +1,46 @@
 import gradio as gr
-from main import GetGraphAndConfig
+from main import GetChatModel
+from graph import BuildGraph
+from langgraph.checkpoint.memory import MemorySaver
 from util import get_collection, get_sources, get_start_end_months
-import asyncio
+import spaces
 import torch
 import uuid
 import ast
 import os
 
-# Global state for chatbot app
+# Keep LangChain graph in a global variable
+# TODO: Use session state for non-deepcopyable objects
+# https://www.gradio.app/guides/state-in-blocks#session-state
+
 graph = None
-config = None
-
-# Initial settings, used to emit messages when settings are changed
-COMPUTE = "cloud"
-SEARCH = "hybrid"
 
 
-def generate_thread_id():
-    """Generate a new thread ID"""
-    thread_id = uuid.uuid4()
-    print(f"Generated thread_id: {thread_id}")
-    return thread_id
+def set_graph(compute_location, search_type):
+    """Helper to set the graph for the workflow"""
+
+    # Get the chat model and build the graph
+    chat_model = GetChatModel(compute_location)
+    graph_builder = BuildGraph(chat_model, compute_location, search_type)
+    # Compile the graph with an in-memory checkpointer
+    memory = MemorySaver()
+    global graph
+    graph = graph_builder.compile(checkpointer=memory)
+    print(f"Set graph for {compute_location}, {search_type}!")
 
 
-def set_graph_config(compute_location, search_type, thread_id=None):
-    """Helper to set the graph and config for the agent"""
+async def run_workflow(messages, input, thread_id):
+    """The main function to run the chat workflow"""
 
-    if thread_id is None:
-        thread_id = generate_thread_id()
-
-    global graph, config
-    graph, config = GetGraphAndConfig(
-        compute_location, search_type, thread_id=thread_id
-    )
-
-    global COMPUTE
-    if not compute_location == COMPUTE:
-        gr.Success(f"{compute_location}", duration=4, title=f"Model is ready!")
-        COMPUTE = compute_location
-
-    global SEARCH
-    if not search_type == SEARCH:
-        if search_type in ["dense", "sparse"]:
-            message = f"{search_type}: up to 6 emails"
-        elif search_type == "hybrid":
-            message = "hybrid (dense + sparse): up to 3+3 emails"
-        gr.Success(message, duration=4, title=f"Set search type!")
-        SEARCH = search_type
-
-
-async def run_graph(input, messages, compute_location, search_type, thread_id):
-
-    # Set initial graph/config
-    if graph == None:
-        set_graph_config(
-            compute_location=COMPUTE, search_type=SEARCH, thread_id=thread_id
+    global graph
+    if graph is None:
+        set_graph(
+            compute_location=compute_location.value, search_type=search_type.value
         )
+
     print(f"Using thread_id: {thread_id}")
 
-    # This shows the user input as a chatbot message
+    # Display the user input in the chatbot interface
     messages.append(gr.ChatMessage(role="user", content=input))
     # Return the messages for chatbot and chunks for emails and citations texboxes (blank at first)
     yield messages, [], []
@@ -68,7 +50,7 @@ async def run_graph(input, messages, compute_location, search_type, thread_id):
     async for step in graph.astream(
         # Appends the user input to the graph state
         {"messages": [{"role": "user", "content": input}]},
-        config=config,
+        config={"configurable": {"thread_id": thread_id}},
     ):
 
         # Get the node name and output chunk
@@ -166,6 +148,32 @@ async def run_graph(input, messages, compute_location, search_type, thread_id):
             yield messages, None, citations
 
 
+# Wrapper functions for the workflow, with @spaces.GPU decorator for edge
+
+
+async def run_workflow_cloud(*args):
+    async for value in run_workflow(*args):
+        yield value
+
+
+@spaces.GPU(duration=120)
+async def run_workflow_edge(*args):
+    async for value in run_workflow(*args):
+        yield value
+
+
+# Function to route the Gradio call to the correct workflow function
+
+
+async def to_workflow(compute_location, *args):
+    if compute_location == "cloud":
+        async for value in run_workflow_cloud(*args):
+            yield value
+    if compute_location == "edge":
+        async for value in run_workflow_edge(*args):
+            yield value
+
+
 # Custom CSS for bottom alignment
 css = """
 .row-container {
@@ -181,7 +189,10 @@ with gr.Blocks(
     css=css,
 ) as demo:
 
-    # Define components before rendering them
+    # -----------------
+    # Define components
+    # -----------------
+
     compute_location = gr.Radio(
         choices=[
             "cloud",
@@ -224,14 +235,14 @@ with gr.Blocks(
         render=False,
     )
 
+    # ------------------
     # Make the interface
-    with gr.Row(elem_classes=["row-container"]):
-        with gr.Column(scale=2):
-            # Get start and end months from database
-            start, end = get_start_end_months(get_sources(compute_location.value))
-            gr.Markdown(
-                f"""
-            <!-- # 🤖 R-help-chat -->
+    # ------------------
+
+    def get_intro_text():
+        # Get start and end months from database
+        start, end = get_start_end_months(get_sources(compute_location.value))
+        intro = f"""<!-- # 🤖 R-help-chat -->
             
             **Chat with the R-help mailing list archives.** Get AI-powered answers about R programming backed by email retrieval.<br>
             Use natural langauge to ask R-related questions including years or year ranges (coverage is {start} to {end}).<br>
@@ -241,7 +252,11 @@ with gr.Blocks(
             **Privacy Notice:** User questions and AI responses are logged for usage and performance monitoring.<br>
             Additionally, data sharing ("Input to the Services for Development Purposes") is enabled for the OpenAI API key used in this deployment.<br>
             """
-            )
+        return intro
+
+    with gr.Row(elem_classes=["row-container"]):
+        with gr.Column(scale=2):
+            intro = gr.Markdown(get_intro_text())
         with gr.Column(scale=1):
             # Add information about the system
             with gr.Accordion("ℹ️ About This System", open=False):
@@ -335,13 +350,26 @@ with gr.Blocks(
         with gr.Column():
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
 
-    # Handle events
+    # ------------
+    # Set up state
+    # ------------
 
-    # Define session state for thread_id
+    def generate_thread_id():
+        """Generate a new thread ID"""
+        thread_id = uuid.uuid4()
+        print(f"Generated thread_id: {thread_id}")
+        return thread_id
+
+    # Define thread_id variable
     thread_id = gr.State(generate_thread_id())
+
     # Define states for the output textboxes
     retrieved_emails = gr.State([])
     citations_text = gr.State([])
+
+    # -------------
+    # Handle events
+    # -------------
 
     # Start a new thread when the user presses the clear (trash) button
     # https://github.com/gradio-app/gradio/issues/9722
@@ -351,7 +379,7 @@ with gr.Blocks(
         """Return updated visibility state for a component"""
         return gr.update(visible=show)
 
-    # Show more info
+    # Show examples
     show_examples.change(visible, show_examples, examples, api_name=False)
 
     def set_avatar(compute_location):
@@ -366,35 +394,51 @@ with gr.Blocks(
             ),
         )
 
-    # Set graph/config when compute location changes
+    def notify_compute(compute_location):
+        """Notify when compute location changes"""
+        gr.Success(f"{compute_location}", duration=4, title=f"Model is ready!")
+
+    # Get graph when compute location changes
     compute_location.change(
-        set_graph_config,
-        # Input with missing thread_id means that a new one will be assigned
+        set_graph,
         [compute_location, search_type],
-        [thread_id],
         api_name=False,
     ).then(
-        # This changes the avatar for cloud or edge
+        notify_compute,
+        [compute_location],
+        api_name=False,
+    ).then(
+        # This sets the avatar for cloud or edge
         # TODO: make the change apply to only future messages
         set_avatar,
-        compute_location,
-        chatbot,
+        [compute_location],
+        [chatbot],
         api_name=False,
     )
 
-    # Set graph/config when search type changes
+    def notify_search(search_type):
+        """Notify when search type changes"""
+        if search_type in ["dense", "sparse"]:
+            message = f"{search_type}: up to 6 emails"
+        elif search_type == "hybrid":
+            message = "hybrid (dense + sparse): up to 3+3 emails"
+        gr.Success(message, duration=4, title=f"Set search type!")
+
+    # Get graph when search type changes
     search_type.change(
-        set_graph_config,
-        # This keeps the current thread_id
-        [compute_location, search_type, thread_id],
-        [thread_id],
+        set_graph,
+        [compute_location, search_type],
+        api_name=False,
+    ).then(
+        notify_search,
+        [search_type],
         api_name=False,
     )
 
     # Submit input to the chatbot
     input.submit(
-        run_graph,
-        [input, chatbot, compute_location, search_type, thread_id],
+        to_workflow,
+        [compute_location, chatbot, input, thread_id],
         [chatbot, retrieved_emails, citations_text],
         api_name=False,
     )

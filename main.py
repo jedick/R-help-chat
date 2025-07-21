@@ -241,7 +241,7 @@ def GetGraphAndConfig(
         RunGraph("Help with parsing REST API response.")
     """
 
-    # Get chat model used in both respond_or_retrieve and generate steps
+    # Get chat model used in both query and generate steps
     chat_model = GetChatModel(compute_location)
     # Build the graph
     graph_builder = BuildGraph(
@@ -257,7 +257,7 @@ def GetGraphAndConfig(
         graph = graph_builder.compile()
         config = None
     else:
-        # Compile our application with an in-memory checkpointer
+        # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
         # Specify an ID for the thread
