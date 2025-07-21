@@ -34,12 +34,12 @@ def load_queries_and_references(csv_path):
     return queries, references
 
 
-def build_eval_dataset(queries, references, compute_location, app_type, search_type):
+def build_eval_dataset(queries, references, compute_location, workflow, search_type):
     """Build dataset for evaluation"""
     dataset = []
     for query, reference in zip(queries, references):
         try:
-            if app_type == "chain":
+            if workflow == "chain":
                 print("\n\n--- Query ---")
                 print(query)
                 response = RunChain(query, compute_location, search_type)
@@ -49,7 +49,7 @@ def build_eval_dataset(queries, references, compute_location, app_type, search_t
                 retriever = BuildRetriever(compute_location, search_type)
                 docs = retriever.invoke(query)
                 retrieved_contexts = [doc.page_content for doc in docs]
-            if app_type == "graph":
+            if workflow == "graph":
                 result = RunGraph(query, compute_location, search_type)
                 retrieved_contexts = []
                 if "retrieved_emails" in result:
@@ -85,10 +85,10 @@ def main():
         help="Compute location: cloud or edge.",
     )
     parser.add_argument(
-        "--app_type",
+        "--workflow",
         choices=["chain", "graph"],
         required=True,
-        help="App type: chain or graph.",
+        help="Workflow: chain or graph.",
     )
     parser.add_argument(
         "--search_type",
@@ -98,12 +98,12 @@ def main():
     )
     args = parser.parse_args()
     compute_location = args.compute_location
-    app_type = args.app_type
+    workflow = args.workflow
     search_type = args.search_type
 
     queries, references = load_queries_and_references("eval.csv")
     dataset = build_eval_dataset(
-        queries, references, compute_location, app_type, search_type
+        queries, references, compute_location, workflow, search_type
     )
     evaluation_dataset = EvaluationDataset.from_list(dataset)
 

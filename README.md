@@ -11,15 +11,15 @@ However, list users could benefit from more focused AI-powered search and chat w
 R-help-chat is a chatbot for the R-help archives.
 The end-to-end scope of this project includes data processing, email retrieval, conversational RAG, model evaluation, and deployment with a user-friendly web interface.
 Domain-specific features for mailing list chatbots, like providing source citations and retrieving whole emails for context, are also included.
-Here's a picture of the chatbot workflow representing a single turn:
+Here's a drawing of the graph workflow for one conversational turn:
 
 ![R-help-chat workflow](images/graph_LR.png)
 
 ## Features
 
 - Complete retrieval-augmented generation (RAG) solution built with [LangChain](https://github.com/langchain-ai/langchain)
-    - Chain app for simple retrieval and chat sequence
-    - Graph app for conversational chat
+    - Chain workflow for simple retrieval and response
+    - Graph workflow for conversational chat
 - Data preprocesssing for email messages
     - Removes quoted lines (starting with ">") for faster indexing and retrieval
 - Efficient handling for incremental data updates
@@ -32,20 +32,14 @@ Here's a picture of the chatbot workflow representing a single turn:
 - Full-context retrieval
     - Each retrieval method provides whole emails (parent documents) for context
     - Dense embedding uses small chunks (child documents) to capture semantic meaning
-- Tool calling and citations (with graph app)
+- Graph workflow implements tool calling, chat memory, and structured responses
     - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for retrieval function
+    - [Chat memory](https://python.langchain.com/docs/how_to/chatbots_memory/): Previous user and AI messages are part of the context for follow-up questions
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sender and date for each answer
 - Options for cloud or edge computing to balance performance, price, and privacy
     - Cloud (remote) models: OpenAI API for embeddings and chat model
     - Edge (local) models (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
         - Current implementation has relatively low groundedness and accuracy scores
-
-Planned features:
-
-- Memory for graph app (multi-turn chat)
-- Deployment on Hugging Face Spaces
-- Automatic daily updates
-- Post-deployment monitoring (model performance and data drift)
 
 ## Web Interface
 
@@ -56,7 +50,7 @@ python app.py
 ```
 
 This launches an interactive chat interface in a web browser.
-The interface comes with example questions and allows choosing cloud or edge processing, chain or graph app, and the retrieval strategy.
+The interface comes with example questions and allows choosing cloud or edge processing and the retrieval strategy.
 
 ![R-help-chat screenshot](https://chnosz.net/images/R-help-chat.png)
 
@@ -77,7 +71,7 @@ from main import *
 ProcessDirectory("R-help", "cloud")
 ```
 
-Now you're ready to run the chain or graph. Here are some examples of RAG with the chain app:
+Now you're ready to run the chain or graph workflow. Here are some examples of RAG with the chain workflow:
 
 ```python
 RunChain("How can I get a named argument from '...'?")
@@ -87,7 +81,7 @@ RunChain("Help with parsing REST API response.")
 # 'The context provides information about parsing a REST API response in JSON format using R. Specifically, it mentions that the response from the API endpoint is in JSON format and suggests using the `jsonlite` package to parse it. ...'
 ```
 
-Use the graph app to allow the chat model to rewrite your query for retrieval and to return the retrieved emails and cited sources.
+Use the graph workflow to allow the chat model to rewrite your query for retrieval and to return the retrieved emails and cited sources.
 In this example, the chat model cited 2 out of 6 emails retrieved for the query.
 
 ```python
@@ -106,11 +100,11 @@ result["sources"]
 
 To run evals:
 
-- Set `app_type` to graph or chain
+- Set `workflow` to graph or chain
 - Set `search_type` to dense, sparse, or hybrid
 
 ```sh
-python eval.py --compute_location cloud --app_type graph --search_type hybrid
+python eval.py --compute_location cloud --workflow graph --search_type hybrid
 ```
 
 For a fair comparison of different search types, each one retrieves up to 6 emails:
@@ -128,7 +122,7 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 
 Results for queries and reference answers in `eval.csv` with retrieval from 2.5 years of the R-help archives (January 2022-June 2025):
 
-| Compute | App | Relevance | Groundedness | Accuracy |
+| Compute | Workflow | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
 | Cloud | Chain | **0.80** | **0.78** | **0.72** |
 | Cloud | Graph | 0.62 | 0.60     | 0.65 |
