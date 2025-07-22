@@ -17,6 +17,7 @@ from retriever import BuildRetriever
 
 ## For LANGCHAIN_API_KEY
 # from dotenv import load_dotenv
+#
 # load_dotenv(dotenv_path=".env", override=True)
 # os.environ["LANGSMITH_TRACING"] = "true"
 # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
@@ -203,15 +204,12 @@ def BuildGraph(
             ]
             # Delete tool call (AIMessage)
             # (avoids Gemma TemplateError: Conversation roles must alternate user/assistant/user/assistant/...)
-            filtered_messages = []
-            for msg in messages:
-                if hasattr(msg, "tool_calls"):
-                    if msg.tool_calls:
-                        ## Save the arguments for insertion into ToolMessage if there is an error with the tool call
-                        # handle_tool_errors = str(msg.tool_calls[0]["args"])
-                        break
-                filtered_messages.append(msg)
-            messages = filtered_messages
+            messages = [
+                msg
+                for msg in messages
+                if not hasattr(msg, "tool_calls")
+                or (hasattr(msg, "tool_calls") and not msg.tool_calls)
+            ]
         else:
             messages = [SystemMessage(answer_prompt())] + state["messages"]
         response = generate_model.invoke(messages)

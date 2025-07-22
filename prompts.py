@@ -58,6 +58,8 @@ def answer_prompt():
 
 
 # Prompt template for SmolLM3 with tools
+# The first two lines are from the apply_chat_template for HuggingFaceTB/SmolLM3-3B
+# The remainding lines (starting with You have access...) from tool_calling_llm.py
 
 smollm3_tools_template = """
 

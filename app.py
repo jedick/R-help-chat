@@ -11,43 +11,58 @@ import uuid
 import ast
 import os
 
-# Global settings for compute location and search type
-compute_location = "edge"
+# Global settings for compute_location and search_type
+COMPUTE = "cloud"
 search_type = "hybrid"
 
-# For LANGCHAIN_API_KEY (local deployment)
+# Load LANGCHAIN_API_KEY (for local deployment)
 load_dotenv(dotenv_path=".env", override=True)
+os.environ["LANGSMITH_TRACING"] = "true"
+os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
 
-if compute_location == "cloud":
-    os.environ["LANGSMITH_TRACING"] = "true"
-    os.environ["LANGSMITH_PROJECT"] = "R-help-chat-cloud"
-
-if compute_location == "edge":
-    # Check for GPU
+# Check for GPU
+if COMPUTE == "edge":
     if not torch.cuda.is_available():
         raise Exception("Can't use edge compute with no GPU")
-    os.environ["LANGSMITH_TRACING"] = "true"
-    os.environ["LANGSMITH_PROJECT"] = "R-help-chat-edge"
 
 # Keep LangChain graph in a global variable (shared across sessions)
-graph = None
+graph_edge = None
+graph_cloud = None
 
 
-@spaces.GPU(duration=60)
 def run_workflow(messages, input, thread_id):
     """The main function to run the chat workflow"""
 
-    global graph
+    # Get global graph for compute location
+    global graph_edge, graph_cloud
+    if COMPUTE == "edge":
+        graph = graph_edge
+    if COMPUTE == "cloud":
+        graph = graph_cloud
+
     if graph is None:
+        # Notify when we're loading the edge model because it takes some time
+        if COMPUTE == "edge":
+            gr.Warning(
+                f"Please wait for the edge model to load",
+                duration=15,
+                title=f"Model loading...",
+            )
         # Get the chat model and build the graph
-        chat_model = GetChatModel(compute_location)
-        graph_builder = BuildGraph(chat_model, compute_location, search_type)
+        chat_model = GetChatModel(COMPUTE)
+        graph_builder = BuildGraph(chat_model, COMPUTE, search_type)
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
-        # Notify when model finishes loading
-        gr.Success(f"{compute_location}", duration=4, title=f"Model loaded!")
-        print(f"Set graph for {compute_location}, {search_type}!")
+        # Set global graph for compute location
+        if COMPUTE == "edge":
+            graph_edge = graph
+        if COMPUTE == "cloud":
+            graph_cloud = graph
+
+    # Notify when model finishes loading
+    gr.Success(f"{COMPUTE}", duration=4, title=f"Model loaded!")
+    print(f"Set graph for {COMPUTE}, {search_type}!")
 
     print(f"Using thread_id: {thread_id}")
 
@@ -159,6 +174,27 @@ def run_workflow(messages, input, thread_id):
             yield messages, None, citations
 
 
+def to_workflow(*args):
+    """Wrapper function to call function with or without @spaces.GPU"""
+    if COMPUTE == "edge":
+        for value in run_workflow_edge(*args):
+            yield value
+    if COMPUTE == "cloud":
+        for value in run_workflow_cloud(*args):
+            yield value
+
+
+@spaces.GPU(duration=120)
+def run_workflow_edge(*args):
+    for value in run_workflow(*args):
+        yield value
+
+
+def run_workflow_cloud(*args):
+    for value in run_workflow(*args):
+        yield value
+
+
 # Custom CSS for bottom alignment
 css = """
 .row-container {
@@ -178,6 +214,18 @@ with gr.Blocks(
     # Define components
     # -----------------
 
+    compute_location = gr.Radio(
+        choices=[
+            "cloud",
+            "edge" if torch.cuda.is_available() else "edge (not available)",
+        ],
+        value=COMPUTE,
+        label="Compute Location",
+        info=(None if torch.cuda.is_available() else "NOTE: edge model requires GPU"),
+        # interactive=torch.cuda.is_available(),
+        render=False,
+    )
+
     input = gr.Textbox(
         lines=1,
         label="Your Question",
@@ -194,7 +242,11 @@ with gr.Blocks(
         show_label=False,
         avatar_images=(
             None,
-            "images/cloud.png" if compute_location == "cloud" else "images/chip.png",
+            (
+                "images/cloud.png"
+                if compute_location.value == "cloud"
+                else "images/chip.png"
+            ),
         ),
         render=False,
     )
@@ -205,26 +257,48 @@ with gr.Blocks(
 
     def get_intro_text():
         ## Get start and end months from database
-        # start, end = get_start_end_months(get_sources(compute_location))
+        # start, end = get_start_end_months(get_sources(compute_location.value))
         intro = f"""<!-- # 🤖 R-help-chat -->
+            ## 🇷🤝💬 R-help-chat
             
             **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).** Get AI-powered answers about R programming backed by email retrieval.<br>
-            Use natural langauge to ask R-related questions including years or year ranges (coverage is *start* to *end*).<br>
-            The chat model generates an answer based on emails it retrieves and provides source citations.<br>
-            If you encounter errors or want to start a new chat, press the "trash" button to clear the chat history.<br>
+            Use natural language to ask questions including years and get an AI-generated response based on retrieved emails.<br>
+            ➡️ If you encounter errors or want to start a new chat, press the "trash" button to clear the chat history.<br>
             **_Answers may be incorrect._**<br>
             """
         return intro
 
+    def get_info_text(compute_location):
+        info_prefix = """
+            **Features:** date awareness, email database (*start* to *end*), hybrid search (embeddings + keywords),
+            query analysis (LLM searches based on your question), multiple tool calls (cloud model only), chat memory (multi-turn), answers with citations.
+            **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
+            """
+        if compute_location.startswith("cloud"):
+            info_text = f"""{info_prefix}
+            📍 This is the **cloud** version, using the OpenAI API<br>
+            🧠 gpt-4o-mini<br>
+            ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled, and all interactions are logged<br>
+            🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
+            """
+        if compute_location.startswith("edge"):
+            info_text = f"""{info_prefix}
+            📍 This is the **edge** version, using [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) hardware<br>
+            🧠 Nomic embeddings and Gemma-3 LLM<br>
+            ⚠️ **_Privacy Notice_**: All interactions are logged<br>
+            🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
+            """
+        return info_text
+
     with gr.Row(elem_classes=["row-container"]):
         with gr.Column(scale=2):
             intro = gr.Markdown(get_intro_text())
+            compute_location.render()
         with gr.Column(scale=1):
             # Add information about the system
             with gr.Accordion("ℹ️ About This App", open=True):
-
                 ## Get number of emails (unique doc ids) in vector database
-                # collection = get_collection(compute_location)
+                # collection = get_collection(compute_location.value)
                 # n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
                 # gr.Markdown(
                 #    f"""
@@ -233,25 +307,7 @@ with gr.Blocks(
                 #    - **Retrieval**: hybrid of dense (vector embeddings) and sparse ([BM25S](https://github.com/xhluca/bm25s))
                 #    """
                 # )
-                if compute_location == "cloud":
-                    gr.Markdown(
-                        """
-                    📍 This is the **cloud** version, using the OpenAI API<br>
-                    ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled, and all interactions are logged<br>
-                    ➡️ You can use the *edge* version here: [R-help-chat-edge](https://huggingface.co/spaces/jedick/R-help-chat-edge)<br>
-                    🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
-                    """
-                    )
-                if compute_location == "edge":
-                    gr.Markdown(
-                        """
-                    📍 This is the **edge** version, using [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) hardware<br>
-                    ⚠️ The edge model is experimental and may produce lower-quality answers<br>
-                    ⚠️ **_Privacy Notice_**: All interactions are logged<br>
-                    ➡️ You can use the *cloud* version here: [R-help-chat](https://huggingface.co/spaces/jedick/R-help-chat)<br>
-                    🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
-                    """
-                    )
+                info = gr.Markdown(get_info_text(compute_location.value))
 
     with gr.Row():
         with gr.Column(scale=2):
@@ -330,27 +386,32 @@ with gr.Blocks(
     citations_text = gr.State([])
 
     # -------------
-    # Handle events
+    # App functions
     # -------------
 
-    # Start a new thread when the user presses the clear (trash) button
-    # https://github.com/gradio-app/gradio/issues/9722
-    chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
+    def value(value):
+        """Return updated value for a component"""
+        return gr.update(value=value)
 
-    def visible(show):
+    def set_compute(compute_location):
+        global COMPUTE
+        COMPUTE = compute_location
+
+    def set_avatar(compute_location):
+        if compute_location.startswith("cloud"):
+            image_file = "images/cloud.png"
+        if compute_location.startswith("edge"):
+            image_file = "images/chip.png"
+        return gr.update(
+            avatar_images=(
+                None,
+                image_file,
+            ),
+        )
+
+    def visible(visible):
         """Return updated visibility state for a component"""
-        return gr.update(visible=show)
-
-    # Show examples
-    show_examples.change(visible, show_examples, examples, api_name=False)
-
-    # Submit input to the chatbot
-    input.submit(
-        run_workflow,
-        [chatbot, input, thread_id],
-        [chatbot, retrieved_emails, citations_text],
-        api_name=False,
-    )
+        return gr.update(visible=visible)
 
     def update_emails(retrieved_emails, emails_textbox):
         if retrieved_emails is None:
@@ -363,14 +424,6 @@ with gr.Blocks(
             # This blanks out the textbox when a new chat is started
             return "", visible(False)
 
-    # Update the emails textbox when ready
-    retrieved_emails.change(
-        update_emails,
-        [retrieved_emails, emails_textbox],
-        [emails_textbox, emails_textbox],
-        api_name=False,
-    )
-
     def update_citations(citations):
         if citations == []:
             # Blank out and hide the citations textbox when new input is submitted
@@ -378,10 +431,61 @@ with gr.Blocks(
         else:
             return citations, visible(True)
 
-    # Update the citations textbox when ready
+    # --------------
+    # Event handlers
+    # --------------
+
+    # Start a new thread when the user presses the clear (trash) button
+    # https://github.com/gradio-app/gradio/issues/9722
+    chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
+
+    compute_location.change(
+        # Update global COMPUTE variable
+        set_compute,
+        [compute_location],
+        api_name=False,
+    ).then(
+        # Change the info text
+        get_info_text,
+        [compute_location],
+        [info],
+        api_name=False,
+    ).then(
+        # Change the chatbot avatar
+        set_avatar,
+        [compute_location],
+        [chatbot],
+        api_name=False,
+    )
+
+    show_examples.change(
+        # Show examples
+        visible,
+        [show_examples],
+        [examples],
+        api_name=False,
+    )
+
+    input.submit(
+        # Submit input to the chatbot
+        to_workflow,
+        [chatbot, input, thread_id],
+        [chatbot, retrieved_emails, citations_text],
+        api_name=False,
+    )
+
+    retrieved_emails.change(
+        # Update the emails textbox
+        update_emails,
+        [retrieved_emails, emails_textbox],
+        [emails_textbox, emails_textbox],
+        api_name=False,
+    )
+
     citations_text.change(
+        # Update the citations textbox
         update_citations,
-        citations_text,
+        [citations_text],
         [citations_textbox, citations_textbox],
         api_name=False,
     )
