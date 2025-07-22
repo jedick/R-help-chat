@@ -20,7 +20,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 
 # Local modules
 from index import ProcessFile
-from retriever import BuildRetriever, GetRetrieverParam
+from retriever import BuildRetriever, db_dir
 from graph import BuildGraph
 from prompts import answer_prompt
 
@@ -99,7 +99,6 @@ def ProcessDirectory(path, compute_location):
             ]
             files_to_keep = list(set(used_doc_ids))
             # Get all files in the file store
-            db_dir = GetRetrieverParam("db_dir")
             file_store = f"{db_dir}/file_store_{compute_location}"
             all_files = os.listdir(file_store)
             # Iterate through the files and delete those not in the list

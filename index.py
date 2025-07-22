@@ -5,7 +5,7 @@ import tempfile
 import os
 
 # Local modules
-from retriever import BuildRetriever, GetRetrieverParam
+from retriever import BuildRetriever, db_dir
 from mods.bm25s_retriever import BM25SRetriever
 
 
@@ -122,7 +122,6 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
     # Create or update BM25 index
     try:
         # Update BM25 index if it exists
-        db_dir = GetRetrieverParam("db_dir")
         bm25_persist_directory = f"{db_dir}/bm25"
         retriever = BM25SRetriever.from_persisted_directory(bm25_persist_directory)
         # Get new emails - ones which have not been indexed

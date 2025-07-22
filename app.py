@@ -1,10 +1,13 @@
 import gradio as gr
 from main import GetChatModel
 from graph import BuildGraph
+from retriever import db_dir
 from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 
 # from util import get_collection, get_sources, get_start_end_months
+from git import Repo
+import zipfile
 import spaces
 import torch
 import uuid
@@ -30,7 +33,7 @@ graph_edge = None
 graph_cloud = None
 
 
-def run_workflow(messages, input, thread_id):
+def run_workflow(chatbot, input, thread_id):
     """The main function to run the chat workflow"""
 
     # Get global graph for compute location
@@ -67,9 +70,9 @@ def run_workflow(messages, input, thread_id):
     print(f"Using thread_id: {thread_id}")
 
     # Display the user input in the chatbot interface
-    messages.append(gr.ChatMessage(role="user", content=input))
-    # Return the messages for chatbot and chunks for emails and citations texboxes (blank at first)
-    yield messages, [], []
+    chatbot.append(gr.ChatMessage(role="user", content=input))
+    # Return the chatbot messages and empty lists for emails and citations texboxes
+    yield chatbot, [], []
 
     # Asynchronously stream graph steps for a single input
     # https://langchain-ai.lang.chat/langgraph/reference/graphs/#langgraph.graph.state.CompiledStateGraph
@@ -98,7 +101,7 @@ def run_workflow(messages, input, thread_id):
                         content = f"{content} ({start_year or ''} - {end_year or ''})"
                     if "months" in args:
                         content = f"{content} {args['months']}"
-                    messages.append(
+                    chatbot.append(
                         gr.ChatMessage(
                             role="assistant",
                             content=content,
@@ -106,10 +109,10 @@ def run_workflow(messages, input, thread_id):
                         )
                     )
             if chunk_messages.content:
-                messages.append(
+                chatbot.append(
                     gr.ChatMessage(role="assistant", content=chunk_messages.content)
                 )
-            yield messages, [], []
+            yield chatbot, [], []
 
         if node == "retrieve_emails":
             chunk_messages = chunk["messages"]
@@ -133,7 +136,7 @@ def run_workflow(messages, input, thread_id):
                 title = f"🛒 Retrieved {n_emails} emails"
                 if email_list[0] == "### No emails were retrieved":
                     title = "❌ Retrieved 0 emails"
-                messages.append(
+                chatbot.append(
                     gr.ChatMessage(
                         role="assistant",
                         content=month_text,
@@ -149,16 +152,17 @@ def run_workflow(messages, input, thread_id):
                 )
             # Combine all the Tool Call results
             retrieved_emails = "\n\n".join(retrieved_emails)
-            yield messages, retrieved_emails, []
+            yield chatbot, retrieved_emails, []
 
         if node == "generate":
             chunk_messages = chunk["messages"]
             # Chat response without citations
             if chunk_messages.content:
-                messages.append(
+                chatbot.append(
                     gr.ChatMessage(role="assistant", content=chunk_messages.content)
                 )
-            yield messages, None, []
+            # None is used for no change to the retrieved emails textbox
+            yield chatbot, None, []
 
         if node == "answer_with_citations":
             chunk_messages = chunk["messages"][0]
@@ -170,8 +174,8 @@ def run_workflow(messages, input, thread_id):
                 answer = chunk_messages.content
                 citations = None
 
-            messages.append(gr.ChatMessage(role="assistant", content=answer))
-            yield messages, None, citations
+            chatbot.append(gr.ChatMessage(role="assistant", content=answer))
+            yield chatbot, None, citations
 
 
 def to_workflow(*args):
@@ -200,7 +204,7 @@ css = """
 .row-container {
     display: flex;
     align-items: flex-end; /* Align components at the bottom */
-    gap: 10px; /* Optional: Add spacing between components */
+    gap: 10px; /* Add spacing between components */
 }
 """
 
@@ -222,7 +226,7 @@ with gr.Blocks(
         value=COMPUTE,
         label="Compute Location",
         info=(None if torch.cuda.is_available() else "NOTE: edge model requires GPU"),
-        # interactive=torch.cuda.is_available(),
+        interactive=torch.cuda.is_available(),
         render=False,
     )
 
@@ -230,6 +234,18 @@ with gr.Blocks(
         lines=1,
         label="Your Question",
         info="Press Enter to submit",
+        render=False,
+    )
+    downloading = gr.Textbox(
+        lines=1,
+        label="Downloading Data, Please Wait",
+        visible=False,
+        render=False,
+    )
+    extracting = gr.Textbox(
+        lines=1,
+        label="Extracting Data, Please Wait",
+        visible=False,
         render=False,
     )
     show_examples = gr.Checkbox(
@@ -248,6 +264,7 @@ with gr.Blocks(
                 else "images/chip.png"
             ),
         ),
+        show_copy_all_button=True,
         render=False,
     )
 
@@ -261,30 +278,31 @@ with gr.Blocks(
         intro = f"""<!-- # 🤖 R-help-chat -->
             ## 🇷🤝💬 R-help-chat
             
-            **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).** Get AI-powered answers about R programming backed by email retrieval.<br>
-            Use natural language to ask questions including years and get an AI-generated response based on retrieved emails.<br>
-            ➡️ If you encounter errors or want to start a new chat, press the "trash" button to clear the chat history.<br>
+            **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).** Get AI-powered answers about R programming backed by email retrieval.
+            An LLM turns your question into a search query, including year ranges.
+            You can ask follow-up questions with the chat history as context.
+            ➡️ To clear the chat history and start a new chat, press the 🗑️ trash button.<br>
             **_Answers may be incorrect._**<br>
             """
         return intro
 
     def get_info_text(compute_location):
         info_prefix = """
-            **Features:** date awareness, email database (*start* to *end*), hybrid search (embeddings + keywords),
-            query analysis (LLM searches based on your question), multiple tool calls (cloud model only), chat memory (multi-turn), answers with citations.
+            **Features:** conversational RAG, today's date, email database (*start* to *end*), hybrid search (dense+sparse),
+            query analysis, multiple tool calls (cloud model), answer with citations.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         if compute_location.startswith("cloud"):
             info_text = f"""{info_prefix}
             📍 This is the **cloud** version, using the OpenAI API<br>
-            🧠 gpt-4o-mini<br>
+            ✨ gpt-4o-mini<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled, and all interactions are logged<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         if compute_location.startswith("edge"):
             info_text = f"""{info_prefix}
             📍 This is the **edge** version, using [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) hardware<br>
-            🧠 Nomic embeddings and Gemma-3 LLM<br>
+            ✨ Nomic embeddings and Gemma-3 LLM<br>
             ⚠️ **_Privacy Notice_**: All interactions are logged<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -292,8 +310,14 @@ with gr.Blocks(
 
     with gr.Row(elem_classes=["row-container"]):
         with gr.Column(scale=2):
-            intro = gr.Markdown(get_intro_text())
-            compute_location.render()
+            with gr.Row(elem_classes=["row-container"]):
+                with gr.Column(scale=2):
+                    intro = gr.Markdown(get_intro_text())
+                with gr.Column(scale=1):
+                    compute_location.render()
+            input.render()
+            downloading.render()
+            extracting.render()
         with gr.Column(scale=1):
             # Add information about the system
             with gr.Accordion("ℹ️ About This App", open=True):
@@ -308,11 +332,6 @@ with gr.Blocks(
                 #    """
                 # )
                 info = gr.Markdown(get_info_text(compute_location.value))
-
-    with gr.Row():
-        with gr.Column(scale=2):
-            input.render()
-        with gr.Column(scale=1):
             show_examples.render()
 
     with gr.Row():
@@ -409,27 +428,27 @@ with gr.Blocks(
             ),
         )
 
-    def visible(visible):
+    def change_visibility(visible):
         """Return updated visibility state for a component"""
         return gr.update(visible=visible)
 
     def update_emails(retrieved_emails, emails_textbox):
         if retrieved_emails is None:
             # This keeps the content of the textbox when the answer step occurs
-            return emails_textbox, visible(True)
+            return emails_textbox, change_visibility(True)
         elif not retrieved_emails == []:
             # This adds the retrieved emails to the textbox
-            return retrieved_emails, visible(True)
+            return retrieved_emails, change_visibility(True)
         else:
             # This blanks out the textbox when a new chat is started
-            return "", visible(False)
+            return "", change_visibility(False)
 
     def update_citations(citations):
         if citations == []:
             # Blank out and hide the citations textbox when new input is submitted
-            return "", visible(False)
+            return "", change_visibility(False)
         else:
-            return citations, visible(True)
+            return citations, change_visibility(True)
 
     # --------------
     # Event handlers
@@ -460,7 +479,7 @@ with gr.Blocks(
 
     show_examples.change(
         # Show examples
-        visible,
+        change_visibility,
         [show_examples],
         [examples],
         api_name=False,
@@ -489,6 +508,79 @@ with gr.Blocks(
         [citations_textbox, citations_textbox],
         api_name=False,
     )
+
+    # ------------
+    # Data loading
+    # ------------
+
+    def is_data_present():
+        """Check if the database directory is present"""
+
+        return os.path.isdir(db_dir)
+
+    def is_data_missing():
+        """Check if the database directory is missing"""
+
+        return not os.path.isdir(db_dir)
+
+    def download():
+        """Download the db.zip file"""
+
+        if not os.path.isdir(db_dir):
+
+            # Define the repository URL and the directory to clone into
+            url = "https://huggingface.co/datasets/jedick/R-help-db"
+            to_path = "./R-help-db"
+
+            # Clone the repository
+            try:
+                Repo.clone_from(url, to_path)
+                print(f"Repository cloned successfully into {to_path}")
+            except Exception as e:
+                print(f"An error occurred while cloning {url}: {e}")
+
+        return None
+
+    def extract():
+        """Extract the db.zip file"""
+
+        if not os.path.isdir(db_dir):
+
+            zip_file_path = "./R-help-db/db.zip"
+            extract_to_path = "./"
+            with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                zip_ref.extractall(extract_to_path)
+
+        return None
+
+    false = gr.State(False)
+    true = gr.State(True)
+    need_data = gr.State()
+    have_data = gr.State()
+
+    # fmt: off
+    demo.load(
+        is_data_missing, None, [need_data], api_name=False
+    ).then(
+        is_data_present, None, [have_data], api_name=False
+    ).then(
+        change_visibility, [have_data], [input], api_name=False
+    ).then(
+        change_visibility, [need_data], [downloading], api_name=False
+    ).then(
+        download, None, [downloading], api_name=False
+    ).then(
+        change_visibility, [false], [downloading], api_name=False
+    ).then(
+        change_visibility, [need_data], [extracting], api_name=False
+    ).then(
+        extract, None, [extracting], api_name=False
+    ).then(
+        change_visibility, [false], [extracting], api_name=False
+    ).then(
+        change_visibility, [true], [input], api_name=False
+    )
+    # fmt: on
 
 
 if __name__ == "__main__":
