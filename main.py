@@ -130,10 +130,14 @@ def GetChatModel(compute_location):
         if compute_location == "edge" and not torch.cuda.is_available():
             raise Exception("Edge chat model selected without GPU")
 
+        # Get the model ID (we can define the variable in HF Spaces settings)
+        model_id = os.getenv("MODEL_ID")
+        if model_id is None:
+            # model_id = "HuggingFaceTB/SmolLM3-3B"
+            model_id = "google/gemma-3-1b-it"
+
         # Define the pipeline to pass to the HuggingFacePipeline class
         # https://huggingface.co/blog/langchain
-        # model_id = "HuggingFaceTB/SmolLM3-3B"
-        model_id = "google/gemma-3-1b-it"
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         model = AutoModelForCausalLM.from_pretrained(
             model_id,

@@ -33,7 +33,7 @@ graph_edge = None
 graph_cloud = None
 
 
-def run_workflow(chatbot, input, thread_id):
+def run_workflow(input, history, thread_id):
     """The main function to run the chat workflow"""
 
     # Get global graph for compute location
@@ -69,10 +69,10 @@ def run_workflow(chatbot, input, thread_id):
 
     print(f"Using thread_id: {thread_id}")
 
-    # Display the user input in the chatbot interface
-    chatbot.append(gr.ChatMessage(role="user", content=input))
-    # Return the chatbot messages and empty lists for emails and citations texboxes
-    yield chatbot, [], []
+    #    # Display the user input in the history
+    #    history.append(gr.ChatMessage(role="user", content=input))
+    #    # Return the history and empty lists for emails and citations texboxes
+    #    yield history, [], []
 
     # Asynchronously stream graph steps for a single input
     # https://langchain-ai.lang.chat/langgraph/reference/graphs/#langgraph.graph.state.CompiledStateGraph
@@ -101,7 +101,7 @@ def run_workflow(chatbot, input, thread_id):
                         content = f"{content} ({start_year or ''} - {end_year or ''})"
                     if "months" in args:
                         content = f"{content} {args['months']}"
-                    chatbot.append(
+                    history.append(
                         gr.ChatMessage(
                             role="assistant",
                             content=content,
@@ -109,10 +109,10 @@ def run_workflow(chatbot, input, thread_id):
                         )
                     )
             if chunk_messages.content:
-                chatbot.append(
+                history.append(
                     gr.ChatMessage(role="assistant", content=chunk_messages.content)
                 )
-            yield chatbot, [], []
+            yield history, [], []
 
         if node == "retrieve_emails":
             chunk_messages = chunk["messages"]
@@ -136,7 +136,7 @@ def run_workflow(chatbot, input, thread_id):
                 title = f"🛒 Retrieved {n_emails} emails"
                 if email_list[0] == "### No emails were retrieved":
                     title = "❌ Retrieved 0 emails"
-                chatbot.append(
+                history.append(
                     gr.ChatMessage(
                         role="assistant",
                         content=month_text,
@@ -152,17 +152,17 @@ def run_workflow(chatbot, input, thread_id):
                 )
             # Combine all the Tool Call results
             retrieved_emails = "\n\n".join(retrieved_emails)
-            yield chatbot, retrieved_emails, []
+            yield history, retrieved_emails, []
 
         if node == "generate":
             chunk_messages = chunk["messages"]
             # Chat response without citations
             if chunk_messages.content:
-                chatbot.append(
+                history.append(
                     gr.ChatMessage(role="assistant", content=chunk_messages.content)
                 )
             # None is used for no change to the retrieved emails textbox
-            yield chatbot, None, []
+            yield history, None, []
 
         if node == "answer_with_citations":
             chunk_messages = chunk["messages"][0]
@@ -174,8 +174,8 @@ def run_workflow(chatbot, input, thread_id):
                 answer = chunk_messages.content
                 citations = None
 
-            chatbot.append(gr.ChatMessage(role="assistant", content=answer))
-            yield chatbot, None, citations
+            history.append(gr.ChatMessage(role="assistant", content=answer))
+            yield history, None, citations
 
 
 def to_workflow(*args):
@@ -230,12 +230,6 @@ with gr.Blocks(
         render=False,
     )
 
-    input = gr.Textbox(
-        lines=1,
-        label="Your Question",
-        info="Press Enter to submit",
-        render=False,
-    )
     downloading = gr.Textbox(
         lines=1,
         label="Downloading Data, Please Wait",
@@ -245,6 +239,13 @@ with gr.Blocks(
     extracting = gr.Textbox(
         lines=1,
         label="Extracting Data, Please Wait",
+        visible=False,
+        render=False,
+    )
+    data_error = gr.Textbox(
+        value="App is unavailable. Please contact the maintainer.",
+        lines=1,
+        label="Error downloading or extracting data",
         visible=False,
         render=False,
     )
@@ -267,6 +268,23 @@ with gr.Blocks(
         show_copy_all_button=True,
         render=False,
     )
+
+    # ------------
+    # Set up state
+    # ------------
+
+    def generate_thread_id():
+        """Generate a new thread ID"""
+        thread_id = uuid.uuid4()
+        print(f"Generated thread_id: {thread_id}")
+        return thread_id
+
+    # Define thread_id variable
+    thread_id = gr.State(generate_thread_id())
+
+    # Define states for the output textboxes
+    retrieved_emails = gr.State([])
+    citations_text = gr.State([])
 
     # ------------------
     # Make the interface
@@ -308,18 +326,32 @@ with gr.Blocks(
             """
         return info_text
 
-    with gr.Row(elem_classes=["row-container"]):
+    with gr.Row():
+        # Left column: Intro, Compute, Chat, Emails
         with gr.Column(scale=2):
             with gr.Row(elem_classes=["row-container"]):
                 with gr.Column(scale=2):
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
                     compute_location.render()
-            input.render()
+            chat_interface = gr.ChatInterface(
+                to_workflow,
+                chatbot=chatbot,
+                type="messages",
+                additional_inputs=[thread_id],
+                additional_outputs=[retrieved_emails, citations_text],
+            )
             downloading.render()
             extracting.render()
+            data_error.render()
+            emails_textbox = gr.Textbox(
+                label="Retrieved Emails",
+                lines=10,
+                visible=False,
+                info="Tip: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
+            )
+        # Left column: Info, Examples, Citations
         with gr.Column(scale=1):
-            # Add information about the system
             with gr.Accordion("ℹ️ About This App", open=True):
                 ## Get number of emails (unique doc ids) in vector database
                 # collection = get_collection(compute_location.value)
@@ -333,76 +365,43 @@ with gr.Blocks(
                 # )
                 info = gr.Markdown(get_info_text(compute_location.value))
             show_examples.render()
-
-    with gr.Row():
-
-        with gr.Column(scale=2):
-            chatbot.render()
-
-        with gr.Column(scale=1, visible=False) as examples:
-            # Add some helpful examples
-            example_questions = [
-                # "What is today's date?",
-                "Summarize emails from the last two months",
-                "What plotmath examples have been discussed?",
-                "When was has.HLC mentioned?",
-                "Who discussed profiling in 2023?",
-                "Any messages about installation problems in 2023-2024?",
-            ]
-            gr.Examples(
-                examples=[[q] for q in example_questions],
-                inputs=[input],
-                label="Click an example to fill the question box",
-                elem_id="example-questions",
-            )
-            multi_tool_questions = [
-                "Speed differences between lapply and for loops",
-                "Compare usage of pipe operator between 2022 and 2024",
-            ]
-            gr.Examples(
-                examples=[[q] for q in multi_tool_questions],
-                inputs=[input],
-                label="Example prompts for multiple retrievals",
-                elem_id="example-questions",
-            )
-            multi_turn_questions = [
-                "Lookup emails that reference bugs.r-project.org in 2025",
-                "Did those authors report bugs before 2025?",
-            ]
-            gr.Examples(
-                examples=[[q] for q in multi_turn_questions],
-                inputs=[input],
-                label="Multi-turn example for asking follow-up questions",
-                elem_id="example-questions",
-            )
-
-    with gr.Row():
-        with gr.Column(scale=2):
-            emails_textbox = gr.Textbox(
-                label="Retrieved Emails",
-                lines=10,
-                visible=False,
-                info="Tip: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
-            )
-        with gr.Column():
+            with gr.Column(scale=1, visible=False) as examples:
+                # Add some helpful examples
+                example_questions = [
+                    # "What is today's date?",
+                    "Summarize emails from the last two months",
+                    "What plotmath examples have been discussed?",
+                    "When was has.HLC mentioned?",
+                    "Who discussed profiling in 2023?",
+                    "Any messages about installation problems in 2023-2024?",
+                ]
+                gr.Examples(
+                    examples=[[q] for q in example_questions],
+                    inputs=[chat_interface.textbox],
+                    label="Click an example to fill the message box",
+                    elem_id="example-questions",
+                )
+                multi_tool_questions = [
+                    "Differences between lapply and for loops",
+                    "Compare usage of pipe operator between 2022 and 2024",
+                ]
+                gr.Examples(
+                    examples=[[q] for q in multi_tool_questions],
+                    inputs=[chat_interface.textbox],
+                    label="Example prompts for multiple retrievals",
+                    elem_id="example-questions",
+                )
+                multi_turn_questions = [
+                    "Lookup emails that reference bugs.r-project.org in 2025",
+                    "Did those authors report bugs before 2025?",
+                ]
+                gr.Examples(
+                    examples=[[q] for q in multi_turn_questions],
+                    inputs=[chat_interface.textbox],
+                    label="Multi-turn example for asking follow-up questions",
+                    elem_id="example-questions",
+                )
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
-
-    # ------------
-    # Set up state
-    # ------------
-
-    def generate_thread_id():
-        """Generate a new thread ID"""
-        thread_id = uuid.uuid4()
-        print(f"Generated thread_id: {thread_id}")
-        return thread_id
-
-    # Define thread_id variable
-    thread_id = gr.State(generate_thread_id())
-
-    # Define states for the output textboxes
-    retrieved_emails = gr.State([])
-    citations_text = gr.State([])
 
     # -------------
     # App functions
@@ -485,14 +484,6 @@ with gr.Blocks(
         api_name=False,
     )
 
-    input.submit(
-        # Submit input to the chatbot
-        to_workflow,
-        [chatbot, input, thread_id],
-        [chatbot, retrieved_emails, citations_text],
-        api_name=False,
-    )
-
     retrieved_emails.change(
         # Update the emails textbox
         update_emails,
@@ -564,7 +555,9 @@ with gr.Blocks(
     ).then(
         is_data_present, None, [have_data], api_name=False
     ).then(
-        change_visibility, [have_data], [input], api_name=False
+        change_visibility, [have_data], [chatbot], api_name=False
+    ).then(
+        change_visibility, [have_data], [chat_interface.textbox], api_name=False
     ).then(
         change_visibility, [need_data], [downloading], api_name=False
     ).then(
@@ -578,7 +571,15 @@ with gr.Blocks(
     ).then(
         change_visibility, [false], [extracting], api_name=False
     ).then(
-        change_visibility, [true], [input], api_name=False
+        is_data_missing, None, [need_data], api_name=False
+    ).then(
+        is_data_present, None, [have_data], api_name=False
+    ).then(
+        change_visibility, [have_data], [chatbot], api_name=False
+    ).then(
+        change_visibility, [have_data], [chat_interface.textbox], api_name=False
+    ).then(
+        change_visibility, [need_data], [data_error], api_name=False
     )
     # fmt: on
 
