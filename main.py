@@ -24,8 +24,19 @@ from retriever import BuildRetriever, db_dir
 from graph import BuildGraph
 from prompts import answer_prompt
 
+# -----------
 # R-help-chat
+# -----------
 # First version by Jeffrey Dick on 2025-06-29
+
+# Define the cloud (OpenAI) model
+openai_model = "gpt-4o-mini"
+
+# Get the edge model ID (we can define the variable in HF Spaces settings)
+model_id = os.getenv("MODEL_ID")
+if model_id is None:
+    # model_id = "HuggingFaceTB/SmolLM3-3B"
+    model_id = "google/gemma-3-1b-it"
 
 # Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
@@ -122,19 +133,13 @@ def GetChatModel(compute_location):
 
     if compute_location == "cloud":
 
-        chat_model = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        chat_model = ChatOpenAI(model=openai_model, temperature=0)
 
     if compute_location == "edge":
 
         # Don't try to use edge models without a GPU
         if compute_location == "edge" and not torch.cuda.is_available():
             raise Exception("Edge chat model selected without GPU")
-
-        # Get the model ID (we can define the variable in HF Spaces settings)
-        model_id = os.getenv("MODEL_ID")
-        if model_id is None:
-            # model_id = "HuggingFaceTB/SmolLM3-3B"
-            model_id = "google/gemma-3-1b-it"
 
         # Define the pipeline to pass to the HuggingFacePipeline class
         # https://huggingface.co/blog/langchain

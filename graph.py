@@ -4,6 +4,7 @@ from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_huggingface import ChatHuggingFace
 from typing import Optional
+from dotenv import load_dotenv
 import datetime
 import os
 
@@ -16,8 +17,6 @@ from mods.tool_calling_llm import ToolCallingLLM
 from retriever import BuildRetriever
 
 ## For LANGCHAIN_API_KEY
-# from dotenv import load_dotenv
-#
 # load_dotenv(dotenv_path=".env", override=True)
 # os.environ["LANGSMITH_TRACING"] = "true"
 # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"

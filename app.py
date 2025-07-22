@@ -3,9 +3,9 @@ from main import GetChatModel
 from graph import BuildGraph
 from retriever import db_dir
 from langgraph.checkpoint.memory import MemorySaver
-from dotenv import load_dotenv
 
-# from util import get_collection, get_sources, get_start_end_months
+from main import openai_model, model_id
+from util import get_sources, get_start_end_months
 from git import Repo
 import zipfile
 import spaces
@@ -17,11 +17,6 @@ import os
 # Global settings for compute_location and search_type
 COMPUTE = "cloud"
 search_type = "hybrid"
-
-# Load LANGCHAIN_API_KEY (for local deployment)
-load_dotenv(dotenv_path=".env", override=True)
-os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
 
 # Check for GPU
 if COMPUTE == "edge":
@@ -291,37 +286,30 @@ with gr.Blocks(
     # ------------------
 
     def get_intro_text():
-        ## Get start and end months from database
-        # start, end = get_start_end_months(get_sources(compute_location.value))
         intro = f"""<!-- # 🤖 R-help-chat -->
+            <!-- Get AI-powered answers about R programming backed by email retrieval. -->
             ## 🇷🤝💬 R-help-chat
             
-            **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).** Get AI-powered answers about R programming backed by email retrieval.
-            An LLM turns your question into a search query, including year ranges.
-            You can ask follow-up questions with the chat history as context.
-            ➡️ To clear the chat history and start a new chat, press the 🗑️ trash button.<br>
+            **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).**
+            An LLM turns your question into a search query, including year ranges, and generates an answer from the retrieved emails.
+            Follow-up questions initiate further retrievals and are answered with the chat history as context.
+            ➡️ To clear the history and start a new chat, press the 🗑️ trash button.<br>
             **_Answers may be incorrect._**<br>
             """
         return intro
 
     def get_info_text(compute_location):
-        info_prefix = """
-            **Features:** conversational RAG, today's date, email database (*start* to *end*), hybrid search (dense+sparse),
-            query analysis, multiple tool calls (cloud model), answer with citations.
-            **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
-            """
         if compute_location.startswith("cloud"):
-            info_text = f"""{info_prefix}
+            info_text = f"""
             📍 This is the **cloud** version, using the OpenAI API<br>
-            ✨ gpt-4o-mini<br>
-            ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled, and all interactions are logged<br>
+            ✨ {openai_model}<br>
+            ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         if compute_location.startswith("edge"):
-            info_text = f"""{info_prefix}
+            info_text = f"""
             📍 This is the **edge** version, using [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) hardware<br>
-            ✨ Nomic embeddings and Gemma-3 LLM<br>
-            ⚠️ **_Privacy Notice_**: All interactions are logged<br>
+            ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return info_text
@@ -340,6 +328,7 @@ with gr.Blocks(
                 type="messages",
                 additional_inputs=[thread_id],
                 additional_outputs=[retrieved_emails, citations_text],
+                api_name=False,
             )
             downloading.render()
             extracting.render()
@@ -350,22 +339,22 @@ with gr.Blocks(
                 visible=False,
                 info="Tip: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
             )
-        # Left column: Info, Examples, Citations
+        # Right column: Info, Examples, Citations
         with gr.Column(scale=1):
-            with gr.Accordion("ℹ️ About This App", open=True):
-                ## Get number of emails (unique doc ids) in vector database
-                # collection = get_collection(compute_location.value)
-                # n_emails = len(set([m["doc_id"] for m in collection["metadatas"]]))
-                # gr.Markdown(
-                #    f"""
-                #    - **Database**: *n_emails* emails from the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/)
-                #    - **System**: retrieval and citation tools; system prompt has today's date
-                #    - **Retrieval**: hybrid of dense (vector embeddings) and sparse ([BM25S](https://github.com/xhluca/bm25s))
-                #    """
-                # )
-                info = gr.Markdown(get_info_text(compute_location.value))
-            show_examples.render()
-            with gr.Column(scale=1, visible=False) as examples:
+            info = gr.Markdown(get_info_text(compute_location.value))
+            with gr.Accordion("ℹ️ More Info", open=False):
+                # Get source files for each email and start and end months from database
+                sources = get_sources()
+                start, end = get_start_end_months(sources)
+                gr.Markdown(
+                    f"""
+                    **Database:** {len(sources)} emails from {start} to {end}.
+                    **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
+                    multiple tool calls (cloud model), answer with citations, chat memory.
+                    **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and [BM25S](https://github.com/xhluca/bm25s)-based retrievers.<br>
+                    """
+                )
+            with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
                 example_questions = [
                     # "What is today's date?",
@@ -473,14 +462,6 @@ with gr.Blocks(
         set_avatar,
         [compute_location],
         [chatbot],
-        api_name=False,
-    )
-
-    show_examples.change(
-        # Show examples
-        change_visibility,
-        [show_examples],
-        [examples],
         api_name=False,
     )
 

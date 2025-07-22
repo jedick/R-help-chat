@@ -1,22 +1,37 @@
-import re
 from calendar import month_name
-from retriever import BuildRetriever
+from retriever import BuildRetriever, db_dir
+import json
+import os
+import re
 
 
 def get_collection(compute_location):
     """
     Returns the vectorstore collection.
+
+    Usage Examples:
+        # Number of child documents
+        collection = get_collection("cloud")
+        len(collection["ids"])
+        # Number of parent documents (unique doc_ids)
+        len(set([m["doc_id"] for m in collection["metadatas"]]))
     """
     retriever = BuildRetriever(compute_location, "dense")
     return retriever.vectorstore.get()
 
 
-def get_sources(compute_location):
+def get_sources():
     """
     Return the source files indexed in the database, e.g. 'R-help/2024-April.txt'.
     """
-    collection = get_collection(compute_location)
-    sources = [m["source"] for m in collection["metadatas"]]
+    # Path to your JSON Lines file
+    file_path = os.path.join(db_dir, "bm25", "corpus.jsonl")
+
+    # Reading the JSON Lines file
+    with open(file_path, "r", encoding="utf-8") as file:
+        # Parse each line as a JSON object
+        sources = [json.loads(line.strip())["metadata"]["source"] for line in file]
+
     return sources
 
 
