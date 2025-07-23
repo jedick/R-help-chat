@@ -292,25 +292,43 @@ with gr.Blocks(
             
             **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).**
             An LLM turns your question into a search query, including year ranges, and generates an answer from the retrieved emails.
-            Follow-up questions initiate further retrievals and are answered with the chat history as context.
+            You can ask follow-up questions with the chat history as context.
             ➡️ To clear the history and start a new chat, press the 🗑️ trash button.<br>
             **_Answers may be incorrect._**<br>
             """
         return intro
 
-    def get_info_text(compute_location):
+    def get_status_text(compute_location):
         if compute_location.startswith("cloud"):
-            info_text = f"""
+            status_text = f"""
             📍 This is the **cloud** version, using the OpenAI API<br>
-            ✨ {openai_model}<br>
+            ✨ text-embedding-3-small and {openai_model}<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         if compute_location.startswith("edge"):
-            info_text = f"""
-            📍 This is the **edge** version, using [ZeroGPU](https://huggingface.co/docs/hub/spaces-zerogpu) hardware<br>
+            status_text = f"""
+            📍 This is the **edge** version, using ZeroGPU hardware<br>
             ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
+            """
+        return status_text
+
+    def get_info_text():
+        try:
+            # Get source files for each email and start and end months from database
+            sources = get_sources()
+            start, end = get_start_end_months(sources)
+        except:
+            # If database isn't ready, put in empty values
+            sources = []
+            start = None
+            end = None
+        info_text = f"""
+            **Database:** {len(sources)} emails from {start} to {end}.
+            **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
+            multiple tool calls (cloud model), answer with citations, chat memory.
+            **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and [BM25S](https://github.com/xhluca/bm25s)-based retrievers.<br>
             """
         return info_text
 
@@ -341,19 +359,9 @@ with gr.Blocks(
             )
         # Right column: Info, Examples, Citations
         with gr.Column(scale=1):
-            info = gr.Markdown(get_info_text(compute_location.value))
+            status = gr.Markdown(get_status_text(compute_location.value))
             with gr.Accordion("ℹ️ More Info", open=False):
-                # Get source files for each email and start and end months from database
-                sources = get_sources()
-                start, end = get_start_end_months(sources)
-                gr.Markdown(
-                    f"""
-                    **Database:** {len(sources)} emails from {start} to {end}.
-                    **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
-                    multiple tool calls (cloud model), answer with citations, chat memory.
-                    **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and [BM25S](https://github.com/xhluca/bm25s)-based retrievers.<br>
-                    """
-                )
+                info = gr.Markdown(get_info_text())
             with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
                 example_questions = [
@@ -377,7 +385,7 @@ with gr.Blocks(
                 gr.Examples(
                     examples=[[q] for q in multi_tool_questions],
                     inputs=[chat_interface.textbox],
-                    label="Example prompts for multiple retrievals",
+                    label="Prompts for multiple retrievals",
                     elem_id="example-questions",
                 )
                 multi_turn_questions = [
@@ -387,7 +395,7 @@ with gr.Blocks(
                 gr.Examples(
                     examples=[[q] for q in multi_turn_questions],
                     inputs=[chat_interface.textbox],
-                    label="Multi-turn example for asking follow-up questions",
+                    label="Asking follow-up questions",
                     elem_id="example-questions",
                 )
             citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
@@ -446,22 +454,37 @@ with gr.Blocks(
     # https://github.com/gradio-app/gradio/issues/9722
     chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
 
+    def clear_component(component):
+        """Return cleared component"""
+        return component.clear()
+
     compute_location.change(
         # Update global COMPUTE variable
         set_compute,
         [compute_location],
         api_name=False,
     ).then(
-        # Change the info text
-        get_info_text,
+        # Change the app status text
+        get_status_text,
         [compute_location],
-        [info],
+        [status],
+        api_name=False,
+    ).then(
+        # Clear the chatbot history
+        clear_component,
+        [chatbot],
+        [chatbot],
         api_name=False,
     ).then(
         # Change the chatbot avatar
         set_avatar,
         [compute_location],
         [chatbot],
+        api_name=False,
+    ).then(
+        # Start a new thread
+        generate_thread_id,
+        outputs=[thread_id],
         api_name=False,
     )
 
@@ -530,6 +553,11 @@ with gr.Blocks(
     need_data = gr.State()
     have_data = gr.State()
 
+    # When app is launched, check if data is present, download it if necessary,
+    # hide chat interface during downloading, show downloading and extracting
+    # steps as textboxes, show error textbox if needed, restore chat interface,
+    # and show database info
+
     # fmt: off
     demo.load(
         is_data_missing, None, [need_data], api_name=False
@@ -561,6 +589,8 @@ with gr.Blocks(
         change_visibility, [have_data], [chat_interface.textbox], api_name=False
     ).then(
         change_visibility, [need_data], [data_error], api_name=False
+    ).then(
+        get_info_text, None, [info], api_name=False
     )
     # fmt: on
 

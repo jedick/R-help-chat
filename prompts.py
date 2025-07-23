@@ -11,7 +11,7 @@ def retrieve_prompt(compute_location):
     """
 
     # Get start and end months from database
-    start, end = get_start_end_months(get_sources(compute_location))
+    start, end = get_start_end_months(get_sources())
 
     retrieve_prompt = (
         f"The current date is {date.today()}. "
@@ -58,23 +58,41 @@ def answer_prompt():
 
 
 # Prompt template for SmolLM3 with tools
-# The first two lines are from the apply_chat_template for HuggingFaceTB/SmolLM3-3B
-# The remainding lines (starting with You have access...) from tool_calling_llm.py
-
+# The first two lines, <function-name>, and <args-json-object> are from the apply_chat_template for HuggingFaceTB/SmolLM3-3B
+# The other lines (You have, {tools}, You must), "tool", and "tool_input" are from tool_calling_llm.py
 smollm3_tools_template = """
 
-    ### Tools
+### Tools
 
-    You may call one or more functions to assist with the user query.
+You may call one or more functions to assist with the user query.
 
-    You have access to the following tools:
+You have access to the following tools:
 
-    {tools}
+{tools}
 
-    You must always select one of the above tools and respond with only a JSON object matching the following schema:
+You must always select one of the above tools and respond with only a JSON object matching the following schema:
 
-    {{
-      "tool": <name of the selected tool>,
-      "tool_input": <parameters for the selected tool, matching the tool's JSON schema>
-    }}
-    """
+{{
+    "tool": <function-name>,
+    "tool_input": <args-json-object>
+}}
+
+"""
+
+# Prompt template for Gemma-3 with tools
+# Based on https://ai.google.dev/gemma/docs/capabilities/function-calling
+gemma_tools_template = """
+
+### Functions
+
+You have access to functions. If you decide to invoke any of the function(s), you MUST put it in the format of
+
+{{
+    "tool": <function-name>,
+    "tool_input": <args-json-object>
+}}
+
+You SHOULD NOT include any other text in the response if you call a function
+
+{tools}
+"""

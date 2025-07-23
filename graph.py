@@ -10,7 +10,7 @@ import os
 
 # Local modules
 from retriever import BuildRetriever
-from prompts import retrieve_prompt, answer_prompt, smollm3_tools_template
+from prompts import retrieve_prompt, answer_prompt, gemma_tools_template
 from mods.tool_calling_llm import ToolCallingLLM
 
 # Local modules
@@ -22,18 +22,67 @@ from retriever import BuildRetriever
 # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
 
 
-def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=False):
+def print_messages_summary(messages, header):
+    """Print message types and summaries for debugging"""
+    if header:
+        print(header)
+    for message in messages:
+        summary_text = ""
+        if type(message) == SystemMessage:
+            type_txt = "SystemMessage"
+            summary_txt = f"length = {len(message.content)}"
+        if type(message) == HumanMessage:
+            type_txt = "HumanMessage"
+            summary_txt = message.content
+        if type(message) == AIMessage:
+            type_txt = "AIMessage"
+            summary_txt = f"length = {len(message.content)}"
+        if type(message) == ToolMessage:
+            type_txt = "ToolMessage"
+            summary_txt = f"length = {len(message.content)}"
+        if hasattr(message, "tool_calls"):
+            if len(message.tool_calls) != 1:
+                summary_txt = f"{summary_txt} with {len(message.tool_calls)} tool calls"
+            else:
+                summary_txt = f"{summary_txt} with 1 tool call"
+        print(f"{type_txt}: {summary_txt}")
+
+
+def normalize_messages(messages):
+    """Normalize messages to sequence of types expected by chat templates"""
+    # Copy the most recent HumanMessage to the end
+    # (avoids SmolLM3 ValueError: Last message must be a HumanMessage!)
+    if not type(messages[-1]) is HumanMessage:
+        for msg in reversed(messages):
+            if type(msg) is HumanMessage:
+                messages.append(msg)
+    # Convert tool output (ToolMessage) to AIMessage
+    # (avoids SmolLM3 ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
+    messages = [
+        AIMessage(msg.content) if type(msg) is ToolMessage else msg for msg in messages
+    ]
+    # Delete tool call (AIMessage)
+    # (avoids Gemma TemplateError: Conversation roles must alternate user/assistant/user/assistant/...)
+    messages = [
+        msg
+        for msg in messages
+        if not hasattr(msg, "tool_calls")
+        or (hasattr(msg, "tool_calls") and not msg.tool_calls)
+    ]
+    return messages
+
+
+def ToolifyHF(chat_model, system_message, system_message_suffix="", think=False):
     """
-    Get a SmolLM3 model ready for bind_tools().
+    Get a Hugging Face model ready for bind_tools().
     """
 
-    # Add /no_think flag to turn off thinking mode
-    if not think:
-        system_message = "/no_think\n" + system_message
+    ## Add /no_think flag to turn off thinking mode (SmolLM3)
+    # if not think:
+    #    system_message = "/no_think\n" + system_message
 
-    # NOTE: The first two nonblank lines are taken from the chat template for HuggingFaceTB/SmolLM3-3B
-    # The rest are taken from the default system template for ToolCallingLLM
-    tool_system_prompt_template = system_message + smollm3_tools_template
+    # Combine system prompt and tools template
+    tool_system_prompt_template = system_message + gemma_tools_template
 
     class HuggingFaceWithTools(ToolCallingLLM, ChatHuggingFace):
 
@@ -44,6 +93,7 @@ def ToolifySmolLM3(chat_model, system_message, system_message_suffix="", think=F
     chat_model = HuggingFaceWithTools(
         llm=chat_model.llm,
         tool_system_prompt_template=tool_system_prompt_template,
+        # Suffix is for any additional context (not templated)
         system_message_suffix=system_message_suffix,
     )
 
@@ -153,12 +203,12 @@ def BuildGraph(
     is_edge = hasattr(chat_model, "model_id")
     if is_edge:
         # For edge model (ChatHuggingFace)
-        query_model = ToolifySmolLM3(
+        query_model = ToolifyHF(
             chat_model, retrieve_prompt(compute_location), "", think_retrieve
         ).bind_tools([retrieve_emails])
-        generate_model = ToolifySmolLM3(chat_model, answer_prompt(), "", think_generate)
-        # For testing with Gemma, don't bind tool for now
-        # ).bind_tools([answer_with_citations])
+        generate_model = ToolifyHF(
+            chat_model, answer_prompt(), "", think_generate
+        ).bind_tools([answer_with_citations])
     else:
         # For cloud model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
@@ -172,12 +222,9 @@ def BuildGraph(
         if is_edge:
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
-            # Convert ToolMessage (from previous turns) to AIMessage
-            # (avoids SmolLM3 ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
-            messages = [
-                AIMessage(msg.content) if type(msg) is ToolMessage else msg
-                for msg in messages
-            ]
+            print_messages_summary(messages, "--- query: before normalization ---")
+            messages = normalize_messages(messages)
+            print_messages_summary(messages, "--- query: after normalization ---")
         else:
             messages = [SystemMessage(retrieve_prompt(compute_location))] + state[
                 "messages"
@@ -190,25 +237,9 @@ def BuildGraph(
         """Generates an answer with the chat model"""
         if is_edge:
             messages = state["messages"]
-            # Copy the most recent HumanMessage to the end
-            # (avoids SmolLM3 ValueError: Last message must be a HumanMessage!)
-            for msg in reversed(messages):
-                if type(msg) is HumanMessage:
-                    messages.append(msg)
-            # Convert tool output (ToolMessage) to AIMessage
-            # (avoids SmolLM3 ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
-            messages = [
-                AIMessage(msg.content) if type(msg) is ToolMessage else msg
-                for msg in messages
-            ]
-            # Delete tool call (AIMessage)
-            # (avoids Gemma TemplateError: Conversation roles must alternate user/assistant/user/assistant/...)
-            messages = [
-                msg
-                for msg in messages
-                if not hasattr(msg, "tool_calls")
-                or (hasattr(msg, "tool_calls") and not msg.tool_calls)
-            ]
+            print_messages_summary(messages, "--- generate: before normalization ---")
+            messages = normalize_messages(messages)
+            print_messages_summary(messages, "--- generate: after normalization ---")
         else:
             messages = [SystemMessage(answer_prompt())] + state["messages"]
         response = generate_model.invoke(messages)
