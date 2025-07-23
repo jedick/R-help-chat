@@ -199,7 +199,18 @@ css = """
 
 with gr.Blocks(
     title="R-help-chat",
-    theme=gr.themes.Soft(font=["ui-sans-serif", "system-ui", "sans-serif"]),
+    # Noto Color Emoji gets a nice-looking Unicode Character “🇷” (U+1F1F7) on Chrome
+    theme=gr.themes.Soft(
+        font=[
+            "ui-sans-serif",
+            "system-ui",
+            "sans-serif",
+            "Apple Color Emoji",
+            "Segoe UI Emoji",
+            "Segoe UI Symbol",
+            "Noto Color Emoji",
+        ]
+    ),
     css=css,
 ) as demo:
 
@@ -284,7 +295,7 @@ with gr.Blocks(
             <!-- Get AI-powered answers about R programming backed by email retrieval. -->
             ## 🇷🤝💬 R-help-chat
             
-            **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).**
+            **Chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
             An LLM turns your question into a search query, including year ranges, and generates an answer from the retrieved emails.
             You can ask follow-up questions with the chat history as context.
             ➡️ To clear the history and start a new chat, press the 🗑️ clear button.
@@ -303,7 +314,7 @@ with gr.Blocks(
         if compute_mode.startswith("edge"):
             status_text = f"""
             📍 Now in **edge** mode, using ZeroGPU hardware<br>
-            ⌛ Response time is ca. 2-3 minutes; please be patient<br>
+            ⌛ Response time is around 2 minutes<br>
             ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """

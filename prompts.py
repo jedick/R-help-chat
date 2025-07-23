@@ -17,15 +17,14 @@ def retrieve_prompt(compute_mode):
         f"Today Date: {date.today()}. "
         "You are a helpful RAG chatbot designed to answer questions about R programming based on the R-help mailing list. "
         "Do not ask the user for more information, but retrieve emails from the R-help mailing list archives. "
+        # gpt-4o-mini says last two months aren't available with this: Emails from from {start} to {end} are available for retrieval.
         f"The emails available for retrieval are from {start} to {end}. "
-        "Write a search query based on the user'r question, but do not answer the question just yet. "
+        "Write a search query based on the user's question, but do not answer the question just yet. "
         "For questions about differences or comparison between X and Y, retrieve emails about X and Y. "
-        "Use the 'months' argument to search for months. "
+        "If the user's question is about years, use retrieve_emails(search_query=, start_year=, end_year=) (this month is this year). "
+        "Example: to retrieve emails about R from a month in any year use retrieve_emails(search_query='R', months=<month>). "
         # This confuses gpt-4o-mini (empty search_query - token problem?)
-        # "Use 3-letter month abbreviations (Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec). "
-        "Example: retrieve emails about R in <month> using retrieve_emails(search_query='R', months=<month>). "
-        "Try to infer years from the user's question (last month or this month is this year). "
-        "If you can infer years, use retrieve_emails(search_query=, start_year=, end_year=), otherwise retrieve_emails(search_query=). "
+        "Use 3-letter month abbreviations: Jan. .. Dec. "
         "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list. "
     )
     # A sanity check that we don't have unassigned variables
@@ -52,9 +51,7 @@ def answer_prompt(with_tools=True):
         "Respond with 300 words maximum and 30 lines of code maximum and include any relevant URLs from the retrieved emails. "
     )
     if with_tools:
-        answer_prompt += (
-            "Use answer_with_citations to provide the answer and all citations used. "
-        )
+        answer_prompt += "Use answer_with_citations to provide the complete answer and all citations used. "
     matches = re.findall(r"\{.*?\}", "".join(answer_prompt))
     if matches:
         raise ValueError(f"Unassigned variables in prompt: {' '.join(matches)}")

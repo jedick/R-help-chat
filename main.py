@@ -32,11 +32,11 @@ from prompts import answer_prompt
 # Define the cloud (OpenAI) model
 openai_model = "gpt-4o-mini"
 
-# Get the edge model ID (we can define the variable in HF Spaces settings)
+# Get the edge model ID
 model_id = os.getenv("MODEL_ID")
 if model_id is None:
     # model_id = "HuggingFaceTB/SmolLM3-3B"
-    model_id = "google/gemma-3-1b-it"
+    model_id = "google/gemma-3-12b-it"
 
 # Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"
