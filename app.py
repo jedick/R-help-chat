@@ -15,13 +15,12 @@ import ast
 import os
 
 # Global settings for compute_mode and search_type
-COMPUTE = "cloud"
+COMPUTE = "edge"
 search_type = "hybrid"
 
-# Check for GPU
-if COMPUTE == "edge":
-    if not torch.cuda.is_available():
-        raise Exception("Can't use edge compute with no GPU")
+# Switch to cloud mode if GPU isn't available
+if not torch.cuda.is_available():
+    COMPUTE = "cloud"
 
 # Keep LangChain graph in a global variable (shared across sessions)
 graph_edge = None
@@ -63,11 +62,6 @@ def run_workflow(input, history, thread_id):
     print(f"Set graph for {COMPUTE}, {search_type}!")
 
     print(f"Using thread_id: {thread_id}")
-
-    #    # Display the user input in the history
-    #    history.append(gr.ChatMessage(role="user", content=input))
-    #    # Return the history and empty lists for emails and citations texboxes
-    #    yield history, [], []
 
     # Asynchronously stream graph steps for a single input
     # https://langchain-ai.lang.chat/langgraph/reference/graphs/#langgraph.graph.state.CompiledStateGraph
@@ -215,8 +209,8 @@ with gr.Blocks(
 
     compute_mode = gr.Radio(
         choices=[
-            "cloud",
             "edge" if torch.cuda.is_available() else "edge (not available)",
+            "cloud",
         ],
         value=COMPUTE,
         label="Compute Mode",
@@ -293,7 +287,7 @@ with gr.Blocks(
             **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).**
             An LLM turns your question into a search query, including year ranges, and generates an answer from the retrieved emails.
             You can ask follow-up questions with the chat history as context.
-            ➡️ To clear the history and start a new chat, press the 🗑️ trash button.
+            ➡️ To clear the history and start a new chat, press the 🗑️ clear button.
             **_Answers may be incorrect._**
             """
         return intro
@@ -302,13 +296,14 @@ with gr.Blocks(
         if compute_mode.startswith("cloud"):
             status_text = f"""
             📍 Now in **cloud** mode, using the OpenAI API<br>
-            ✨ text-embedding-3-small and {openai_model}<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
+            ✨ text-embedding-3-small and {openai_model}<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         if compute_mode.startswith("edge"):
             status_text = f"""
             📍 Now in **edge** mode, using ZeroGPU hardware<br>
+            ⌛ Response time is ca. 2-3 minutes; please be patient<br>
             ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -556,7 +551,7 @@ with gr.Blocks(
     # When app is launched, check if data is present, download it if necessary,
     # hide chat interface during downloading, show downloading and extracting
     # steps as textboxes, show error textbox if needed, restore chat interface,
-    # and show database info
+    # and update database info
 
     # fmt: off
     demo.load(
