@@ -174,7 +174,10 @@ def BuildGraph(
         )
         # For now, just add the months to the search query
         if months:
-            search_query = search_query + " " + months
+            search_query = " ".join([search_query, months])
+        # If the search query is empty, use the years
+        if not search_query:
+            search_query = " ".join([search_query, start_year, end_year])
         retrieved_docs = retriever.invoke(search_query)
         serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
             # source key has file names (e.g. R-help/2024-December.txt), useful for retrieval and reporting
@@ -206,9 +209,10 @@ def BuildGraph(
         query_model = ToolifyHF(
             chat_model, retrieve_prompt(compute_mode), "", think_retrieve
         ).bind_tools([retrieve_emails])
+        # Don't use answer_with_citations tool here because responses with Gemma are sometimes unparseable
         generate_model = ToolifyHF(
-            chat_model, answer_prompt(), "", think_generate
-        ).bind_tools([answer_with_citations])
+            chat_model, answer_prompt(with_tools=False), "", think_generate
+        )
     else:
         # For cloud model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
@@ -222,9 +226,9 @@ def BuildGraph(
         if is_edge:
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
-            print_messages_summary(messages, "--- query: before normalization ---")
+            # print_messages_summary(messages, "--- query: before normalization ---")
             messages = normalize_messages(messages)
-            print_messages_summary(messages, "--- query: after normalization ---")
+            # print_messages_summary(messages, "--- query: after normalization ---")
         else:
             messages = [SystemMessage(retrieve_prompt(compute_mode))] + state[
                 "messages"
@@ -237,9 +241,9 @@ def BuildGraph(
         """Generates an answer with the chat model"""
         if is_edge:
             messages = state["messages"]
-            print_messages_summary(messages, "--- generate: before normalization ---")
+            # print_messages_summary(messages, "--- generate: before normalization ---")
             messages = normalize_messages(messages)
-            print_messages_summary(messages, "--- generate: after normalization ---")
+            # print_messages_summary(messages, "--- generate: after normalization ---")
         else:
             messages = [SystemMessage(answer_prompt())] + state["messages"]
         response = generate_model.invoke(messages)

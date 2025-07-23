@@ -327,7 +327,7 @@ with gr.Blocks(
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
             **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
-            multiple tool calls (cloud mode), answer with citations (cloud mode), chat memory.
+            multiple retrievals per turn (cloud mode), answer with citations (cloud mode), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and [BM25S](https://github.com/xhluca/bm25s)-based retrievers.<br>
             """
         return info_text
@@ -385,7 +385,7 @@ with gr.Blocks(
                 gr.Examples(
                     examples=[[q] for q in multi_tool_questions],
                     inputs=[chat_interface.textbox],
-                    label="Prompts for multiple retrievals",
+                    label="Multiple retrievals (cloud mode)",
                     elem_id="example-questions",
                 )
                 multi_turn_questions = [
