@@ -29,7 +29,7 @@ db_dir = "db"
 
 
 def BuildRetriever(
-    compute_location,
+    compute_mode,
     search_type: str = "hybrid",
     top_k=6,
     start_year=None,
@@ -40,7 +40,7 @@ def BuildRetriever(
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
-        compute_location: Compute location for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
         top_k: Number of documents to retrieve for "dense" and "sparse"
         start_year: Start year (optional)
@@ -49,10 +49,10 @@ def BuildRetriever(
     if search_type == "dense":
         if not (start_year or end_year):
             # No year filtering, so directly use base retriever
-            return BuildRetrieverDense(compute_location, top_k=top_k)
+            return BuildRetrieverDense(compute_mode, top_k=top_k)
         else:
             # Get 1000 documents then keep top_k filtered by year
-            base_retriever = BuildRetrieverDense(compute_location, top_k=1000)
+            base_retriever = BuildRetrieverDense(compute_mode, top_k=1000)
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
@@ -76,10 +76,10 @@ def BuildRetriever(
         # Use floor (top_k // 2) and ceiling -(top_k // -2) to divide odd values of top_k
         # https://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
         dense_retriever = BuildRetriever(
-            compute_location, "dense", (top_k // 2), start_year, end_year
+            compute_mode, "dense", (top_k // 2), start_year, end_year
         )
         sparse_retriever = BuildRetriever(
-            compute_location, "sparse", -(top_k // -2), start_year, end_year
+            compute_mode, "sparse", -(top_k // -2), start_year, end_year
         )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
@@ -109,23 +109,23 @@ def BuildRetrieverSparse(top_k=6):
     return retriever
 
 
-def BuildRetrieverDense(compute_location: str, top_k=6):
+def BuildRetrieverDense(compute_mode: str, top_k=6):
     """
     Build dense retriever instance with ChromaDB vectorstore
 
     Args:
-        compute_location: Compute location for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (cloud or edge)
         top_k: Number of documents to retrieve
     """
 
     # Don't try to use edge models without a GPU
-    if compute_location == "edge" and not torch.cuda.is_available():
+    if compute_mode == "edge" and not torch.cuda.is_available():
         raise Exception("Edge embeddings selected without GPU")
 
     # Define embedding model
-    if compute_location == "cloud":
+    if compute_mode == "cloud":
         embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
-    if compute_location == "edge":
+    if compute_mode == "edge":
         # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
         # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
         model_name = "nomic-ai/nomic-embed-text-v1.5"
@@ -143,7 +143,7 @@ def BuildRetrieverDense(compute_location: str, top_k=6):
         )
     # Create vector store
     client_settings = chromadb.config.Settings(anonymized_telemetry=False)
-    persist_directory = f"{db_dir}/chroma_{compute_location}"
+    persist_directory = f"{db_dir}/chroma_{compute_mode}"
     vectorstore = Chroma(
         collection_name="R-help",
         embedding_function=embedding_function,
@@ -151,7 +151,7 @@ def BuildRetrieverDense(compute_location: str, top_k=6):
         persist_directory=persist_directory,
     )
     # The storage layer for the parent documents
-    file_store = f"{db_dir}/file_store_{compute_location}"
+    file_store = f"{db_dir}/file_store_{compute_mode}"
     byte_store = LocalFileStore(file_store)
     # Text splitter for child documents
     child_splitter = RecursiveCharacterTextSplitter(

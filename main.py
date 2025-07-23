@@ -46,13 +46,13 @@ httpx_logger = logging.getLogger("httpx")
 httpx_logger.setLevel(logging.WARNING)
 
 
-def ProcessDirectory(path, compute_location):
+def ProcessDirectory(path, compute_mode):
     """
     Update vector store and sparse index for files in a directory, only adding new or updated files
 
     Args:
         path: Directory to process
-        compute_location: Compute location for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (cloud or edge)
 
     Usage example:
         ProcessDirectory("R-help", "cloud")
@@ -62,14 +62,14 @@ def ProcessDirectory(path, compute_location):
     # https://stackoverflow.com/questions/76265631/chromadb-add-single-document-only-if-it-doesnt-exist
 
     # Get a dense retriever instance
-    retriever = BuildRetriever(compute_location, "dense")
+    retriever = BuildRetriever(compute_mode, "dense")
 
     # List all text files in target directory
     file_paths = glob.glob(f"{path}/*.txt")
     for file_path in file_paths:
 
         # Process file for sparse search (BM25S)
-        ProcessFile(file_path, "sparse", compute_location)
+        ProcessFile(file_path, "sparse", compute_mode)
 
         # Logic for dense search: skip file if already indexed
         # Look for existing embeddings for this file
@@ -99,7 +99,7 @@ def ProcessDirectory(path, compute_location):
                 update_file = True
 
         if add_file:
-            ProcessFile(file_path, "dense", compute_location)
+            ProcessFile(file_path, "dense", compute_mode)
 
         if update_file:
             print(f"Chroma: updated embeddings for {file_path}")
@@ -110,7 +110,7 @@ def ProcessDirectory(path, compute_location):
             ]
             files_to_keep = list(set(used_doc_ids))
             # Get all files in the file store
-            file_store = f"{db_dir}/file_store_{compute_location}"
+            file_store = f"{db_dir}/file_store_{compute_mode}"
             all_files = os.listdir(file_store)
             # Iterate through the files and delete those not in the list
             for file in all_files:
@@ -123,22 +123,22 @@ def ProcessDirectory(path, compute_location):
             print(f"Chroma: no change for {file_path}")
 
 
-def GetChatModel(compute_location):
+def GetChatModel(compute_mode):
     """
     Get a chat model.
 
     Args:
-        compute_location: Compute location for chat model (cloud or edge)
+        compute_mode: Compute mode for chat model (cloud or edge)
     """
 
-    if compute_location == "cloud":
+    if compute_mode == "cloud":
 
         chat_model = ChatOpenAI(model=openai_model, temperature=0)
 
-    if compute_location == "edge":
+    if compute_mode == "edge":
 
         # Don't try to use edge models without a GPU
-        if compute_location == "edge" and not torch.cuda.is_available():
+        if compute_mode == "edge" and not torch.cuda.is_available():
             raise Exception("Edge chat model selected without GPU")
 
         # Define the pipeline to pass to the HuggingFacePipeline class
@@ -169,7 +169,7 @@ def GetChatModel(compute_location):
 
 def RunChain(
     query,
-    compute_location: str = "cloud",
+    compute_mode: str = "cloud",
     search_type: str = "hybrid",
     think: bool = False,
 ):
@@ -178,7 +178,7 @@ def RunChain(
 
     Args:
         query: User's query
-        compute_location: Compute location for embedding and chat models (cloud or edge)
+        compute_mode: Compute mode for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         think: Control thinking mode for SmolLM3
 
@@ -187,13 +187,13 @@ def RunChain(
     """
 
     # Get retriever instance
-    retriever = BuildRetriever(compute_location, search_type)
+    retriever = BuildRetriever(compute_mode, search_type)
 
     if retriever is None:
         return "No retriever available. Please process some documents first."
 
     # Get chat model (LLM)
-    chat_model = GetChatModel(compute_location)
+    chat_model = GetChatModel(compute_mode)
 
     # Control thinking for SmolLM3
     system_prompt = answer_prompt()
@@ -230,7 +230,7 @@ def RunChain(
 
 def RunGraph(
     query: str,
-    compute_location: str = "cloud",
+    compute_mode: str = "cloud",
     search_type: str = "hybrid",
     top_k: int = 6,
     think_retrieve=False,
@@ -241,7 +241,7 @@ def RunGraph(
 
     Args:
         query: User query to start the chat
-        compute_location: Compute location for embedding and chat models (cloud or edge)
+        compute_mode: Compute mode for embedding and chat models (cloud or edge)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         top_k: Number of documents to retrieve
         think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
@@ -253,11 +253,11 @@ def RunGraph(
     """
 
     # Get chat model used in both query and generate steps
-    chat_model = GetChatModel(compute_location)
+    chat_model = GetChatModel(compute_mode)
     # Build the graph
     graph_builder = BuildGraph(
         chat_model,
-        compute_location,
+        compute_mode,
         search_type,
         top_k,
         think_retrieve,

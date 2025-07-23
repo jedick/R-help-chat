@@ -9,14 +9,14 @@ from retriever import BuildRetriever, db_dir
 from mods.bm25s_retriever import BM25SRetriever
 
 
-def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "cloud"):
+def ProcessFile(file_path, search_type: str = "dense", compute_mode: str = "cloud"):
     """
     Wrapper function to process file for dense or sparse search
 
     Args:
         file_path: File to process
         search_type: Type of search to use. Options: "dense", "sparse"
-        compute_location: Compute location for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (cloud or edge)
     """
 
     # Preprocess: remove quoted lines and handle email boundaries
@@ -67,7 +67,7 @@ def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "
             ProcessFileSparse(truncated_temp_file, file_path)
         elif search_type == "dense":
             # Handle dense search with ChromaDB
-            ProcessFileDense(truncated_temp_file, file_path, compute_location)
+            ProcessFileDense(truncated_temp_file, file_path, compute_mode)
         else:
             raise ValueError(f"Unsupported search type: {search_type}")
     finally:
@@ -79,12 +79,12 @@ def ProcessFile(file_path, search_type: str = "dense", compute_location: str = "
             pass
 
 
-def ProcessFileDense(cleaned_temp_file, file_path, compute_location):
+def ProcessFileDense(cleaned_temp_file, file_path, compute_mode):
     """
     Process file for dense vector search using ChromaDB
     """
     # Get a retriever instance
-    retriever = BuildRetriever(compute_location, "dense")
+    retriever = BuildRetriever(compute_mode, "dense")
     # Load cleaned text file
     loader = TextLoader(cleaned_temp_file)
     documents = loader.load()

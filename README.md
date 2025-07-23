@@ -104,7 +104,7 @@ To run evals:
 - Set `search_type` to dense, sparse, or hybrid
 
 ```sh
-python eval.py --compute_location cloud --workflow graph --search_type hybrid
+python eval.py --compute_mode cloud --workflow graph --search_type hybrid
 ```
 
 For a fair comparison of different search types, each one retrieves up to 6 emails:

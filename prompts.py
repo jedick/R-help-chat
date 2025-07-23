@@ -3,11 +3,11 @@ from util import get_sources, get_start_end_months
 import re
 
 
-def retrieve_prompt(compute_location):
+def retrieve_prompt(compute_mode):
     """Return system prompt for query step
 
     Args:
-        compute_location: Compute location for embedding model (cloud or edge)
+        compute_mode: Compute mode for embedding model (cloud or edge)
     """
 
     # Get start and end months from database

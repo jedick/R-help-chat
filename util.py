@@ -5,7 +5,7 @@ import os
 import re
 
 
-def get_collection(compute_location):
+def get_collection(compute_mode):
     """
     Returns the vectorstore collection.
 
@@ -16,7 +16,7 @@ def get_collection(compute_location):
         # Number of parent documents (unique doc_ids)
         len(set([m["doc_id"] for m in collection["metadatas"]]))
     """
-    retriever = BuildRetriever(compute_location, "dense")
+    retriever = BuildRetriever(compute_mode, "dense")
     return retriever.vectorstore.get()
 
 

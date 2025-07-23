@@ -14,7 +14,7 @@ import uuid
 import ast
 import os
 
-# Global settings for compute_location and search_type
+# Global settings for compute_mode and search_type
 COMPUTE = "cloud"
 search_type = "hybrid"
 
@@ -31,7 +31,7 @@ graph_cloud = None
 def run_workflow(input, history, thread_id):
     """The main function to run the chat workflow"""
 
-    # Get global graph for compute location
+    # Get global graph for compute mode
     global graph_edge, graph_cloud
     if COMPUTE == "edge":
         graph = graph_edge
@@ -52,7 +52,7 @@ def run_workflow(input, history, thread_id):
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
-        # Set global graph for compute location
+        # Set global graph for compute mode
         if COMPUTE == "edge":
             graph_edge = graph
         if COMPUTE == "cloud":
@@ -213,14 +213,14 @@ with gr.Blocks(
     # Define components
     # -----------------
 
-    compute_location = gr.Radio(
+    compute_mode = gr.Radio(
         choices=[
             "cloud",
             "edge" if torch.cuda.is_available() else "edge (not available)",
         ],
         value=COMPUTE,
-        label="Compute Location",
-        info=(None if torch.cuda.is_available() else "NOTE: edge model requires GPU"),
+        label="Compute Mode",
+        info=(None if torch.cuda.is_available() else "NOTE: edge mode requires GPU"),
         interactive=torch.cuda.is_available(),
         render=False,
     )
@@ -256,7 +256,7 @@ with gr.Blocks(
             None,
             (
                 "images/cloud.png"
-                if compute_location.value == "cloud"
+                if compute_mode.value == "cloud"
                 else "images/chip.png"
             ),
         ),
@@ -293,22 +293,22 @@ with gr.Blocks(
             **Chat with the [R-help mailing list archives]((https://stat.ethz.ch/pipermail/r-help/)).**
             An LLM turns your question into a search query, including year ranges, and generates an answer from the retrieved emails.
             You can ask follow-up questions with the chat history as context.
-            ➡️ To clear the history and start a new chat, press the 🗑️ trash button.<br>
-            **_Answers may be incorrect._**<br>
+            ➡️ To clear the history and start a new chat, press the 🗑️ trash button.
+            **_Answers may be incorrect._**
             """
         return intro
 
-    def get_status_text(compute_location):
-        if compute_location.startswith("cloud"):
+    def get_status_text(compute_mode):
+        if compute_mode.startswith("cloud"):
             status_text = f"""
-            📍 This is the **cloud** version, using the OpenAI API<br>
+            📍 Now in **cloud** mode, using the OpenAI API<br>
             ✨ text-embedding-3-small and {openai_model}<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
-        if compute_location.startswith("edge"):
+        if compute_mode.startswith("edge"):
             status_text = f"""
-            📍 This is the **edge** version, using ZeroGPU hardware<br>
+            📍 Now in **edge** mode, using ZeroGPU hardware<br>
             ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -327,7 +327,7 @@ with gr.Blocks(
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
             **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
-            multiple tool calls (cloud model), answer with citations, chat memory.
+            multiple tool calls (cloud mode), answer with citations (cloud mode), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and [BM25S](https://github.com/xhluca/bm25s)-based retrievers.<br>
             """
         return info_text
@@ -339,7 +339,7 @@ with gr.Blocks(
                 with gr.Column(scale=2):
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
-                    compute_location.render()
+                    compute_mode.render()
             chat_interface = gr.ChatInterface(
                 to_workflow,
                 chatbot=chatbot,
@@ -359,7 +359,7 @@ with gr.Blocks(
             )
         # Right column: Info, Examples, Citations
         with gr.Column(scale=1):
-            status = gr.Markdown(get_status_text(compute_location.value))
+            status = gr.Markdown(get_status_text(compute_mode.value))
             with gr.Accordion("ℹ️ More Info", open=False):
                 info = gr.Markdown(get_info_text())
             with gr.Accordion("💡 Examples", open=True):
@@ -408,14 +408,14 @@ with gr.Blocks(
         """Return updated value for a component"""
         return gr.update(value=value)
 
-    def set_compute(compute_location):
+    def set_compute(compute_mode):
         global COMPUTE
-        COMPUTE = compute_location
+        COMPUTE = compute_mode
 
-    def set_avatar(compute_location):
-        if compute_location.startswith("cloud"):
+    def set_avatar(compute_mode):
+        if compute_mode.startswith("cloud"):
             image_file = "images/cloud.png"
-        if compute_location.startswith("edge"):
+        if compute_mode.startswith("edge"):
             image_file = "images/chip.png"
         return gr.update(
             avatar_images=(
@@ -458,15 +458,15 @@ with gr.Blocks(
         """Return cleared component"""
         return component.clear()
 
-    compute_location.change(
+    compute_mode.change(
         # Update global COMPUTE variable
         set_compute,
-        [compute_location],
+        [compute_mode],
         api_name=False,
     ).then(
         # Change the app status text
         get_status_text,
-        [compute_location],
+        [compute_mode],
         [status],
         api_name=False,
     ).then(
@@ -478,7 +478,7 @@ with gr.Blocks(
     ).then(
         # Change the chatbot avatar
         set_avatar,
-        [compute_location],
+        [compute_mode],
         [chatbot],
         api_name=False,
     ).then(

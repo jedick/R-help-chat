@@ -105,7 +105,7 @@ def ToolifyHF(chat_model, system_message, system_message_suffix="", think=False)
 
 def BuildGraph(
     chat_model,
-    compute_location,
+    compute_mode,
     search_type,
     top_k=6,
     think_retrieve=False,
@@ -116,7 +116,7 @@ def BuildGraph(
 
     Args:
         chat_model: LangChain chat model from GetChatModel()
-        compute_location: cloud or edge (for retriever)
+        compute_mode: cloud or edge (for retriever)
         search_type: dense, sparse, or hybrid (for retriever)
         top_k: number of documents to retrieve
         think_retrieve: Whether to use thinking mode for retrieval
@@ -170,7 +170,7 @@ def BuildGraph(
             end_year: Ending year for emails (optional)
         """
         retriever = BuildRetriever(
-            compute_location, search_type, top_k, start_year, end_year
+            compute_mode, search_type, top_k, start_year, end_year
         )
         # For now, just add the months to the search query
         if months:
@@ -204,7 +204,7 @@ def BuildGraph(
     if is_edge:
         # For edge model (ChatHuggingFace)
         query_model = ToolifyHF(
-            chat_model, retrieve_prompt(compute_location), "", think_retrieve
+            chat_model, retrieve_prompt(compute_mode), "", think_retrieve
         ).bind_tools([retrieve_emails])
         generate_model = ToolifyHF(
             chat_model, answer_prompt(), "", think_generate
@@ -226,7 +226,7 @@ def BuildGraph(
             messages = normalize_messages(messages)
             print_messages_summary(messages, "--- query: after normalization ---")
         else:
-            messages = [SystemMessage(retrieve_prompt(compute_location))] + state[
+            messages = [SystemMessage(retrieve_prompt(compute_mode))] + state[
                 "messages"
             ]
         response = query_model.invoke(messages)
