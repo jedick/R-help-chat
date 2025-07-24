@@ -8,6 +8,7 @@ from main import openai_model, model_id
 from util import get_sources, get_start_end_months
 from git import Repo
 import zipfile
+import shutil
 import spaces
 import torch
 import uuid
@@ -63,7 +64,12 @@ def run_workflow(input, history, thread_id):
 
     print(f"Using thread_id: {thread_id}")
 
-    # Asynchronously stream graph steps for a single input
+    # Display the user input in the chatbot
+    history.append(gr.ChatMessage(role="user", content=input))
+    # Return the message history and empty lists for emails and citations texboxes
+    yield history, [], []
+
+    # Stream graph steps for a single input
     # https://langchain-ai.lang.chat/langgraph/reference/graphs/#langgraph.graph.state.CompiledStateGraph
     for step in graph.stream(
         # Appends the user input to the graph state
@@ -98,6 +104,7 @@ def run_workflow(input, history, thread_id):
                         )
                     )
             if chunk_messages.content:
+                # Display response made instead of or in addition to a tool call
                 history.append(
                     gr.ChatMessage(role="assistant", content=chunk_messages.content)
                 )
@@ -215,6 +222,20 @@ with gr.Blocks(
 ) as demo:
 
     # -----------------
+    # Data availability
+    # -----------------
+
+    def is_data_present():
+        """Check if the database directory is present"""
+
+        return os.path.isdir(db_dir)
+
+    def is_data_missing():
+        """Check if the database directory is missing"""
+
+        return not os.path.isdir(db_dir)
+
+    # -----------------
     # Define components
     # -----------------
 
@@ -233,7 +254,7 @@ with gr.Blocks(
     downloading = gr.Textbox(
         lines=1,
         label="Downloading Data, Please Wait",
-        visible=False,
+        visible=is_data_missing(),
         render=False,
     )
     extracting = gr.Textbox(
@@ -243,7 +264,7 @@ with gr.Blocks(
         render=False,
     )
     data_error = gr.Textbox(
-        value="App is unavailable. Please contact the maintainer.",
+        value="App is unavailable because data could not be loaded. Try reloading the page, then contact the maintainer if the problem persists.",
         lines=1,
         label="Error downloading or extracting data",
         visible=False,
@@ -266,6 +287,29 @@ with gr.Blocks(
             ),
         ),
         show_copy_all_button=True,
+        render=False,
+    )
+    # Modified from gradio/chat_interface.py
+    input = gr.Textbox(
+        show_label=False,
+        label="Message",
+        placeholder="Type a message...",
+        scale=7,
+        autofocus=True,
+        submit_btn=True,
+        render=False,
+    )
+    emails_textbox = gr.Textbox(
+        label="Retrieved Emails",
+        info="Tip: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
+        lines=10,
+        visible=False,
+        render=False,
+    )
+    citations_textbox = gr.Textbox(
+        label="Citations",
+        lines=2,
+        visible=False,
         render=False,
     )
 
@@ -339,31 +383,21 @@ with gr.Blocks(
         return info_text
 
     with gr.Row():
-        # Left column: Intro, Compute, Chat, Emails
+        # Left column: Intro, Compute, Chat
         with gr.Column(scale=2):
             with gr.Row(elem_classes=["row-container"]):
                 with gr.Column(scale=2):
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
                     compute_mode.render()
-            chat_interface = gr.ChatInterface(
-                to_workflow,
-                chatbot=chatbot,
-                type="messages",
-                additional_inputs=[thread_id],
-                additional_outputs=[retrieved_emails, citations_text],
-                api_name=False,
-            )
+            with gr.Group(visible=is_data_present()) as chat_interface:
+                chatbot.render()
+                input.render()
+            # Render textboxes for data loading progress
             downloading.render()
             extracting.render()
             data_error.render()
-            emails_textbox = gr.Textbox(
-                label="Retrieved Emails",
-                lines=10,
-                visible=False,
-                info="Tip: Look for 'Tool Call' and 'Next Email' separators. Quoted lines (starting with '>') are removed before indexing.",
-            )
-        # Right column: Info, Examples, Citations
+        # Right column: Info, Examples
         with gr.Column(scale=1):
             status = gr.Markdown(get_status_text(compute_mode.value))
             with gr.Accordion("ℹ️ More Info", open=False):
@@ -380,7 +414,7 @@ with gr.Blocks(
                 ]
                 gr.Examples(
                     examples=[[q] for q in example_questions],
-                    inputs=[chat_interface.textbox],
+                    inputs=[input],
                     label="Click an example to fill the message box",
                     elem_id="example-questions",
                 )
@@ -390,7 +424,7 @@ with gr.Blocks(
                 ]
                 gr.Examples(
                     examples=[[q] for q in multi_tool_questions],
-                    inputs=[chat_interface.textbox],
+                    inputs=[input],
                     label="Multiple retrievals (cloud mode)",
                     elem_id="example-questions",
                 )
@@ -400,11 +434,17 @@ with gr.Blocks(
                 ]
                 gr.Examples(
                     examples=[[q] for q in multi_turn_questions],
-                    inputs=[chat_interface.textbox],
+                    inputs=[input],
                     label="Asking follow-up questions",
                     elem_id="example-questions",
                 )
-            citations_textbox = gr.Textbox(label="Citations", lines=2, visible=False)
+
+    # Bottom row: retrieved emails and citations
+    with gr.Row():
+        with gr.Column(scale=2):
+            emails_textbox.render()
+        with gr.Column(scale=1):
+            citations_textbox.render()
 
     # -------------
     # App functions
@@ -434,23 +474,23 @@ with gr.Blocks(
         """Return updated visibility state for a component"""
         return gr.update(visible=visible)
 
-    def update_emails(retrieved_emails, emails_textbox):
-        if retrieved_emails is None:
-            # This keeps the content of the textbox when the answer step occurs
-            return emails_textbox, change_visibility(True)
-        elif not retrieved_emails == []:
-            # This adds the retrieved emails to the textbox
-            return retrieved_emails, change_visibility(True)
-        else:
-            # This blanks out the textbox when a new chat is started
+    def update_textbox(content, textbox):
+        if content is None:
+            # Keep the content of the textbox unchanged
+            return textbox, change_visibility(True)
+        elif content == []:
+            # Blank out the textbox
             return "", change_visibility(False)
+        else:
+            # Display the content in the textbox
+            return content, change_visibility(True)
 
-    def update_citations(citations):
-        if citations == []:
-            # Blank out and hide the citations textbox when new input is submitted
-            return "", change_visibility(False)
-        else:
-            return citations, change_visibility(True)
+    #    def update_citations(citations):
+    #        if citations == []:
+    #            # Blank out and hide the citations textbox when new input is submitted
+    #            return "", change_visibility(False)
+    #        else:
+    #            return citations, change_visibility(True)
 
     # --------------
     # Event handlers
@@ -494,9 +534,17 @@ with gr.Blocks(
         api_name=False,
     )
 
+    input.submit(
+        # Submit input to the chatbot
+        to_workflow,
+        [input, chatbot, thread_id],
+        [chatbot, retrieved_emails, citations_text],
+        api_name=False,
+    )
+
     retrieved_emails.change(
         # Update the emails textbox
-        update_emails,
+        update_textbox,
         [retrieved_emails, emails_textbox],
         [emails_textbox, emails_textbox],
         api_name=False,
@@ -504,8 +552,8 @@ with gr.Blocks(
 
     citations_text.change(
         # Update the citations textbox
-        update_citations,
-        [citations_text],
+        update_textbox,
+        [citations_text, citations_textbox],
         [citations_textbox, citations_textbox],
         api_name=False,
     )
@@ -514,15 +562,18 @@ with gr.Blocks(
     # Data loading
     # ------------
 
-    def is_data_present():
-        """Check if the database directory is present"""
+    def rm_directory(directory_path):
+        """Forcefully and recursively delete a directory, like rm -rf"""
 
-        return os.path.isdir(db_dir)
-
-    def is_data_missing():
-        """Check if the database directory is missing"""
-
-        return not os.path.isdir(db_dir)
+        try:
+            shutil.rmtree(directory_path)
+            print(f"Successfully deleted: {directory_path}")
+        except FileNotFoundError:
+            print(f"Directory not found: {directory_path}")
+        except PermissionError:
+            print(f"Permission denied: {directory_path}")
+        except Exception as e:
+            print(f"An error occurred: {e}")
 
     def download():
         """Download the db.zip file"""
@@ -549,36 +600,34 @@ with gr.Blocks(
 
             zip_file_path = "./R-help-db/db.zip"
             extract_to_path = "./"
-            with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
-                zip_ref.extractall(extract_to_path)
+            try:
+                with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                    zip_ref.extractall(extract_to_path)
+            except:
+                # If there were any errors, clean up directories to
+                # initiate a new download when app is reloaded
+                rm_directory("./db")
+                rm_directory("./R-help-db")
 
         return None
 
     false = gr.State(False)
-    true = gr.State(True)
     need_data = gr.State()
     have_data = gr.State()
 
     # When app is launched, check if data is present, download it if necessary,
-    # hide chat interface during downloading, show downloading and extracting
-    # steps as textboxes, show error textbox if needed, restore chat interface,
-    # and update database info
+    # show extracting step as textbox, show error textbox if needed,
+    # update database info, and restore chat interface.
+    # nb. initial visibility of chat interface components and
+    # downloading textbox are set after instantiation of ChatInterface above
 
     # fmt: off
     demo.load(
-        is_data_missing, None, [need_data], api_name=False
-    ).then(
-        is_data_present, None, [have_data], api_name=False
-    ).then(
-        change_visibility, [have_data], [chatbot], api_name=False
-    ).then(
-        change_visibility, [have_data], [chat_interface.textbox], api_name=False
-    ).then(
-        change_visibility, [need_data], [downloading], api_name=False
-    ).then(
         download, None, [downloading], api_name=False
     ).then(
         change_visibility, [false], [downloading], api_name=False
+    ).then(
+        is_data_missing, None, [need_data], api_name=False
     ).then(
         change_visibility, [need_data], [extracting], api_name=False
     ).then(
@@ -586,17 +635,15 @@ with gr.Blocks(
     ).then(
         change_visibility, [false], [extracting], api_name=False
     ).then(
-        is_data_missing, None, [need_data], api_name=False
+        get_info_text, None, [info], api_name=False
     ).then(
         is_data_present, None, [have_data], api_name=False
     ).then(
-        change_visibility, [have_data], [chatbot], api_name=False
+        change_visibility, [have_data], [chat_interface], api_name=False
     ).then(
-        change_visibility, [have_data], [chat_interface.textbox], api_name=False
+        is_data_missing, None, [need_data], api_name=False
     ).then(
         change_visibility, [need_data], [data_error], api_name=False
-    ).then(
-        get_info_text, None, [info], api_name=False
     )
     # fmt: on
 
