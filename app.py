@@ -378,7 +378,7 @@ with gr.Blocks(
             **Database:** {len(sources)} emails from {start} to {end}.
             **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
             multiple retrievals per turn (cloud mode), answer with citations (cloud mode), chat memory.
-            **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and [BM25S](https://github.com/xhluca/bm25s)-based retrievers.<br>
+            **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
 

@@ -33,13 +33,13 @@ Here's a drawing of the graph workflow for one conversational turn:
     - Each retrieval method provides whole emails (parent documents) for context
     - Dense embedding uses small chunks (child documents) to capture semantic meaning
 - Graph workflow implements tool calling, chat memory, and structured responses
-    - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for retrieval function
+    - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for the retrieval function
     - [Chat memory](https://python.langchain.com/docs/how_to/chatbots_memory/): Previous user and AI messages are part of the context for follow-up questions
-    - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response is structured to cite the sender and date for each answer
+    - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
 - Options for cloud or edge computing to balance performance, price, and privacy
-    - Cloud (remote) models: OpenAI API for embeddings and chat model
-    - Edge (local) models (*experimental*): [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [SmolLM3](https://huggingface.co/HuggingFaceTB/SmolLM3-3B) chat model
-        - Current implementation has relatively low groundedness and accuracy scores
+    - Cloud mode: OpenAI API for embeddings and chat model
+    - Edge mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma-3](google/gemma-3-12b-it) LLM
+    - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Edge mode runs on ZeroGPU (shared GPU resources) for the HF Spaces demo*
 
 ## Web Interface
 
@@ -50,7 +50,7 @@ python app.py
 ```
 
 This launches an interactive chat interface in a web browser.
-The interface comes with example questions and allows choosing cloud or edge processing and the retrieval strategy.
+The interface comes with example questions and allows choosing cloud or edge processing.
 
 ![R-help-chat screenshot](https://chnosz.net/images/R-help-chat.png)
 
@@ -120,14 +120,13 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for queries and reference answers in `eval.csv` with retrieval from 2.5 years of the R-help archives (January 2022-June 2025):
+Results for queries and reference answers in `eval.csv` with retrieval from 5.5 years of the R-help archives (January 2020-June 2025):
 
 | Compute | Workflow | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
-| Cloud | Chain | **0.80** | **0.78** | **0.72** |
-| Cloud | Graph | 0.62 | 0.60     | 0.65 |
-| Edge  | Chain | 0.67 | 0.60     | 0.40 |
-| Edge  | Graph | 0.52 | 0.57     | 0.10 |
+| Cloud | Chain | 0.81 | **0.79** | **0.65** |
+| Cloud | Graph | 0.66 | 0.75 | 0.63 |
+| Edge  | Graph | **0.91** | **0.79** | 0.54 |
 
 ## Acknowledgments
 

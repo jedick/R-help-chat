@@ -24,7 +24,7 @@ def retrieve_prompt(compute_mode):
         "For general summaries, use retrieve_emails(search_query='R')."
         "For specific questions, use retrieve_emails(search_query=<specific topic>)."
         "For questions about years, use retrieve_emails(search_query=, start_year=, end_year=) (this month is this year)."
-        "For questions about months, use 3-letter abbreviations (Jan for January, Jul for July) for the month argument in retrieve_emails."
+        "For questions about months, use 3-letter abbreviations (Jan..Dec) for the 'month' argument."
         "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list."
     )
     # A sanity check that we don't have unassigned variables
