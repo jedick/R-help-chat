@@ -52,7 +52,9 @@ python app.py
 This launches an interactive chat interface in a web browser.
 The interface comes with example questions and allows choosing cloud or edge processing.
 
-![R-help-chat screenshot](https://chnosz.net/images/R-help-chat.png)
+<div align="center">
+  <img src="https://chnosz.net/images/R-help-chat_v1.png" alt="R-help-chat screenshot" style="width:60%;"/>
+</div>
 
 Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app!
 
@@ -130,7 +132,7 @@ Results for queries and reference answers in `eval.csv` with retrieval from 5.5 
 
 ## Acknowledgments
 
-This project wouldn't be what it is without the codes copied from other projects with local modifications (see `mods` directory). Thank you!
+Key features of this project wouldn't be possible without the codes adapted from other projects (see `mods` directory). Thank you!
 
 - The retriever class for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
 - Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) adds LangChain-compatible tooling to local Hugging Face models
