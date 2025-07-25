@@ -39,8 +39,8 @@ Here's a drawing of the graph workflow for one conversational turn:
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
 - Choice of compute modes to balance performance, price, and privacy
     - Cloud mode: OpenAI API for embeddings and chat model
-    - Edge mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma-3](google/gemma-3-12b-it) LLM
-    - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Edge mode runs on ZeroGPU (shared GPU resources) in HF Spaces*
+    - Local mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma-3](google/gemma-3-12b-it) LLM
+    - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Local mode runs on ZeroGPU (shared GPU resources) in HF Spaces*
 
 ## Web Interface
 
@@ -51,7 +51,7 @@ python app.py
 ```
 
 This launches an interactive chat interface in a web browser.
-The interface comes with example questions and allows choosing cloud or edge processing.
+The interface comes with example questions and allows choosing remote or local processing.
 
 <div align="center">
   <img src="https://chnosz.net/images/R-help-chat_v1.png" alt="R-help-chat screenshot" style="width:60%;"/>
@@ -65,13 +65,13 @@ Setup:
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
-- Set your `OPENAI_API_KEY` environment variable (not needed if using edge instead of cloud computing)
+- Set your `OPENAI_API_KEY` environment variable (not needed if using local computing)
 
 Run this Python code to create the vector database:
 
 ```python
 from main import *
-ProcessDirectory("R-help", "cloud")
+ProcessDirectory("R-help", "remote")
 ```
 
 Now you're ready to run the chain or graph workflow. Here are some examples of RAG with the chain workflow:
@@ -107,7 +107,7 @@ To run evals:
 - Set `search_type` to dense, sparse, or hybrid
 
 ```sh
-python eval.py --compute_mode cloud --workflow graph --search_type hybrid
+python eval.py --compute_mode remote --workflow graph --search_type hybrid
 ```
 
 For a fair comparison of different search types, each one retrieves up to 6 emails:
@@ -129,7 +129,7 @@ Results for queries and reference answers in `eval.csv` with retrieval from 5.5 
 |-|-|-|-|-|
 | Cloud | Chain | 0.81 | **0.79** | **0.65** |
 | Cloud | Graph | 0.66 | 0.75 | 0.63 |
-| Edge  | Graph | **0.91** | **0.79** | 0.54 |
+| Local  | Graph | **0.91** | **0.79** | 0.54 |
 
 ## Acknowledgments
 

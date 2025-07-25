@@ -12,10 +12,10 @@ import torch
 import logging
 import ast
 
-# To use OpenAI models (cloud)
+# To use OpenAI models (remote)
 from langchain_openai import ChatOpenAI
 
-# To use Hugging Face models (edge)
+# To use Hugging Face models (local)
 from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 
 # Local modules
@@ -29,10 +29,10 @@ from prompts import answer_prompt
 # -----------
 # First version by Jeffrey Dick on 2025-06-29
 
-# Define the cloud (OpenAI) model
+# Define the remote (OpenAI) model
 openai_model = "gpt-4o-mini"
 
-# Get the edge model ID
+# Get the local model ID
 model_id = os.getenv("MODEL_ID")
 if model_id is None:
     # model_id = "HuggingFaceTB/SmolLM3-3B"
@@ -52,10 +52,10 @@ def ProcessDirectory(path, compute_mode):
 
     Args:
         path: Directory to process
-        compute_mode: Compute mode for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (remote or local)
 
     Usage example:
-        ProcessDirectory("R-help", "cloud")
+        ProcessDirectory("R-help", "remote")
     """
 
     # TODO: use UUID to process only changed documents
@@ -128,18 +128,18 @@ def GetChatModel(compute_mode):
     Get a chat model.
 
     Args:
-        compute_mode: Compute mode for chat model (cloud or edge)
+        compute_mode: Compute mode for chat model (remote or local)
     """
 
-    if compute_mode == "cloud":
+    if compute_mode == "remote":
 
         chat_model = ChatOpenAI(model=openai_model, temperature=0)
 
-    if compute_mode == "edge":
+    if compute_mode == "local":
 
-        # Don't try to use edge models without a GPU
-        if compute_mode == "edge" and not torch.cuda.is_available():
-            raise Exception("Edge chat model selected without GPU")
+        # Don't try to use local models without a GPU
+        if compute_mode == "local" and not torch.cuda.is_available():
+            raise Exception("Local chat model selected without GPU")
 
         # Define the pipeline to pass to the HuggingFacePipeline class
         # https://huggingface.co/blog/langchain
@@ -169,7 +169,7 @@ def GetChatModel(compute_mode):
 
 def RunChain(
     query,
-    compute_mode: str = "cloud",
+    compute_mode: str = "remote",
     search_type: str = "hybrid",
     think: bool = False,
 ):
@@ -178,7 +178,7 @@ def RunChain(
 
     Args:
         query: User's query
-        compute_mode: Compute mode for embedding and chat models (cloud or edge)
+        compute_mode: Compute mode for embedding and chat models (remote or local)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         think: Control thinking mode for SmolLM3
 
@@ -230,7 +230,7 @@ def RunChain(
 
 def RunGraph(
     query: str,
-    compute_mode: str = "cloud",
+    compute_mode: str = "remote",
     search_type: str = "hybrid",
     top_k: int = 6,
     think_retrieve=False,
@@ -241,7 +241,7 @@ def RunGraph(
 
     Args:
         query: User query to start the chat
-        compute_mode: Compute mode for embedding and chat models (cloud or edge)
+        compute_mode: Compute mode for embedding and chat models (remote or local)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         top_k: Number of documents to retrieve
         think_retrieve: Whether to use thinking mode for retrieval (tool-calling)

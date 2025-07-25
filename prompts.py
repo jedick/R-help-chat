@@ -7,7 +7,7 @@ def retrieve_prompt(compute_mode):
     """Return system prompt for query step
 
     Args:
-        compute_mode: Compute mode for embedding model (cloud or edge)
+        compute_mode: Compute mode for embedding model (remote or local)
     """
 
     # Get start and end months from database

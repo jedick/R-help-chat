@@ -143,9 +143,9 @@ def main():
     )
     parser.add_argument(
         "--compute_mode",
-        choices=["cloud", "edge"],
+        choices=["remote", "local"],
         required=True,
-        help="Compute mode: cloud or edge.",
+        help="Compute mode: remote or local.",
     )
     parser.add_argument(
         "--workflow",

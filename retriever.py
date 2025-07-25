@@ -12,10 +12,10 @@ import torch
 import os
 import re
 
-# To use OpenAI models (cloud)
+# To use OpenAI models (remote)
 from langchain_openai import OpenAIEmbeddings
 
-## To use Hugging Face models (edge)
+## To use Hugging Face models (local)
 # from langchain_huggingface import HuggingFaceEmbeddings
 # For more control over BGE and Nomic embeddings
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
@@ -40,7 +40,7 @@ def BuildRetriever(
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
-        compute_mode: Compute mode for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (remote or local)
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
         top_k: Number of documents to retrieve for "dense" and "sparse"
         start_year: Start year (optional)
@@ -114,18 +114,18 @@ def BuildRetrieverDense(compute_mode: str, top_k=6):
     Build dense retriever instance with ChromaDB vectorstore
 
     Args:
-        compute_mode: Compute mode for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (remote or local)
         top_k: Number of documents to retrieve
     """
 
-    # Don't try to use edge models without a GPU
-    if compute_mode == "edge" and not torch.cuda.is_available():
-        raise Exception("Edge embeddings selected without GPU")
+    # Don't try to use local models without a GPU
+    if compute_mode == "local" and not torch.cuda.is_available():
+        raise Exception("Local embeddings selected without GPU")
 
     # Define embedding model
-    if compute_mode == "cloud":
+    if compute_mode == "remote":
         embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
-    if compute_mode == "edge":
+    if compute_mode == "local":
         # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
         # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
         model_name = "nomic-ai/nomic-embed-text-v1.5"

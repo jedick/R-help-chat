@@ -9,14 +9,14 @@ from retriever import BuildRetriever, db_dir
 from mods.bm25s_retriever import BM25SRetriever
 
 
-def ProcessFile(file_path, search_type: str = "dense", compute_mode: str = "cloud"):
+def ProcessFile(file_path, search_type: str = "dense", compute_mode: str = "remote"):
     """
     Wrapper function to process file for dense or sparse search
 
     Args:
         file_path: File to process
         search_type: Type of search to use. Options: "dense", "sparse"
-        compute_mode: Compute mode for embeddings (cloud or edge)
+        compute_mode: Compute mode for embeddings (remote or local)
     """
 
     # Preprocess: remove quoted lines and handle email boundaries

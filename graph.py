@@ -116,7 +116,7 @@ def BuildGraph(
 
     Args:
         chat_model: LangChain chat model from GetChatModel()
-        compute_mode: cloud or edge (for retriever)
+        compute_mode: remote or local (for retriever)
         search_type: dense, sparse, or hybrid (for retriever)
         top_k: number of documents to retrieve
         think_retrieve: Whether to use thinking mode for retrieval
@@ -132,7 +132,7 @@ def BuildGraph(
         # Build graph with chat model
         from langchain_openai import ChatOpenAI
         chat_model = ChatOpenAI(model="gpt-4o-mini")
-        graph = BuildGraph(chat_model, "cloud", "hybrid")
+        graph = BuildGraph(chat_model, "remote", "hybrid")
 
         # Add simple in-memory checkpointer
         from langgraph.checkpoint.memory import MemorySaver
@@ -202,10 +202,10 @@ def BuildGraph(
         """
         return answer, citations
 
-    # Add tools to the edge or cloud chat model
-    is_edge = hasattr(chat_model, "model_id")
-    if is_edge:
-        # For edge model (ChatHuggingFace)
+    # Add tools to the local or remote chat model
+    is_local = hasattr(chat_model, "model_id")
+    if is_local:
+        # For local model (ChatHuggingFace)
         query_model = ToolifyHF(
             chat_model, retrieve_prompt(compute_mode), "", think_retrieve
         ).bind_tools([retrieve_emails])
@@ -214,7 +214,7 @@ def BuildGraph(
             chat_model, answer_prompt(with_tools=False), "", think_generate
         )
     else:
-        # For cloud model (OpenAI API)
+        # For remote model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
         generate_model = chat_model.bind_tools([answer_with_citations])
 
@@ -223,7 +223,7 @@ def BuildGraph(
 
     def query(state: MessagesState):
         """Queries the retriever with the chat model"""
-        if is_edge:
+        if is_local:
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
             # print_messages_summary(messages, "--- query: before normalization ---")
@@ -239,7 +239,7 @@ def BuildGraph(
 
     def generate(state: MessagesState):
         """Generates an answer with the chat model"""
-        if is_edge:
+        if is_local:
             messages = state["messages"]
             # print_messages_summary(messages, "--- generate: before normalization ---")
             messages = normalize_messages(messages)

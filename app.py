@@ -16,33 +16,33 @@ import ast
 import os
 
 # Global settings for compute_mode and search_type
-COMPUTE = "edge"
+COMPUTE = "local"
 search_type = "hybrid"
 
-# Switch to cloud mode if GPU isn't available
+# Switch to remote mode if GPU isn't available
 if not torch.cuda.is_available():
-    COMPUTE = "cloud"
+    COMPUTE = "remote"
 
 # Keep LangChain graph in a global variable (shared across sessions)
-graph_edge = None
-graph_cloud = None
+graph_local = None
+graph_remote = None
 
 
 def run_workflow(input, history, thread_id):
     """The main function to run the chat workflow"""
 
     # Get global graph for compute mode
-    global graph_edge, graph_cloud
-    if COMPUTE == "edge":
-        graph = graph_edge
-    if COMPUTE == "cloud":
-        graph = graph_cloud
+    global graph_local, graph_remote
+    if COMPUTE == "local":
+        graph = graph_local
+    if COMPUTE == "remote":
+        graph = graph_remote
 
     if graph is None:
-        # Notify when we're loading the edge model because it takes some time
-        if COMPUTE == "edge":
+        # Notify when we're loading the local model because it takes some time
+        if COMPUTE == "local":
             gr.Info(
-                f"Please wait for the edge model to load",
+                f"Please wait for the local model to load",
                 duration=15,
                 title=f"Model loading...",
             )
@@ -53,10 +53,10 @@ def run_workflow(input, history, thread_id):
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
         # Set global graph for compute mode
-        if COMPUTE == "edge":
-            graph_edge = graph
-        if COMPUTE == "cloud":
-            graph_cloud = graph
+        if COMPUTE == "local":
+            graph_local = graph
+        if COMPUTE == "remote":
+            graph_remote = graph
 
     # Notify when model finishes loading
     gr.Success(f"{COMPUTE}", duration=4, title=f"Model loaded!")
@@ -176,21 +176,21 @@ def run_workflow(input, history, thread_id):
 
 def to_workflow(*args):
     """Wrapper function to call function with or without @spaces.GPU"""
-    if COMPUTE == "edge":
-        for value in run_workflow_edge(*args):
+    if COMPUTE == "local":
+        for value in run_workflow_local(*args):
             yield value
-    if COMPUTE == "cloud":
-        for value in run_workflow_cloud(*args):
+    if COMPUTE == "remote":
+        for value in run_workflow_remote(*args):
             yield value
 
 
 @spaces.GPU(duration=120)
-def run_workflow_edge(*args):
+def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
 
 
-def run_workflow_cloud(*args):
+def run_workflow_remote(*args):
     for value in run_workflow(*args):
         yield value
 
@@ -241,12 +241,12 @@ with gr.Blocks(
 
     compute_mode = gr.Radio(
         choices=[
-            "edge" if torch.cuda.is_available() else "edge (not available)",
-            "cloud",
+            "local" if torch.cuda.is_available() else "local (not available)",
+            "remote",
         ],
         value=COMPUTE,
         label="Compute Mode",
-        info=(None if torch.cuda.is_available() else "NOTE: edge mode requires GPU"),
+        info=(None if torch.cuda.is_available() else "NOTE: local mode requires GPU"),
         interactive=torch.cuda.is_available(),
         render=False,
     )
@@ -282,7 +282,7 @@ with gr.Blocks(
             None,
             (
                 "images/cloud.png"
-                if compute_mode.value == "cloud"
+                if compute_mode.value == "remote"
                 else "images/chip.png"
             ),
         ),
@@ -348,16 +348,16 @@ with gr.Blocks(
         return intro
 
     def get_status_text(compute_mode):
-        if compute_mode.startswith("cloud"):
+        if compute_mode.startswith("remote"):
             status_text = f"""
-            📍 Now in **cloud** mode, using the OpenAI API<br>
+            📍 Now in **remote** mode, using the OpenAI API<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
             ✨ text-embedding-3-small and {openai_model}<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
-        if compute_mode.startswith("edge"):
+        if compute_mode.startswith("local"):
             status_text = f"""
-            📍 Now in **edge** mode, using ZeroGPU hardware<br>
+            📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is around 2 minutes<br>
             ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
@@ -377,7 +377,7 @@ with gr.Blocks(
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
             **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
-            multiple retrievals per turn (cloud mode), answer with citations (cloud mode), chat memory.
+            multiple retrievals per turn (remote mode), answer with citations (remote mode), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
@@ -425,7 +425,7 @@ with gr.Blocks(
                 gr.Examples(
                     examples=[[q] for q in multi_tool_questions],
                     inputs=[input],
-                    label="Multiple retrievals (cloud mode)",
+                    label="Multiple retrievals (remote mode)",
                     elem_id="example-questions",
                 )
                 multi_turn_questions = [
@@ -459,9 +459,9 @@ with gr.Blocks(
         COMPUTE = compute_mode
 
     def set_avatar(compute_mode):
-        if compute_mode.startswith("cloud"):
+        if compute_mode.startswith("remote"):
             image_file = "images/cloud.png"
-        if compute_mode.startswith("edge"):
+        if compute_mode.startswith("local"):
             image_file = "images/chip.png"
         return gr.update(
             avatar_images=(
