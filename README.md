@@ -22,6 +22,7 @@ Here's a drawing of the graph workflow for one conversational turn:
     - Graph workflow for conversational chat
 - Data preprocesssing for email messages
     - Removes quoted lines (starting with ">") for faster indexing and retrieval
+    - Trims long emails and lines
 - Efficient handling for incremental data updates
     - Only indexes changed files
     - Removes stale documents from vector database
@@ -36,10 +37,10 @@ Here's a drawing of the graph workflow for one conversational turn:
     - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for the retrieval function
     - [Chat memory](https://python.langchain.com/docs/how_to/chatbots_memory/): Previous user and AI messages are part of the context for follow-up questions
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
-- Options for cloud or edge computing to balance performance, price, and privacy
+- Choice of compute modes to balance performance, price, and privacy
     - Cloud mode: OpenAI API for embeddings and chat model
     - Edge mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma-3](google/gemma-3-12b-it) LLM
-    - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Edge mode runs on ZeroGPU (shared GPU resources) for the HF Spaces demo*
+    - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Edge mode runs on ZeroGPU (shared GPU resources) in HF Spaces*
 
 ## Web Interface
 

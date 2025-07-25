@@ -41,7 +41,7 @@ def run_workflow(input, history, thread_id):
     if graph is None:
         # Notify when we're loading the edge model because it takes some time
         if COMPUTE == "edge":
-            gr.Warning(
+            gr.Info(
                 f"Please wait for the edge model to load",
                 duration=15,
                 title=f"Model loading...",

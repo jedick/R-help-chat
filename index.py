@@ -94,8 +94,22 @@ def ProcessFileDense(cleaned_temp_file, file_path, compute_mode):
     mod_time = os.path.getmtime(file_path)
     timestamp = datetime.fromtimestamp(mod_time).isoformat()
     documents[0].metadata["timestamp"] = timestamp
-    # Add documents to vectorstore
-    retriever.add_documents(documents)
+    ## Add documents to vectorstore
+    # retriever.add_documents(documents)
+    # Split the document into batches for addition to ChromaDB
+    # https://github.com/chroma-core/chroma/issues/1049
+    # https://cookbook.chromadb.dev/strategies/batching
+    batch_size = 1000
+    # Split emails
+    emails = documents[0].page_content.split("\n\n\nFrom")
+    documents_batch = documents
+    for i in range(0, len(emails), batch_size):
+        emails_batch = emails[i : i + batch_size]
+        # Join emails back together
+        page_content = "\n\n\nFrom".join(emails_batch)
+        documents_batch[0].page_content = page_content
+        # Add documents to vectorstore
+        retriever.add_documents(documents_batch)
 
 
 def ProcessFileSparse(cleaned_temp_file, file_path):

@@ -55,7 +55,7 @@ def build_eval_dataset(questions, references, compute_mode, workflow, search_typ
                 if "retrieved_emails" in result:
                     # Remove the source file names (e.g. R-help/2022-September.txt) as it confuses the evaluator
                     retrieved_contexts = [
-                        "\n\nFrom" + email.split("\n\nFrom")[1]
+                        "\n\n\nFrom" + email.split("\n\n\nFrom")[1]
                         for email in result["retrieved_emails"]
                     ]
                 response = result["answer"]
@@ -102,11 +102,11 @@ def run_evals_with_csv(csv_path):
         questions, references, retrieved_emails, answers
     ):
         retrieved_contexts = [
-            "\n\nFrom" + email for email in retrieved_email.split("\n\nFrom")
+            "\n\n\nFrom" + email for email in retrieved_email.split("\n\n\nFrom")
         ]
         # Remove the source file names (e.g. R-help/2022-September.txt) as it confuses the evaluator
         retrieved_contexts = [
-            "\n\nFrom" + email.split("\n\nFrom")[1]
+            "\n\n\nFrom" + email.split("\n\n\nFrom")[1]
             for email in retrieved_email.split(
                 "\n\n--- --- --- --- Next Email --- --- --- ---\n\n"
             )
