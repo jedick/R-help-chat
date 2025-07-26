@@ -19,11 +19,7 @@ import os
 COMPUTE = "local"
 search_type = "hybrid"
 
-# Switch to remote mode if GPU isn't available
-if not torch.cuda.is_available():
-    COMPUTE = "remote"
-
-# Keep LangChain graph in a global variable (shared across sessions)
+# Global variables for LangChain graph
 graph_local = None
 graph_remote = None
 
@@ -31,9 +27,16 @@ graph_remote = None
 def run_workflow(input, history, thread_id):
     """The main function to run the chat workflow"""
 
-    # Get global graph for compute mode
+    # Get global graph depending on compute mode
     global graph_local, graph_remote
     if COMPUTE == "local":
+        # We don't want the app to switch into remote mode without notification,
+        # so ask the user to do it
+        if not torch.cuda.is_available():
+            raise gr.Error(
+                "Local mode requires GPU. Please select remote mode.",
+                print_exception=False,
+            )
         graph = graph_local
     if COMPUTE == "remote":
         graph = graph_remote
@@ -241,13 +244,12 @@ with gr.Blocks(
 
     compute_mode = gr.Radio(
         choices=[
-            "local" if torch.cuda.is_available() else "local (not available)",
+            "local",
             "remote",
         ],
         value=COMPUTE,
         label="Compute Mode",
         info=(None if torch.cuda.is_available() else "NOTE: local mode requires GPU"),
-        interactive=torch.cuda.is_available(),
         render=False,
     )
 
@@ -348,14 +350,14 @@ with gr.Blocks(
         return intro
 
     def get_status_text(compute_mode):
-        if compute_mode.startswith("remote"):
+        if compute_mode == "remote":
             status_text = f"""
             📍 Now in **remote** mode, using the OpenAI API<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
             ✨ text-embedding-3-small and {openai_model}<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
-        if compute_mode.startswith("local"):
+        if compute_mode == "local":
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is around 2 minutes<br>
@@ -459,9 +461,9 @@ with gr.Blocks(
         COMPUTE = compute_mode
 
     def set_avatar(compute_mode):
-        if compute_mode.startswith("remote"):
+        if compute_mode == "remote":
             image_file = "images/cloud.png"
-        if compute_mode.startswith("local"):
+        if compute_mode == "local":
             image_file = "images/chip.png"
         return gr.update(
             avatar_images=(
