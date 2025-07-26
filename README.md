@@ -39,7 +39,7 @@ Here's a drawing of the graph workflow for one conversational turn:
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
 - Choice of compute modes to balance performance, price, and privacy
     - Remote mode: OpenAI API for embeddings and chat model
-    - Local mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma-3](google/gemma-3-12b-it) LLM
+    - Local mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma 3](google/gemma-3-12b-it) LLM
     - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Local mode runs on ZeroGPU (shared GPU resources) in HF Spaces*
 
 ## Web Interface
@@ -54,10 +54,10 @@ This launches an interactive chat interface in a web browser.
 The interface comes with example questions and allows choosing remote or local processing.
 
 <div align="center">
-  <img src="https://chnosz.net/images/R-help-chat_v1.png" alt="R-help-chat screenshot" style="width:60%;"/>
+  <img src="https://chnosz.net/images/R-help-chat.png" alt="R-help-chat screenshot" style="width:60%;"/>
 </div>
 
-Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app!
+Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app and chat with emails from **January 2015** to **June 2025**!
 
 ## Command-Line Usage
 

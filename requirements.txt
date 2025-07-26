@@ -7,8 +7,11 @@ langgraph>=0.4.7,<0.6
 sentence-transformers>=4.1.0
 # Required by Nomic embeddings
 einops==0.8.1
-# Required by SmolLM3
-transformers>=4.53
+# SmolLM3: >=4.53
+# Gemma 3: >=4.50
+# Gemma 3 with 4.54.0 gives:
+# ValueError: Max cache length is not consistent across layers
+transformers==4.53.3
 # Commented because we have local modifications
 #tool-calling-llm==0.1.2
 bm25s==0.2.12
@@ -17,7 +20,7 @@ ragas==0.2.15
 # https://github.com/vanna-ai/vanna/issues/917
 posthog<6.0.0
 # Gradio for the web interface
-gradio>=4.0.0
+gradio==5.38.2
 spaces==0.37.1
 # For downloading data
 boto3==1.39.14
