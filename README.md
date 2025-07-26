@@ -38,7 +38,7 @@ Here's a drawing of the graph workflow for one conversational turn:
     - [Chat memory](https://python.langchain.com/docs/how_to/chatbots_memory/): Previous user and AI messages are part of the context for follow-up questions
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
 - Choice of compute modes to balance performance, price, and privacy
-    - Cloud mode: OpenAI API for embeddings and chat model
+    - Remote mode: OpenAI API for embeddings and chat model
     - Local mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma-3](google/gemma-3-12b-it) LLM
     - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Local mode runs on ZeroGPU (shared GPU resources) in HF Spaces*
 
@@ -127,8 +127,8 @@ Results for queries and reference answers in `eval.csv` with retrieval from 5.5 
 
 | Compute | Workflow | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
-| Cloud | Chain | 0.81 | **0.79** | **0.65** |
-| Cloud | Graph | 0.66 | 0.75 | 0.63 |
+| Remote | Chain | 0.81 | **0.79** | **0.65** |
+| Remote | Graph | 0.66 | 0.75 | 0.63 |
 | Local  | Graph | **0.91** | **0.79** | 0.54 |
 
 ## Acknowledgments

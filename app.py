@@ -6,11 +6,11 @@ from langgraph.checkpoint.memory import MemorySaver
 
 from main import openai_model, model_id
 from util import get_sources, get_start_end_months
-from git import Repo
 import zipfile
 import shutil
 import spaces
 import torch
+import boto3
 import uuid
 import ast
 import os
@@ -359,7 +359,7 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is around 2 minutes<br>
-            ✨ Embeddings: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5); LLM: [{model_id}](https://huggingface.co/{model_id})<br>
+            ✨ [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [{model_id}](https://huggingface.co/{model_id}) LLM<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return status_text
@@ -562,34 +562,27 @@ with gr.Blocks(
     # Data loading
     # ------------
 
-    def rm_directory(directory_path):
-        """Forcefully and recursively delete a directory, like rm -rf"""
-
-        try:
-            shutil.rmtree(directory_path)
-            print(f"Successfully deleted: {directory_path}")
-        except FileNotFoundError:
-            print(f"Directory not found: {directory_path}")
-        except PermissionError:
-            print(f"Permission denied: {directory_path}")
-        except Exception as e:
-            print(f"An error occurred: {e}")
-
     def download():
-        """Download the db.zip file"""
+        """Download the application data"""
+
+        # Code from https://thecodinginterface.com/blog/aws-s3-python-boto3
+
+        def aws_session(region_name="us-east-1"):
+            return boto3.session.Session(
+                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("AWS_ACCESS_KEY_SECRET"),
+                region_name=region_name,
+            )
+
+        def download_file_from_bucket(bucket_name, s3_key, dst_path):
+            session = aws_session()
+            s3_resource = session.resource("s3")
+            bucket = s3_resource.Bucket(bucket_name)
+            bucket.download_file(Key=s3_key, Filename=dst_path)
 
         if not os.path.isdir(db_dir):
-
-            # Define the repository URL and the directory to clone into
-            url = "https://huggingface.co/datasets/jedick/R-help-db"
-            to_path = "./R-help-db"
-
-            # Clone the repository
-            try:
-                Repo.clone_from(url, to_path)
-                print(f"Repository cloned successfully into {to_path}")
-            except Exception as e:
-                print(f"An error occurred while cloning {url}: {e}")
+            if not os.path.exists("db.zip"):
+                download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
 
         return None
 
@@ -598,16 +591,37 @@ with gr.Blocks(
 
         if not os.path.isdir(db_dir):
 
-            zip_file_path = "./R-help-db/db.zip"
+            file_path = "db.zip"
             extract_to_path = "./"
             try:
-                with zipfile.ZipFile(zip_file_path, "r") as zip_ref:
+                with zipfile.ZipFile(file_path, "r") as zip_ref:
                     zip_ref.extractall(extract_to_path)
             except:
-                # If there were any errors, clean up directories to
-                # initiate a new download when app is reloaded
-                rm_directory("./db")
-                rm_directory("./R-help-db")
+                # If there were any errors, remove zip file and db directory
+                # to initiate a new download when app is reloaded
+
+                try:
+                    os.remove(file_path)
+                    print(f"{file_path} has been deleted.")
+                except FileNotFoundError:
+                    print(f"{file_path} does not exist.")
+                except PermissionError:
+                    print(f"Permission denied to delete {file_path}.")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
+
+                directory_path = "./db"
+
+                try:
+                    # Forcefully and recursively delete a directory, like rm -rf
+                    shutil.rmtree(directory_path)
+                    print(f"Successfully deleted: {directory_path}")
+                except FileNotFoundError:
+                    print(f"Directory not found: {directory_path}")
+                except PermissionError:
+                    print(f"Permission denied: {directory_path}")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
 
         return None
 
@@ -635,11 +649,11 @@ with gr.Blocks(
     ).then(
         change_visibility, [false], [extracting], api_name=False
     ).then(
-        get_info_text, None, [info], api_name=False
-    ).then(
         is_data_present, None, [have_data], api_name=False
     ).then(
         change_visibility, [have_data], [chat_interface], api_name=False
+    ).then(
+        get_info_text, None, [info], api_name=False
     ).then(
         is_data_missing, None, [need_data], api_name=False
     ).then(

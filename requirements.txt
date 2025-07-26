@@ -20,6 +20,6 @@ posthog<6.0.0
 gradio>=4.0.0
 spaces==0.37.1
 # For downloading data
-gitpython
+boto3==1.39.14
 # Others
 python-dotenv

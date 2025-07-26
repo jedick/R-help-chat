@@ -34,7 +34,8 @@ def ProcessFile(file_path, search_type: str = "dense", compute_mode: str = "remo
     except Exception:
         pass
 
-    # Truncate each email at 500 lines and each line to 500 characters
+    # Truncate email line number and length to avoid error in openai/_base_client.py:
+    # BadRequestError: Error code: 400 - 'message': 'Requested 312872 tokens, max 300000 tokens per request', 'type': 'max_tokens_per_request'
     temp_fd2, truncated_temp_file = tempfile.mkstemp(suffix=".txt", prefix="truncated_")
     with open(cleaned_temp_file, "r", encoding="utf-8") as infile:
         content = infile.read()
@@ -43,8 +44,9 @@ def ProcessFile(file_path, search_type: str = "dense", compute_mode: str = "remo
     processed_emails = []
     for i, email in enumerate(emails):
         lines = email.splitlines()
-        # Truncate to 500 lines and each line to 500 characters
-        truncated_lines = [line[:500] for line in lines[:500]]
+        # Truncate each line to 1000 characters and each email to 200 lines
+        # NOTE: 1000 characters is reasonable for a long non-word-wrapped paragraph
+        truncated_lines = [line[:1000] for line in lines[:200]]
         # Add [Email truncated] line to truncated emails
         if len(lines) > len(truncated_lines):
             truncated_lines.append("[Email truncated]")
@@ -97,8 +99,8 @@ def ProcessFileDense(cleaned_temp_file, file_path, compute_mode):
     ## Add documents to vectorstore
     # retriever.add_documents(documents)
     # Split the document into batches for addition to ChromaDB
-    # https://github.com/chroma-core/chroma/issues/1049
-    # https://cookbook.chromadb.dev/strategies/batching
+    #   https://github.com/chroma-core/chroma/issues/1049
+    #   https://cookbook.chromadb.dev/strategies/batching
     batch_size = 1000
     # Split emails
     emails = documents[0].page_content.split("\n\n\nFrom")
@@ -141,9 +143,9 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
         # Get new emails - ones which have not been indexed
         new_emails = [email for email in emails if email not in retriever.docs]
         if len(new_emails) > 0:
-            # TODO: implement add_documents method for BM25SRetriever class
-            # retriever.from_documents(documents=new_emails)
-            # For now, create new BM25 index with all emails
+            # Create new BM25 index with all emails
+            # NOTE: Adding new documents to an existing index is not possible:
+            # https://github.com/xhluca/bm25s/discussions/20
             all_emails = retriever.docs + new_emails
             BM25SRetriever.from_documents(
                 documents=all_emails,
