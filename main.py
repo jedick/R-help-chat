@@ -23,7 +23,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from index import ProcessFile
 from retriever import BuildRetriever, db_dir
 from graph import BuildGraph
-from prompts import answer_prompt
+from prompts import generate_prompt
 
 # -----------
 # R-help-chat
@@ -200,7 +200,7 @@ def RunChain(
     chat_model = GetChatModel(compute_mode)
 
     # Control thinking for SmolLM3
-    system_prompt = answer_prompt()
+    system_prompt = generate_prompt()
     if hasattr(chat_model, "model_id") and not think:
         system_prompt = f"/no_think\n{system_prompt}"
 

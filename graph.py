@@ -9,7 +9,7 @@ import os
 
 # Local modules
 from retriever import BuildRetriever
-from prompts import retrieve_prompt, answer_prompt, gemma_tools_template
+from prompts import query_prompt, generate_prompt, gemma_tools_template
 from mods.tool_calling_llm import ToolCallingLLM
 
 # Local modules
@@ -20,7 +20,7 @@ from retriever import BuildRetriever
 # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"
 
 
-def print_messages_summary(messages, header):
+def print_message_summaries(messages, header):
     """Print message types and summaries for debugging"""
     if header:
         print(header)
@@ -49,13 +49,14 @@ def print_messages_summary(messages, header):
 def normalize_messages(messages):
     """Normalize messages to sequence of types expected by chat templates"""
     # Copy the most recent HumanMessage to the end
-    # (avoids SmolLM3 ValueError: Last message must be a HumanMessage!)
+    # (avoids SmolLM and Qwen ValueError: Last message must be a HumanMessage!)
     if not type(messages[-1]) is HumanMessage:
         for msg in reversed(messages):
             if type(msg) is HumanMessage:
                 messages.append(msg)
+                break
     # Convert tool output (ToolMessage) to AIMessage
-    # (avoids SmolLM3 ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
+    # (avoids SmolLM and Qwen ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
     messages = [
         AIMessage(msg.content) if type(msg) is ToolMessage else msg for msg in messages
     ]
@@ -75,7 +76,7 @@ def ToolifyHF(chat_model, system_message, system_message_suffix="", think=False)
     Get a Hugging Face model ready for bind_tools().
     """
 
-    ## Add /no_think flag to turn off thinking mode (SmolLM3)
+    ## Add /no_think flag to turn off thinking mode (SmolLM3 and Qwen)
     # if not think:
     #    system_message = "/no_think\n" + system_message
 
@@ -203,14 +204,12 @@ def BuildGraph(
     # Add tools to the local or remote chat model
     is_local = hasattr(chat_model, "model_id")
     if is_local:
-        # For local model (ChatHuggingFace)
+        # For local models (ChatHuggingFace with SmolLM, Gemma, or Qwen)
         query_model = ToolifyHF(
-            chat_model, retrieve_prompt(compute_mode), "", think_retrieve
+            chat_model, query_prompt(compute_mode), "", think_retrieve
         ).bind_tools([retrieve_emails])
-        # Don't use answer_with_citations tool here because responses with Gemma are sometimes unparseable
-        generate_model = ToolifyHF(
-            chat_model, answer_prompt(with_tools=False), "", think_generate
-        )
+        # Don't use answer_with_citations tool because responses with are sometimes unparseable
+        generate_model = chat_model
     else:
         # For remote model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
@@ -224,13 +223,11 @@ def BuildGraph(
         if is_local:
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
-            # print_messages_summary(messages, "--- query: before normalization ---")
+            print_message_summaries(messages, "--- query: before normalization ---")
             messages = normalize_messages(messages)
-            # print_messages_summary(messages, "--- query: after normalization ---")
+            print_message_summaries(messages, "--- query: after normalization ---")
         else:
-            messages = [SystemMessage(retrieve_prompt(compute_mode))] + state[
-                "messages"
-            ]
+            messages = [SystemMessage(query_prompt(compute_mode))] + state["messages"]
         response = query_model.invoke(messages)
 
         return {"messages": response}
@@ -239,11 +236,15 @@ def BuildGraph(
         """Generates an answer with the chat model"""
         if is_local:
             messages = state["messages"]
-            # print_messages_summary(messages, "--- generate: before normalization ---")
+            print_message_summaries(messages, "--- generate: before normalization ---")
             messages = normalize_messages(messages)
-            # print_messages_summary(messages, "--- generate: after normalization ---")
+            # Add the system message here because we're not using tools
+            messages = [
+                SystemMessage(generate_prompt(with_tools=False, think=False))
+            ] + messages
+            print_message_summaries(messages, "--- generate: after normalization ---")
         else:
-            messages = [SystemMessage(answer_prompt())] + state["messages"]
+            messages = [SystemMessage(generate_prompt())] + state["messages"]
         response = generate_model.invoke(messages)
 
         return {"messages": response}

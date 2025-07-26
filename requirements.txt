@@ -13,7 +13,7 @@ torch==2.5.1
 #   Gemma 3: transformers>=4.50
 # Gemma 3 with transformers==4.54.0 gives:
 #   ValueError: Max cache length is not consistent across layers
-transformers==4.50.0
+transformers==4.51.3
 # Commented because we have local modifications
 #tool-calling-llm==0.1.2
 bm25s==0.2.12

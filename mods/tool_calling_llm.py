@@ -239,7 +239,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
     """  # noqa: E501
 
     tool_system_prompt_template: str = DEFAULT_SYSTEM_TEMPLATE
-    # Suffix to add to the system prompt that is not templated (variable names are not interpreted)
+    # Suffix to add to the system prompt that is not templated 20250717 jmd
     system_message_suffix: str = ""
 
     override_bind_tools: bool = True
@@ -301,7 +301,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
         system_message = system_message_prompt_template.format(
             tools=json.dumps(functions, indent=2)
         )
-        # Add extra context after the formatted system message
+        # Add extra context after the formatted system message 20250717 jmd
         system_message = SystemMessage(
             system_message.content + self.system_message_suffix
         )
@@ -313,6 +313,22 @@ class ToolCallingLLM(BaseChatModel, ABC):
         chat_generation_content = response_message.content
         if not isinstance(chat_generation_content, str):
             raise ValueError("ToolCallingLLM does not support non-string output.")
+
+        # Added by Cursor 20250726 jmd
+        # Extract <think>...</think> content and write to think.txt
+        think_match = re.search(
+            r"<think>(.*?)</think>", chat_generation_content, re.DOTALL
+        )
+        think_text = think_match.group(1).strip() if think_match else ""
+        with open("think.txt", "w", encoding="utf-8") as f:
+            f.write(think_text)
+        # Only use text after </think> for further processing
+        if think_match:
+            post_think = chat_generation_content[think_match.end() :].lstrip()
+        else:
+            post_think = chat_generation_content
+        chat_generation_content = post_think
+
         try:
             parsed_chat_result = json.loads(chat_generation_content)
         except json.JSONDecodeError:
