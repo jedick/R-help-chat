@@ -4,21 +4,23 @@ langchain-chroma==0.2.4
 langchain-huggingface==0.3.0
 langgraph>=0.4.7,<0.6
 # Required by langchain-huggingface
-sentence-transformers>=4.1.0
+sentence-transformers==5.0.0
 # Required by Nomic embeddings
 einops==0.8.1
-# SmolLM3: >=4.53
-# Gemma 3: >=4.50
-# Gemma 3 with 4.54.0 gives:
-# ValueError: Max cache length is not consistent across layers
-transformers==4.53.3
+torch==2.5.1
+# Stated requirements:
+#   SmolLM3: transformers>=4.53
+#   Gemma 3: transformers>=4.50
+# Gemma 3 with transformers==4.54.0 gives:
+#   ValueError: Max cache length is not consistent across layers
+transformers==4.50.0
 # Commented because we have local modifications
 #tool-calling-llm==0.1.2
 bm25s==0.2.12
 ragas==0.2.15
-# Temporary fix for ChromaDB telemetry error log messages
+# posthog<6.0.0 is temporary fix for ChromaDB telemetry error log messages
 # https://github.com/vanna-ai/vanna/issues/917
-posthog<6.0.0
+posthog==5.4.0
 # Gradio for the web interface
 gradio==5.38.2
 spaces==0.37.1

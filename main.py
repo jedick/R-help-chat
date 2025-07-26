@@ -6,6 +6,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import ToolMessage
 from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
 from datetime import datetime
+from dotenv import load_dotenv
 import os
 import glob
 import torch
@@ -28,6 +29,9 @@ from prompts import answer_prompt
 # R-help-chat
 # -----------
 # First version by Jeffrey Dick on 2025-06-29
+
+# Setup environment variables
+load_dotenv(dotenv_path=".env", override=True)
 
 # Define the remote (OpenAI) model
 openai_model = "gpt-4o-mini"

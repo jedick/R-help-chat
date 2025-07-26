@@ -3,7 +3,7 @@ from main import GetChatModel
 from graph import BuildGraph
 from retriever import db_dir
 from langgraph.checkpoint.memory import MemorySaver
-
+from dotenv import load_dotenv
 from main import openai_model, model_id
 from util import get_sources, get_start_end_months
 import zipfile
@@ -14,6 +14,9 @@ import boto3
 import uuid
 import ast
 import os
+
+# Setup environment variables
+load_dotenv(dotenv_path=".env", override=True)
 
 # Global settings for compute_mode and search_type
 COMPUTE = "local"
@@ -225,20 +228,6 @@ with gr.Blocks(
 ) as demo:
 
     # -----------------
-    # Data availability
-    # -----------------
-
-    def is_data_present():
-        """Check if the database directory is present"""
-
-        return os.path.isdir(db_dir)
-
-    def is_data_missing():
-        """Check if the database directory is missing"""
-
-        return not os.path.isdir(db_dir)
-
-    # -----------------
     # Define components
     # -----------------
 
@@ -256,7 +245,7 @@ with gr.Blocks(
     downloading = gr.Textbox(
         lines=1,
         label="Downloading Data, Please Wait",
-        visible=is_data_missing(),
+        visible=False,
         render=False,
     )
     extracting = gr.Textbox(
@@ -392,7 +381,7 @@ with gr.Blocks(
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
                     compute_mode.render()
-            with gr.Group(visible=is_data_present()) as chat_interface:
+            with gr.Group(visible=False) as chat_interface:
                 chatbot.render()
                 input.render()
             # Render textboxes for data loading progress
@@ -627,23 +616,33 @@ with gr.Blocks(
 
         return None
 
+    def is_data_present():
+        """Check if the database directory is present"""
+
+        return os.path.isdir(db_dir)
+
+    def is_data_missing():
+        """Check if the database directory is missing"""
+
+        return not os.path.isdir(db_dir)
+
     false = gr.State(False)
     need_data = gr.State()
     have_data = gr.State()
 
-    # When app is launched, check if data is present, download it if necessary,
-    # show extracting step as textbox, show error textbox if needed,
-    # update database info, and restore chat interface.
-    # nb. initial visibility of chat interface components and
-    # downloading textbox are set after instantiation of ChatInterface above
+    # When app is launched: check if data is present, download and extract it
+    # if necessary, make chat interface visible, update database info, and show
+    # error textbox if data loading failed.
 
     # fmt: off
     demo.load(
+        is_data_missing, None, [need_data], api_name=False
+    ).then(
+        change_visibility, [need_data], [downloading], api_name=False
+    ).then(
         download, None, [downloading], api_name=False
     ).then(
         change_visibility, [false], [downloading], api_name=False
-    ).then(
-        is_data_missing, None, [need_data], api_name=False
     ).then(
         change_visibility, [need_data], [extracting], api_name=False
     ).then(
