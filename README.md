@@ -11,9 +11,23 @@ However, list users could benefit from more focused AI-powered search and chat w
 R-help-chat is a chatbot for the R-help archives.
 The end-to-end scope of this project includes data processing, email retrieval, conversational RAG, model evaluation, and deployment with a user-friendly web interface.
 Domain-specific features for mailing list chatbots, like providing source citations and retrieving whole emails for context, are also included.
-Here's a drawing of the graph workflow for one conversational turn:
 
-![R-help-chat workflow](images/graph_LR.png)
+## Web Interface
+
+A Gradio web interface is available for easy interaction with the chatbot:
+
+```sh
+python app.py
+```
+
+This launches an interactive chat interface in a web browser.
+The interface comes with example questions and allows choosing remote or local processing.
+
+<div align="center">
+  <img src="https://chnosz.net/images/R-help-chat.png" alt="R-help-chat screenshot" style="width:65%;"/>
+</div>
+
+Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app and chat with emails from **January 2015** to **June 2025**!
 
 ## Features
 
@@ -31,33 +45,22 @@ Here's a drawing of the graph workflow for one conversational turn:
     - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
     - Hybrid (dense+sparse) search
 - Full-context retrieval
-    - Each retrieval method provides whole emails (parent documents) for context
+    - Retrieval provides whole emails (parent documents) for context
     - Dense embedding uses small chunks (child documents) to capture semantic meaning
 - Graph workflow implements tool calling, chat memory, and structured responses
     - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for the retrieval function
     - [Chat memory](https://python.langchain.com/docs/how_to/chatbots_memory/): Previous user and AI messages are part of the context for follow-up questions
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
+
+
+Here's a drawing of the graph workflow for one conversational turn:
+
+![R-help-chat workflow](images/graph_LR.png)
+
 - Choice of compute modes to balance performance, price, and privacy
     - Remote mode: OpenAI API for embeddings and chat model
     - Local mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma 3](google/gemma-3-12b-it) LLM
-    - <img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"> *Local mode runs on ZeroGPU (shared GPU resources) in HF Spaces*
-
-## Web Interface
-
-A Gradio web interface is available for easy interaction with the chatbot:
-
-```sh
-python app.py
-```
-
-This launches an interactive chat interface in a web browser.
-The interface comes with example questions and allows choosing remote or local processing.
-
-<div align="center">
-  <img src="https://chnosz.net/images/R-help-chat.png" alt="R-help-chat screenshot" style="width:60%;"/>
-</div>
-
-Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app and chat with emails from **January 2015** to **June 2025**!
+    - <a href="https://huggingface.co/spaces?q=R-help&hardware=zerogpu"><img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"></a> *Local mode runs on ZeroGPU (dynamic GPU resources) in HF Spaces*
 
 ## Command-Line Usage
 
