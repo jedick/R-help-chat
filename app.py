@@ -18,55 +18,58 @@ import os
 # Setup environment variables
 load_dotenv(dotenv_path=".env", override=True)
 
-# Global settings for compute_mode and search_type
-COMPUTE = "local"
+# Global setting for search type
 search_type = "hybrid"
 
-# Global variables for LangChain graph
-graph_local = None
-graph_remote = None
+# Global variables for LangChain graph: use dictionaries to store user-specific instances
+# https://www.gradio.app/guides/state-in-blocks
+graph_instances = {"local": {}, "remote": {}}
 
 
-def run_workflow(input, history, thread_id):
+def cleanup_graph(request: gr.Request):
+    if request.session_hash in graph_instances["local"]:
+        del graph_instances["local"][request.session_hash]
+        print(f"Deleted local graph for session {request.session_hash}")
+    if request.session_hash in graph_instances["remote"]:
+        del graph_instances["remote"][request.session_hash]
+        print(f"Deleted remote graph for session {request.session_hash}")
+
+
+def run_workflow(input, history, compute_mode, thread_id, session_hash):
     """The main function to run the chat workflow"""
 
-    # Get global graph depending on compute mode
-    global graph_local, graph_remote
-    if COMPUTE == "local":
-        # We don't want the app to switch into remote mode without notification,
-        # so ask the user to do it
+    # Error if user tries to run local mode without GPU
+    if compute_mode == "local":
         if not torch.cuda.is_available():
             raise gr.Error(
                 "Local mode requires GPU. Please select remote mode.",
                 print_exception=False,
             )
-        graph = graph_local
-    if COMPUTE == "remote":
-        graph = graph_remote
+
+    # Get graph for compute mode
+    graph = graph_instances[compute_mode].get(session_hash)
+    if graph is not None:
+        print(f"Get {compute_mode} graph for session {session_hash}")
 
     if graph is None:
         # Notify when we're loading the local model because it takes some time
-        if COMPUTE == "local":
+        if compute_mode == "local":
             gr.Info(
                 f"Please wait for the local model to load",
                 duration=15,
                 title=f"Model loading...",
             )
         # Get the chat model and build the graph
-        chat_model = GetChatModel(COMPUTE)
-        graph_builder = BuildGraph(chat_model, COMPUTE, search_type)
+        chat_model = GetChatModel(compute_mode)
+        graph_builder = BuildGraph(chat_model, compute_mode, search_type)
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
         # Set global graph for compute mode
-        if COMPUTE == "local":
-            graph_local = graph
-        if COMPUTE == "remote":
-            graph_remote = graph
-
-    # Notify when model finishes loading
-    gr.Success(f"{COMPUTE}", duration=4, title=f"Model loaded!")
-    print(f"Set graph for {COMPUTE}, {search_type}!")
+        graph_instances[compute_mode][session_hash] = graph
+        print(f"Set {compute_mode} graph for session {session_hash}")
+        # Notify when model finishes loading
+        gr.Success(f"{compute_mode}", duration=4, title=f"Model loaded")
 
     print(f"Using thread_id: {thread_id}")
 
@@ -180,13 +183,16 @@ def run_workflow(input, history, thread_id):
             yield history, None, citations
 
 
-def to_workflow(*args):
+def to_workflow(request: gr.Request, *args):
     """Wrapper function to call function with or without @spaces.GPU"""
-    if COMPUTE == "local":
-        for value in run_workflow_local(*args):
+    compute_mode = args[2]
+    # Add session_hash to arguments
+    new_args = args + (request.session_hash,)
+    if compute_mode == "local":
+        for value in run_workflow_local(*new_args):
             yield value
-    if COMPUTE == "remote":
-        for value in run_workflow_remote(*args):
+    if compute_mode == "remote":
+        for value in run_workflow_remote(*new_args):
             yield value
 
 
@@ -236,7 +242,7 @@ with gr.Blocks(
             "local",
             "remote",
         ],
-        value=COMPUTE,
+        value=("local" if torch.cuda.is_available() else "remote"),
         label="Compute Mode",
         info=(None if torch.cuda.is_available() else "NOTE: local mode requires GPU"),
         render=False,
@@ -350,7 +356,7 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is around 2 minutes<br>
-            ✨ [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [{model_id}](https://huggingface.co/{model_id}) LLM<br>
+            ✨ [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [{model_id}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return status_text
@@ -398,10 +404,9 @@ with gr.Blocks(
                 example_questions = [
                     # "What is today's date?",
                     "Summarize emails from the last two months",
-                    "What plotmath examples have been discussed?",
+                    "How to use plotmath?",
                     "When was has.HLC mentioned?",
-                    "Who discussed profiling in 2023?",
-                    "Any messages about installation problems in 2023-2024?",
+                    "Who reported installation problems in 2023-2024?",
                 ]
                 gr.Examples(
                     examples=[[q] for q in example_questions],
@@ -445,10 +450,6 @@ with gr.Blocks(
         """Return updated value for a component"""
         return gr.update(value=value)
 
-    def set_compute(compute_mode):
-        global COMPUTE
-        COMPUTE = compute_mode
-
     def set_avatar(compute_mode):
         if compute_mode == "remote":
             image_file = "images/cloud.png"
@@ -476,13 +477,6 @@ with gr.Blocks(
             # Display the content in the textbox
             return content, change_visibility(True)
 
-    #    def update_citations(citations):
-    #        if citations == []:
-    #            # Blank out and hide the citations textbox when new input is submitted
-    #            return "", change_visibility(False)
-    #        else:
-    #            return citations, change_visibility(True)
-
     # --------------
     # Event handlers
     # --------------
@@ -496,11 +490,6 @@ with gr.Blocks(
         return component.clear()
 
     compute_mode.change(
-        # Update global COMPUTE variable
-        set_compute,
-        [compute_mode],
-        api_name=False,
-    ).then(
         # Change the app status text
         get_status_text,
         [compute_mode],
@@ -528,7 +517,7 @@ with gr.Blocks(
     input.submit(
         # Submit input to the chatbot
         to_workflow,
-        [input, chatbot, thread_id],
+        [input, chatbot, compute_mode, thread_id],
         [chatbot, retrieved_emails, citations_text],
         api_name=False,
     )
@@ -661,6 +650,9 @@ with gr.Blocks(
         change_visibility, [need_data], [data_error], api_name=False
     )
     # fmt: on
+
+    # Clean up graph instances when page is closed/refreshed
+    demo.unload(cleanup_graph)
 
 
 if __name__ == "__main__":
