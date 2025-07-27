@@ -367,7 +367,8 @@ class ToolCallingLLM(BaseChatModel, ABC):
             else:
                 raise ValueError(
                     f"Failed to parse a response from {self.model} output: "  # type: ignore[attr-defined]
-                    f"{chat_generation_content}"
+                    # Keep this commented for privacy in deployed app 20250727 jmd
+                    # f"{chat_generation_content}"
                 )
             return AIMessage(content=response)
 

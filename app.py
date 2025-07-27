@@ -196,7 +196,7 @@ def to_workflow(request: gr.Request, *args):
             yield value
 
 
-@spaces.GPU(duration=120)
+@spaces.GPU(duration=60)
 def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value

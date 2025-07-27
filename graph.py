@@ -223,9 +223,9 @@ def BuildGraph(
         if is_local:
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
-            print_message_summaries(messages, "--- query: before normalization ---")
+            # print_message_summaries(messages, "--- query: before normalization ---")
             messages = normalize_messages(messages)
-            print_message_summaries(messages, "--- query: after normalization ---")
+            # print_message_summaries(messages, "--- query: after normalization ---")
         else:
             messages = [SystemMessage(query_prompt(compute_mode))] + state["messages"]
         response = query_model.invoke(messages)
@@ -236,13 +236,13 @@ def BuildGraph(
         """Generates an answer with the chat model"""
         if is_local:
             messages = state["messages"]
-            print_message_summaries(messages, "--- generate: before normalization ---")
+            # print_message_summaries(messages, "--- generate: before normalization ---")
             messages = normalize_messages(messages)
             # Add the system message here because we're not using tools
             messages = [
                 SystemMessage(generate_prompt(with_tools=False, think=False))
             ] + messages
-            print_message_summaries(messages, "--- generate: after normalization ---")
+            # print_message_summaries(messages, "--- generate: after normalization ---")
         else:
             messages = [SystemMessage(generate_prompt())] + state["messages"]
         response = generate_model.invoke(messages)
