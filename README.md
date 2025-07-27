@@ -59,7 +59,7 @@ Here's a drawing of the graph workflow for one conversational turn:
 
 - Choice of compute modes to balance performance, price, and privacy
     - Remote mode: OpenAI API for embeddings and chat model
-    - Local mode: [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [Gemma 3](google/gemma-3-12b-it) LLM
+    - Local mode: [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [Qwen3-14B](Qwen/Qwen3-14B)
     - <a href="https://huggingface.co/spaces?q=R-help&hardware=zerogpu"><img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"></a> *Local mode runs on ZeroGPU (dynamic GPU resources) in HF Spaces*
 
 ## Command-Line Usage
@@ -130,9 +130,10 @@ Results for queries and reference answers in `eval.csv` with retrieval from 5.5 
 
 | Compute | Workflow | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
-| Remote | Chain | 0.81 | **0.79** | **0.65** |
+| Remote | Chain | 0.81 | 0.79 | **0.65** |
 | Remote | Graph | 0.66 | 0.75 | 0.63 |
-| Local  | Graph | **0.91** | **0.79** | 0.54 |
+| Local ([Gemma3 12B](google/gemma-3-12b-it)) | Graph | **0.91** | 0.79 | 0.54 |
+| Local ([Qwen3 14B](Qwen/Qwen3-14B))  | Graph | 0.78 | **0.83** | 0.59 |
 
 ## Acknowledgments
 

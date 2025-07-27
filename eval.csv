@@ -32,3 +32,8 @@ Luca Brinkmann inquired about setting timezones with as.Date(). The response ind
 Thomas Bulka discussed converting strings to datetime objects and preserving timezone information, mentioning that lubridate::as_datetime() converts to UTC by default. He explored using the tz parameter but noted it required manual timezone specification.
 
 If you need timezone information, the suggested approach is to use POSIXt objects instead of Date objects, which can store timezone information.",2020-January,2025-June,hybrid,graph,local,google/gemma-3-12b-it,2025-07-24
+"When should I use the ifelse() function?","According to the R-help mailing list, the ifelse() function can be used to create new columns based on conditions, as demonstrated in a scenario where 'BUY' is replaced by 1 and 'SELL' by -1 in data frames (jdnewm, 2020-04-08). However, it's important to note that when using ifelse(), the result might sometimes be characters instead of numeric values, requiring conversion (arnaud gaboury, 2023-09-27).
+
+Avi Gross (2021-10-11) described ifelse() as implemented in a way that it creates a vector of the right length, evaluates the condition, calculates TRUE and FALSE vectors, and then copies values accordingly. While this implementation can be efficient, it involves extra work.
+
+Martin Maechler (2024-05-06) notes that while ifelse() can be convenient, it is ""almost always suboptimal"" compared to indexing, which is often more efficient. He suggests that the choice depends on whether overall efficiency or human time is the priority.",2020-January,2025-June,hybrid,graph,local,google/gemma-3-12b-it,2025-07-25

@@ -101,16 +101,17 @@ def run_evals_with_csv(csv_path):
     for question, reference, retrieved_email, answer in zip(
         questions, references, retrieved_emails, answers
     ):
-        retrieved_contexts = [
-            "\n\n\nFrom" + email for email in retrieved_email.split("\n\n\nFrom")
-        ]
         # Remove the source file names (e.g. R-help/2022-September.txt) as it confuses the evaluator
-        retrieved_contexts = [
-            "\n\n\nFrom" + email.split("\n\n\nFrom")[1]
-            for email in retrieved_email.split(
-                "\n\n--- --- --- --- Next Email --- --- --- ---\n\n"
-            )
-        ]
+        retrieved_contexts = (
+            [
+                "\n\n\nFrom" + email.split("\n\n\nFrom")[1]
+                for email in retrieved_email.split(
+                    "\n\n--- --- --- --- Next Email --- --- --- ---\n\n"
+                )
+            ]
+            if retrieved_email != ""
+            else []
+        )
         dataset.append(
             {
                 "user_input": question,
