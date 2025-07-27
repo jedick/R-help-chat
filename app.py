@@ -6,11 +6,13 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from main import openai_model, model_id
 from util import get_sources, get_start_end_months
+import requests
 import zipfile
 import shutil
 import spaces
 import torch
-import boto3
+
+# import boto3
 import uuid
 import ast
 import os
@@ -245,7 +247,7 @@ with gr.Blocks(
         value=("local" if torch.cuda.is_available() else "remote"),
         label="Compute Mode",
         info=(
-            "NOTE: remote mode is available even if you have exceeded your ZeroGPU quota"
+            "NOTE: remote mode **does not** use ZeroGPU"
             if torch.cuda.is_available()
             else "NOTE: local mode requires GPU"
         ),
@@ -359,7 +361,7 @@ with gr.Blocks(
         if compute_mode == "local":
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
-            ⌛ Response time is around 1 minute<br>
+            ⌛ Response time is about 1 minute<br>
             ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -549,7 +551,8 @@ with gr.Blocks(
     def download():
         """Download the application data"""
 
-        # Code from https://thecodinginterface.com/blog/aws-s3-python-boto3
+        # NOTUSED: Code for file download from AWS S3 bucket
+        # https://thecodinginterface.com/blog/aws-s3-python-boto3
 
         def aws_session(region_name="us-east-1"):
             return boto3.session.Session(
@@ -564,9 +567,36 @@ with gr.Blocks(
             bucket = s3_resource.Bucket(bucket_name)
             bucket.download_file(Key=s3_key, Filename=dst_path)
 
+        def download_dropbox_file(shared_url, output_file):
+            """Download file from Dropbox"""
+
+            # Modify the shared URL to enable direct download
+            direct_url = shared_url.replace(
+                "www.dropbox.com", "dl.dropboxusercontent.com"
+            ).replace("?dl=0", "")
+
+            # Send a GET request to the direct URL
+            response = requests.get(direct_url, stream=True)
+
+            if response.status_code == 200:
+                # Write the content to a local file
+                with open(output_file, "wb") as file:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        file.write(chunk)
+                print(f"File downloaded successfully as '{output_file}'")
+            else:
+                print(
+                    f"Failed to download file. HTTP Status Code: {response.status_code}"
+                )
+
         if not os.path.isdir(db_dir):
             if not os.path.exists("db.zip"):
-                download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
+                ## For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
+                # download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
+                # For Dropbox (shared file - key is in URL)
+                shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
+                output_filename = "db.zip"
+                download_dropbox_file(shared_link, output_filename)
 
         return None
 

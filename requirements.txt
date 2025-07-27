@@ -11,7 +11,7 @@ torch==2.5.1
 # Stated requirements:
 #   SmolLM3: transformers>=4.53
 #   Gemma 3: transformers>=4.50
-# Gemma 3 with transformers==4.54.0 gives:
+# NOTE: Gemma 3 with transformers==4.54.0 gives:
 #   ValueError: Max cache length is not consistent across layers
 transformers==4.51.3
 # Commented because we have local modifications
@@ -24,7 +24,8 @@ posthog==5.4.0
 # Gradio for the web interface
 gradio==5.38.2
 spaces==0.37.1
-# For downloading data
-boto3==1.39.14
+# For downloading data from S3
+# Commented because we're using Dropbox
+#boto3==1.39.14
 # Others
 python-dotenv
