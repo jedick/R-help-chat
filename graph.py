@@ -9,7 +9,7 @@ import os
 
 # Local modules
 from retriever import BuildRetriever
-from prompts import query_prompt, generate_prompt, gemma_tools_template
+from prompts import query_prompt, generate_prompt, generic_tools_template
 from mods.tool_calling_llm import ToolCallingLLM
 
 # Local modules
@@ -81,7 +81,7 @@ def ToolifyHF(chat_model, system_message, system_message_suffix="", think=False)
     #    system_message = "/no_think\n" + system_message
 
     # Combine system prompt and tools template
-    tool_system_prompt_template = system_message + gemma_tools_template
+    tool_system_prompt_template = system_message + generic_tools_template
 
     class HuggingFaceWithTools(ToolCallingLLM, ChatHuggingFace):
 

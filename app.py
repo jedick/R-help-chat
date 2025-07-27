@@ -42,7 +42,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
     if compute_mode == "local":
         if not torch.cuda.is_available():
             raise gr.Error(
-                "Local mode requires GPU. Please select remote mode.",
+                "Local mode requires GPU.",
                 print_exception=False,
             )
 
@@ -196,7 +196,7 @@ def to_workflow(request: gr.Request, *args):
             yield value
 
 
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=100)
 def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
@@ -244,7 +244,11 @@ with gr.Blocks(
         ],
         value=("local" if torch.cuda.is_available() else "remote"),
         label="Compute Mode",
-        info=(None if torch.cuda.is_available() else "NOTE: local mode requires GPU"),
+        info=(
+            "NOTE: remote mode is available even if you have exceeded your ZeroGPU quota"
+            if torch.cuda.is_available()
+            else "NOTE: local mode requires GPU"
+        ),
         render=False,
     )
 
@@ -355,8 +359,8 @@ with gr.Blocks(
         if compute_mode == "local":
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
-            ⌛ Response time is around 2 minutes<br>
-            ✨ [Nomic](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) embeddings and [{model_id}](https://huggingface.co/{model_id})<br>
+            ⌛ Response time is around 1 minute<br>
+            ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return status_text

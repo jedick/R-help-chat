@@ -40,7 +40,8 @@ openai_model = "gpt-4o-mini"
 model_id = os.getenv("MODEL_ID")
 if model_id is None:
     # model_id = "HuggingFaceTB/SmolLM3-3B"
-    model_id = "google/gemma-3-12b-it"
+    # model_id = "google/gemma-3-12b-it"
+    model_id = "Qwen/Qwen3-14B"
 
 # Suppress these messages:
 # INFO:httpx:HTTP Request: POST https://api.openai.com/v1/embeddings "HTTP/1.1 200 OK"

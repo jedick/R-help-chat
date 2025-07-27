@@ -84,9 +84,9 @@ You must always select one of the above tools and respond with only a JSON objec
 
 """
 
-# Prompt template for Gemma 3 with tools
+# Prompt template for Gemma/Qwen with tools
 # Based on https://ai.google.dev/gemma/docs/capabilities/function-calling
-gemma_tools_template = """
+generic_tools_template = """
 
 ### Functions
 
