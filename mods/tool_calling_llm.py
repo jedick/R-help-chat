@@ -49,51 +49,6 @@ You must always select one of the above tools and respond with only a JSON objec
 """  # noqa: E501
 
 
-def _is_pydantic_class(obj: Any) -> bool:
-    """
-    Checks if the tool provided is a Pydantic class.
-    """
-    return isinstance(obj, type) and (
-        issubclass(obj, BaseModel) or BaseModel in obj.__bases__
-    )
-
-
-def _is_pydantic_object(obj: Any) -> bool:
-    """
-    Checks if the tool provided is a Pydantic object.
-    """
-    return isinstance(obj, BaseModel)
-
-
-def RawJSONDecoder(index):
-    class _RawJSONDecoder(json.JSONDecoder):
-        end = None
-
-        def decode(self, s, *_):
-            data, self.__class__.end = self.raw_decode(s, index)
-            return data
-
-    return _RawJSONDecoder
-
-
-def extract_json(s, index=0):
-    while (index := s.find("{", index)) != -1:
-        try:
-            yield json.loads(s, cls=(decoder := RawJSONDecoder(index)))
-            index = decoder.end
-        except json.JSONDecodeError:
-            index += 1
-
-
-def parse_json_garbage(s: str) -> Any:
-    # Find the first occurrence of a JSON opening brace or bracket
-    candidates = list(extract_json(s))
-    if len(candidates) >= 1:
-        return candidates[0]
-
-    raise ValueError("Not a valid JSON string")
-
-
 def extract_think(content):
     # Added by Cursor 20250726 jmd
     # Extract content within <think>...</think>
@@ -162,7 +117,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
 
     Tool calling:
       ```
-      from langchain_core.pydantic_v1 import BaseModel, Field
+      from pydantic import BaseModel, Field
 
       class GetWeather(BaseModel):
           '''Get the current weather in a given location'''
@@ -188,77 +143,24 @@ class ToolCallingLLM(BaseChatModel, ABC):
     """  # noqa: E501
 
     tool_system_prompt_template: str = DEFAULT_SYSTEM_TEMPLATE
-    # Suffix to add to the system prompt that is not templated 20250717 jmd
-    system_message_suffix: str = ""
-
-    override_bind_tools: bool = True
 
     def __init__(self, **kwargs: Any) -> None:
-        override_bind_tools = True
-        if "override_bind_tools" in kwargs:
-            override_bind_tools = kwargs["override_bind_tools"]
-            del kwargs["override_bind_tools"]
         super().__init__(**kwargs)
-        self.override_bind_tools = override_bind_tools
-
-    def bind_tools(
-        self,
-        tools: Sequence[Union[Dict[str, Any], Type[BaseModel], Callable, BaseTool]],
-        **kwargs: Any,
-    ) -> Runnable[LanguageModelInput, BaseMessage]:
-        if self.override_bind_tools:
-            return self.bind(functions=tools, **kwargs)
-        else:
-            return super().bind_tools(tools, **kwargs)
 
     def _generate_system_message_and_functions(
         self,
         kwargs: Dict[str, Any],
     ) -> Tuple[BaseMessage, List]:
-        functions = kwargs.get("tools", kwargs.get("functions", []))
-        functions = [
-            (
-                fn["function"]
-                if (
-                    not _is_pydantic_class(fn)
-                    and not _is_pydantic_object(fn)
-                    and "name" not in fn.keys()
-                    and "function" in fn.keys()
-                    and "name" in fn["function"].keys()
-                )
-                else fn
-            )
-            for fn in functions
-        ]
+        functions = kwargs.get("tools", [])
 
-        # langchain_openai/chat_models/base.py:
-        # NOTE: Using bind_tools is recommended instead, as the `functions` and
-        # `function_call` request parameters are officially marked as
-        # deprecated by OpenAI.
-
-        # if "functions" in kwargs:
-        #    del kwargs["functions"]
-        # if "function_call" in kwargs:
-        #    functions = [
-        #        fn for fn in functions if fn["name"] == kwargs["function_call"]["name"]
-        #    ]
-        #    if not functions:
-        #        raise ValueError(
-        #            "If `function_call` is specified, you must also pass a "
-        #            "matching function in `functions`."
-        #        )
-        #    del kwargs["function_call"]
-
+        # Convert functions to OpenAI tool schema
         functions = [convert_to_openai_tool(fn) for fn in functions]
+        # Create system message with tool descriptions
         system_message_prompt_template = SystemMessagePromptTemplate.from_template(
             self.tool_system_prompt_template
         )
         system_message = system_message_prompt_template.format(
             tools=json.dumps(functions, indent=2)
-        )
-        # Add extra context after the formatted system message 20250717 jmd
-        system_message = SystemMessage(
-            system_message.content + self.system_message_suffix
         )
         return system_message, functions
 
@@ -275,16 +177,8 @@ class ToolCallingLLM(BaseChatModel, ABC):
         try:
             parsed_json_result = json.loads(post_think)
         except json.JSONDecodeError:
-            try:
-                print("parse_json_garbage for content:")
-                print(post_think)
-                parsed_json_result = parse_json_garbage(post_think)
-            except Exception:
-                # Return entire response if JSON is missing or wasn't parsed
-                return AIMessage(content=response_message.content)
-
-        print("parsed_json_result")
-        print(parsed_json_result)
+            # Return entire response if JSON wasn't parsed (or is missing)
+            return AIMessage(content=response_message.content)
 
         # Get tool name from output
         called_tool_name = (
@@ -299,7 +193,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
         )
         if called_tool is None:
             # Issue a warning and return the generated content 20250727 jmd
-            warnings.warn(f"Called tool ({called_tool}) not in functions list")
+            warnings.warn(f"Called tool ({called_tool_name}) not in functions list")
             return AIMessage(content=response_message.content)
 
         # Get tool arguments from output
@@ -314,7 +208,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
         )
 
         # Put together response message
-        response_message_with_functions = AIMessage(
+        response_message = AIMessage(
             content=f"<think>\n{think_text}\n</think>",
             tool_calls=[
                 ToolCall(
@@ -325,7 +219,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
             ],
         )
 
-        return response_message_with_functions
+        return response_message
 
     def _generate(
         self,

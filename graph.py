@@ -71,7 +71,7 @@ def normalize_messages(messages):
     return messages
 
 
-def ToolifyHF(chat_model, system_message, system_message_suffix=""):
+def ToolifyHF(chat_model, system_message):
     """
     Get a Hugging Face model ready for bind_tools().
     """
@@ -86,8 +86,6 @@ def ToolifyHF(chat_model, system_message, system_message_suffix=""):
     chat_model = HuggingFaceWithTools(
         llm=chat_model.llm,
         tool_system_prompt_template=tool_system_prompt_template,
-        # Suffix is for any additional context (not templated)
-        system_message_suffix=system_message_suffix,
     )
 
     return chat_model
@@ -195,7 +193,7 @@ def BuildGraph(
     if is_local:
         # For local models (ChatHuggingFace with SmolLM, Gemma, or Qwen)
         query_model = ToolifyHF(
-            chat_model, query_prompt(chat_model, think=think_query), ""
+            chat_model, query_prompt(chat_model, think=think_query)
         ).bind_tools([retrieve_emails])
         # Don't use answer_with_citations tool because responses with are sometimes unparseable
         generate_model = chat_model

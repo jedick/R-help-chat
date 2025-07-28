@@ -382,7 +382,8 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is about one minute<br>
-            🧠 Thinking is enabled for query; add **/think** to enable thinking for answer</br>
+            🧠 Add **/think** to enable thinking for answer</br>
+            &emsp;&nbsp; 🔍 Thinking is always enabled for query<br>
             ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -401,7 +402,7 @@ with gr.Blocks(
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
             **Features:** RAG, today's date, hybrid search (dense+sparse), thinking output (local),
-            multiple retrievals per turn (remote), answer with citations (remote), chat memory.
+            multiple retrievals (remote), citations output (remote), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
@@ -453,7 +454,7 @@ with gr.Blocks(
                 )
                 multi_turn_questions = [
                     "Lookup emails that reference bugs.r-project.org in 2025",
-                    "Did those authors report bugs before 2025?",
+                    "Did those authors report bugs before 2025? /think",
                 ]
                 gr.Examples(
                     examples=[[q] for q in multi_turn_questions],
