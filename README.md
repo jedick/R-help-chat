@@ -130,15 +130,16 @@ Results for queries and reference answers in `eval.csv` with retrieval from 5.5 
 
 | Compute | Workflow | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|
-| Remote | Chain | 0.81 | 0.79 | **0.65** |
-| Remote | Graph | 0.66 | 0.75 | 0.63 |
-| Local ([Gemma 3 12B](google/gemma-3-12b-it)) | Graph | **0.91** | 0.79 | 0.54 |
-| Local ([Qwen3 14B](Qwen/Qwen3-14B))  | Graph | 0.78 | **0.83** | 0.59 |
+| Remote - OpenAI API | Chain | 0.81 | 0.79 | **0.65** |
+| Remote - OpenAI API | Graph | 0.66 | 0.75 | 0.63 |
+| Local - [Gemma 3 12B](google/gemma-3-12b-it) | Graph | **0.91** | 0.79 | 0.54 |
+| Local - [Qwen3 14B](Qwen/Qwen3-14B) | Graph | 0.78 | **0.83** | 0.59 |
 
 ## Acknowledgments
 
 Key features of this project wouldn't be possible without the codes adapted from other projects (see `mods` directory). Thank you!
 
-- The retriever class for BM25S (with persistence!) is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
+- The retriever class to use BM25S with persistence is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
 - Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) adds LangChain-compatible tooling to local Hugging Face models
-- LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) was modified to create subdirectories to reduce per-directory file counts.
+  - Modified here to handle LLM responses with `<think></think>` blocks
+- LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) was modified to use subdirectories for lower per-directory file counts.

@@ -6,6 +6,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from dotenv import load_dotenv
 from main import openai_model, model_id
 from util import get_sources, get_start_end_months
+from mods.tool_calling_llm import extract_think
 import requests
 import zipfile
 import shutil
@@ -16,6 +17,8 @@ import torch
 import uuid
 import ast
 import os
+import re
+
 
 # Setup environment variables
 load_dotenv(dotenv_path=".env", override=True)
@@ -71,7 +74,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         graph_instances[compute_mode][session_hash] = graph
         print(f"Set {compute_mode} graph for session {session_hash}")
         # Notify when model finishes loading
-        gr.Success(f"{compute_mode}", duration=4, title=f"Model loaded")
+        gr.Success(f"{compute_mode}", duration=4, title=f"Model loaded!")
 
     print(f"Using thread_id: {thread_id}")
 
@@ -94,6 +97,17 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         if node == "query":
             # Get the message (AIMessage class in LangChain)
             chunk_messages = chunk["messages"]
+            # Display non-tool-call content
+            if chunk_messages.content:
+                content = chunk_messages.content
+                metadata = None
+                # Show thinking content in "metadata" message
+                if content.startswith("<think>"):
+                    content, _ = extract_think(content)
+                    metadata = {"title": f"🧠 Thinking about query"}
+                history.append(
+                    gr.ChatMessage(role="assistant", content=content, metadata=metadata)
+                )
             # Look for tool calls
             if chunk_messages.tool_calls:
                 # Loop over tool calls
@@ -114,11 +128,6 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
                             metadata={"title": f"🔍 Running tool {tool_call['name']}"},
                         )
                     )
-            if chunk_messages.content:
-                # Display response made instead of or in addition to a tool call
-                history.append(
-                    gr.ChatMessage(role="assistant", content=chunk_messages.content)
-                )
             yield history, [], []
 
         if node == "retrieve_emails":
@@ -165,9 +174,18 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
             chunk_messages = chunk["messages"]
             # Chat response without citations
             if chunk_messages.content:
-                history.append(
-                    gr.ChatMessage(role="assistant", content=chunk_messages.content)
-                )
+                content = chunk_messages.content
+                # Show thinking content in "metadata" message
+                think_text, content = extract_think(content)
+                if think_text:
+                    history.append(
+                        gr.ChatMessage(
+                            role="assistant",
+                            content=think_text,
+                            metadata={"title": f"🧠 Thinking about answer"},
+                        )
+                    )
+                history.append(gr.ChatMessage(role="assistant", content=content))
             # None is used for no change to the retrieved emails textbox
             yield history, None, []
 
@@ -267,7 +285,7 @@ with gr.Blocks(
         render=False,
     )
     data_error = gr.Textbox(
-        value="App is unavailable because data could not be loaded. Try reloading the page, then contact the maintainer if the problem persists.",
+        value="Email database is missing. Try reloading the page, then contact the maintainer if the problem persists.",
         lines=1,
         label="Error downloading or extracting data",
         visible=False,
@@ -343,7 +361,7 @@ with gr.Blocks(
             ## 🇷🤝💬 R-help-chat
             
             **Chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
-            An LLM turns your question into a search query, including year ranges, and generates an answer from the retrieved emails.
+            An LLM turns your question into a search query, including year ranges and months, and generates an answer from the retrieved emails.
             You can ask follow-up questions with the chat history as context.
             ➡️ To clear the history and start a new chat, press the 🗑️ clear button.
             **_Answers may be incorrect._**
@@ -361,7 +379,8 @@ with gr.Blocks(
         if compute_mode == "local":
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
-            ⌛ Response time is about 1 minute<br>
+            ⌛ Response time is about one minute<br>
+            🧠 Thinking is enabled for query; add **/think** to enable thinking for answer</br>
             ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -379,8 +398,8 @@ with gr.Blocks(
             end = None
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
-            **Features:** RAG, today's date, hybrid search (dense+sparse), query analysis,
-            multiple retrievals per turn (remote mode), answer with citations (remote mode), chat memory.
+            **Features:** RAG, today's date, hybrid search (dense+sparse), thinking display (local),
+            multiple retrievals per turn (remote), answer with citations (remote), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
@@ -410,7 +429,7 @@ with gr.Blocks(
                 example_questions = [
                     # "What is today's date?",
                     "Summarize emails from the last two months",
-                    "How to use plotmath?",
+                    "Advice on using plotmath /think",
                     "When was has.HLC mentioned?",
                     "Who reported installation problems in 2023-2024?",
                 ]

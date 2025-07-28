@@ -1,6 +1,7 @@
 import re
 import json
 import uuid
+import warnings
 from abc import ABC
 from shutil import Error
 from typing import (
@@ -143,6 +144,19 @@ def parse_response(message: BaseMessage) -> str:
         else:
             raise ValueError("`tool_calls` missing from AIMessage: {message}")
     raise ValueError(f"`message` is not an instance of `AIMessage`: {message}")
+
+
+def extract_think(content):
+    # Added by Cursor 20250726 jmd
+    # Extract content within <think>...</think>
+    think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+    think_text = think_match.group(1).strip() if think_match else ""
+    # Extract text after </think>
+    if think_match:
+        post_think = content[think_match.end() :].lstrip()
+    else:
+        post_think = content
+    return think_text, post_think
 
 
 class ToolCallingLLM(BaseChatModel, ABC):
@@ -314,20 +328,8 @@ class ToolCallingLLM(BaseChatModel, ABC):
         if not isinstance(chat_generation_content, str):
             raise ValueError("ToolCallingLLM does not support non-string output.")
 
-        # Added by Cursor 20250726 jmd
-        # Extract <think>...</think> content and write to think.txt
-        think_match = re.search(
-            r"<think>(.*?)</think>", chat_generation_content, re.DOTALL
-        )
-        think_text = think_match.group(1).strip() if think_match else ""
-        with open("think.txt", "w", encoding="utf-8") as f:
-            f.write(think_text)
-        # Only use text after </think> for further processing
-        if think_match:
-            post_think = chat_generation_content[think_match.end() :].lstrip()
-        else:
-            post_think = chat_generation_content
-        chat_generation_content = post_think
+        # Extract <think>...</think> content and text after </think> for further processing 20250726 jmd
+        think_text, chat_generation_content = extract_think(chat_generation_content)
 
         try:
             parsed_chat_result = json.loads(chat_generation_content)
@@ -335,7 +337,11 @@ class ToolCallingLLM(BaseChatModel, ABC):
             try:
                 parsed_chat_result = parse_json_garbage(chat_generation_content)
             except Exception:
+                warnings.warn(f"Failed to parse JSON from {self.model} output")
                 return AIMessage(content=chat_generation_content)
+
+        print("parsed_chat_result")
+        print(parsed_chat_result)
 
         called_tool_name = (
             parsed_chat_result["tool"]
@@ -365,11 +371,14 @@ class ToolCallingLLM(BaseChatModel, ABC):
             elif "response" in parsed_chat_result:
                 response = parsed_chat_result["response"]
             else:
-                raise ValueError(
-                    f"Failed to parse a response from {self.model} output: "  # type: ignore[attr-defined]
-                    # Keep this commented for privacy in deployed app 20250727 jmd
-                    # f"{chat_generation_content}"
-                )
+                # raise ValueError(
+                #    f"Failed to parse a response from {self.model} output: "  # type: ignore[attr-defined]
+                #    # Keep this commented for privacy in deployed app 20250727 jmd
+                #    # f"{chat_generation_content}"
+                # )
+                # Change to warning and return the generated content 20250727 jmd
+                warnings.warn(f"Failed to parse a response from {self.model} output")
+                response = chat_generation_content
             return AIMessage(content=response)
 
         called_tool_arguments = (
@@ -383,7 +392,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
         )
 
         response_message_with_functions = AIMessage(
-            content="",
+            content=f"<think>\n{think_text}\n</think>",
             tool_calls=[
                 ToolCall(
                     name=called_tool_name,
