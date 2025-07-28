@@ -43,8 +43,12 @@ DEFAULT_SYSTEM_TEMPLATE = """You have access to the following tools:
 You must always select one of the above tools and respond with only a JSON object matching the following schema:
 
 {{
-  "tool": <name of the selected tool>,
-  "tool_input": <parameters for the selected tool, matching the tool's JSON schema>
+  "tool": <name of selected tool 1>,
+  "tool_input": <parameters for selected tool 1, matching the tool's JSON schema>
+}},
+{{
+  "tool": <name of selected tool 2>,
+  "tool_input": <parameters for selected tool 2, matching the tool's JSON schema>
 }}
 """  # noqa: E501
 
@@ -173,52 +177,62 @@ class ToolCallingLLM(BaseChatModel, ABC):
         # Extract <think>...</think> content and text after </think> for further processing 20250726 jmd
         think_text, post_think = extract_think(response_message.content)
 
-        # Parse output for JSON
+        # Parse output for JSON (support multiple objects separated by commas)
         try:
-            parsed_json_result = json.loads(post_think)
+            parsed_json_results = json.loads(f"[{post_think}]")
         except json.JSONDecodeError:
             # Return entire response if JSON wasn't parsed (or is missing)
             return AIMessage(content=response_message.content)
 
-        # Get tool name from output
-        called_tool_name = (
-            parsed_json_result["tool"]
-            if "tool" in parsed_json_result
-            else parsed_json_result["name"] if "name" in parsed_json_result else None
-        )
-
-        # Check if tool name is in functions list
-        called_tool = next(
-            (fn for fn in functions if fn["function"]["name"] == called_tool_name), None
-        )
-        if called_tool is None:
-            # Issue a warning and return the generated content 20250727 jmd
-            warnings.warn(f"Called tool ({called_tool_name}) not in functions list")
-            return AIMessage(content=response_message.content)
-
-        # Get tool arguments from output
-        called_tool_arguments = (
-            parsed_json_result["tool_input"]
-            if "tool_input" in parsed_json_result
-            else (
-                parsed_json_result["parameters"]
-                if "parameters" in parsed_json_result
-                else {}
+        tool_calls = []
+        for parsed_json_result in parsed_json_results:
+            # Get tool name from output
+            called_tool_name = (
+                parsed_json_result["tool"]
+                if "tool" in parsed_json_result
+                else (
+                    parsed_json_result["name"] if "name" in parsed_json_result else None
+                )
             )
-        )
 
-        # Put together response message
-        response_message = AIMessage(
-            content=f"<think>\n{think_text}\n</think>",
-            tool_calls=[
+            # Check if tool name is in functions list
+            called_tool = next(
+                (fn for fn in functions if fn["function"]["name"] == called_tool_name),
+                None,
+            )
+            if called_tool is None:
+                # Issue a warning and skip this tool call
+                warnings.warn(f"Called tool ({called_tool_name}) not in functions list")
+                continue
+
+            # Get tool arguments from output
+            called_tool_arguments = (
+                parsed_json_result["tool_input"]
+                if "tool_input" in parsed_json_result
+                else (
+                    parsed_json_result["parameters"]
+                    if "parameters" in parsed_json_result
+                    else {}
+                )
+            )
+
+            tool_calls.append(
                 ToolCall(
                     name=called_tool_name,
                     args=called_tool_arguments,
                     id=f"call_{str(uuid.uuid4()).replace('-', '')}",
                 )
-            ],
-        )
+            )
 
+        if not tool_calls:
+            # If nothing valid, return original content
+            return AIMessage(content=response_message.content)
+
+        # Put together response message
+        response_message = AIMessage(
+            content=f"<think>\n{think_text}\n</think>",
+            tool_calls=tool_calls,
+        )
         return response_message
 
     def _generate(

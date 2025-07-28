@@ -218,7 +218,7 @@ def to_workflow(request: gr.Request, *args):
             yield value
 
 
-@spaces.GPU(duration=100)
+@spaces.GPU(duration=60)
 def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
@@ -383,7 +383,7 @@ with gr.Blocks(
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is about one minute<br>
             🧠 Add **/think** to enable thinking for answer</br>
-            &emsp;&nbsp; 🔍 Thinking is always enabled for query<br>
+            &emsp;&nbsp; 🔍 Thinking is already enabled for query<br>
             ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -401,8 +401,8 @@ with gr.Blocks(
             end = None
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
-            **Features:** RAG, today's date, hybrid search (dense+sparse), thinking output (local),
-            multiple retrievals (remote), citations output (remote), chat memory.
+            **Features:** RAG, today's date, hybrid search (dense+sparse), multiple retrievals,
+            thinking output (local), citations output (remote), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
@@ -443,18 +443,18 @@ with gr.Blocks(
                     elem_id="example-questions",
                 )
                 multi_tool_questions = [
-                    "Differences between lapply and for loops",
+                    "Differences between lapply and for loops /think",
                     "Compare usage of pipe operator between 2022 and 2024",
                 ]
                 gr.Examples(
                     examples=[[q] for q in multi_tool_questions],
                     inputs=[input],
-                    label="Multiple retrievals (remote mode)",
+                    label="Multiple retrievals",
                     elem_id="example-questions",
                 )
                 multi_turn_questions = [
                     "Lookup emails that reference bugs.r-project.org in 2025",
-                    "Did those authors report bugs before 2025? /think",
+                    "Did those authors report bugs before 2025?",
                 ]
                 gr.Examples(
                     examples=[[q] for q in multi_turn_questions],

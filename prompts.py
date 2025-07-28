@@ -31,7 +31,7 @@ def query_prompt(chat_model, think=False):
         "Do not answer the user's question and do not ask the user for more information. "
         # gpt-4o-mini thinks last two months aren't available with this: "Emails from from {start} to {end} are available for retrieval. "
         f"The emails available for retrieval are from {start} to {end}. "
-        "For questions about differences or comparison between X and Y, retrieve emails about X and Y. "
+        "For questions about differences or comparison between X and Y, retrieve emails about X and Y using separate tool calls. "
         "For general summaries, use retrieve_emails(search_query='R'). "
         "For specific questions, use retrieve_emails(search_query=<specific topic>). "
         "For questions about years, use retrieve_emails(search_query=, start_year=, end_year=) (this month is this year). "
@@ -60,7 +60,8 @@ def generate_prompt(chat_model, think=False, with_tools=False):
         "Summarize the content of the emails rather than copying the headers. "  # Qwen
         "You must include inline citations (email senders and dates) in each part of your response. "
         "Only answer general questions about R if the answer is in the retrieved emails. "
-        "Respond with 300 words maximum and 30 lines of code maximum and include any relevant URLs from the retrieved emails. "
+        "Your response can include URLs, but make sure they are quoted verbatim from the retrieved emails. "  # Qwen
+        "Respond with 300 words maximum and 30 lines of code maximum. "
     )
     if with_tools:
         prompt = (
@@ -90,6 +91,10 @@ You must always select one of the above tools and respond with only a JSON objec
 {{
     "tool": <function-name>,
     "tool_input": <args-json-object>
+}},
+{{
+    "tool": <function-name>,
+    "tool_input": <args-json-object>
 }}
 
 """
@@ -102,6 +107,10 @@ generic_tools_template = """
 
 You have access to functions. If you decide to invoke any of the function(s), you MUST put it in the format of
 
+{{
+    "tool": <function-name>,
+    "tool_input": <args-json-object>
+}},
 {{
     "tool": <function-name>,
     "tool_input": <args-json-object>
