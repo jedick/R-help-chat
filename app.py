@@ -40,6 +40,27 @@ def cleanup_graph(request: gr.Request):
         print(f"Deleted remote graph for session {request.session_hash}")
 
 
+def append_content(chunk_messages, history, thinking_about):
+    """Append thinking and non-thinking content to chatbot history"""
+    if chunk_messages.content:
+        think_text, post_think = extract_think(chunk_messages.content)
+        # Show thinking content in "metadata" message
+        if think_text:
+            history.append(
+                gr.ChatMessage(
+                    role="assistant",
+                    content=think_text,
+                    metadata={"title": f"🧠 Thinking about {thinking_about}"},
+                )
+            )
+            if not post_think and not chunk_messages.tool_calls:
+                gr.Warning("Response may be incomplete", title="Thinking-only response")
+        # Display non-thinking content
+        if post_think:
+            history.append(gr.ChatMessage(role="assistant", content=post_think))
+    return history
+
+
 def run_workflow(input, history, compute_mode, thread_id, session_hash):
     """The main function to run the chat workflow"""
 
@@ -97,17 +118,8 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         if node == "query":
             # Get the message (AIMessage class in LangChain)
             chunk_messages = chunk["messages"]
-            # Display non-tool-call content
-            if chunk_messages.content:
-                content = chunk_messages.content
-                metadata = None
-                # Show thinking content in "metadata" message
-                if content.startswith("<think>"):
-                    content, _ = extract_think(content)
-                    metadata = {"title": f"🧠 Thinking about query"}
-                history.append(
-                    gr.ChatMessage(role="assistant", content=content, metadata=metadata)
-                )
+            # Append thinking and non-thinking messages (if present)
+            history = append_content(chunk_messages, history, thinking_about="query")
             # Look for tool calls
             if chunk_messages.tool_calls:
                 # Loop over tool calls
@@ -171,27 +183,15 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
             yield history, retrieved_emails, []
 
         if node == "generate":
+            # Append messages (thinking and non-thinking) to history
             chunk_messages = chunk["messages"]
-            # Chat response without citations
-            if chunk_messages.content:
-                content = chunk_messages.content
-                # Show thinking content in "metadata" message
-                think_text, content = extract_think(content)
-                if think_text:
-                    history.append(
-                        gr.ChatMessage(
-                            role="assistant",
-                            content=think_text,
-                            metadata={"title": f"🧠 Thinking about answer"},
-                        )
-                    )
-                history.append(gr.ChatMessage(role="assistant", content=content))
+            history = append_content(chunk_messages, history, thinking_about="answer")
             # None is used for no change to the retrieved emails textbox
             yield history, None, []
 
         if node == "answer_with_citations":
-            chunk_messages = chunk["messages"][0]
             # Parse the message for the answer and citations
+            chunk_messages = chunk["messages"][0]
             try:
                 answer, citations = ast.literal_eval(chunk_messages.content)
             except:

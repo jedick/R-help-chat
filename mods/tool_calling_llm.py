@@ -3,7 +3,6 @@ import json
 import uuid
 import warnings
 from abc import ABC
-from shutil import Error
 from typing import (
     Any,
     AsyncIterator,
@@ -14,8 +13,6 @@ from typing import (
     Sequence,
     Tuple,
     Type,
-    TypedDict,
-    TypeVar,
     Union,
     cast,
 )
@@ -51,29 +48,6 @@ You must always select one of the above tools and respond with only a JSON objec
 }}
 """  # noqa: E501
 
-DEFAULT_RESPONSE_FUNCTION = {
-    "type": "function",
-    "function": {
-        "name": "__conversational_response",
-        "description": (
-            "Respond conversationally if no other tools should be called for a given query."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "response": {
-                    "type": "string",
-                    "description": "Conversational response to the user.",
-                },
-            },
-            "required": ["response"],
-        },
-    },
-}
-
-_BM = TypeVar("_BM", bound=BaseModel)
-_DictOrPydantic = Union[Dict, _BM]
-
 
 def _is_pydantic_class(obj: Any) -> bool:
     """
@@ -89,12 +63,6 @@ def _is_pydantic_object(obj: Any) -> bool:
     Checks if the tool provided is a Pydantic object.
     """
     return isinstance(obj, BaseModel)
-
-
-class _AllReturnType(TypedDict):
-    raw: BaseMessage
-    parsed: Optional[_DictOrPydantic]
-    parsing_error: Optional[BaseException]
 
 
 def RawJSONDecoder(index):
@@ -126,26 +94,6 @@ def parse_json_garbage(s: str) -> Any:
     raise ValueError("Not a valid JSON string")
 
 
-def parse_response(message: BaseMessage) -> str:
-    """Extract `function_call` from `AIMessage`."""
-    if isinstance(message, AIMessage):
-        kwargs = message.additional_kwargs
-        tool_calls = message.tool_calls
-        if len(tool_calls) > 0:
-            tool_call = tool_calls[-1]
-            args = tool_call.get("args")
-            return json.dumps(args)
-        elif "function_call" in kwargs:
-            if "arguments" in kwargs["function_call"]:
-                return kwargs["function_call"]["arguments"]
-            raise ValueError(
-                f"`arguments` missing from `function_call` within AIMessage: {message}"
-            )
-        else:
-            raise ValueError("`tool_calls` missing from AIMessage: {message}")
-    raise ValueError(f"`message` is not an instance of `AIMessage`: {message}")
-
-
 def extract_think(content):
     # Added by Cursor 20250726 jmd
     # Extract content within <think>...</think>
@@ -155,7 +103,15 @@ def extract_think(content):
     if think_match:
         post_think = content[think_match.end() :].lstrip()
     else:
-        post_think = content
+        # Check if content starts with <think> but missing closing tag
+        if content.strip().startswith("<think>"):
+            # Extract everything after <think>
+            think_start = content.find("<think>") + len("<think>")
+            think_text = content[think_start:].strip()
+            post_think = ""
+        else:
+            # No <think> found, so return entire content as post_think
+            post_think = content
     return think_text, post_think
 
 
@@ -226,27 +182,6 @@ class ToolCallingLLM(BaseChatModel, ABC):
       [{'name': 'GetWeather', 'args': {'location': 'Austin, TX'}, 'id': 'call_25ed526917b94d8fa5db3fe30a8cf3c0'}]
       ```
 
-    Structured output:
-      ```
-      from typing import Optional
-
-      from langchain_core.pydantic_v1 import BaseModel, Field
-
-      class Joke(BaseModel):
-          '''Joke to tell user.'''
-
-          setup: str = Field(description="The setup of the joke")
-          punchline: str = Field(description="The punchline to the joke")
-          rating: Optional[int] = Field(description="How funny the joke is, from 1 to 10")
-
-      structured_llm = llm.with_structured_output(Joke)
-      structured_llm.invoke("Tell me a joke about cats")
-      ```
-      ```
-      Joke(setup='Why was the cat sitting on the computer?', punchline='Because it wanted to be online!', rating=7)
-      ```
-      See `ToolCallingLLM.with_structured_output()` for more.
-
     Response metadata
       Refer to the documentation of the Chat Model you wish to extend with Tool Calling.
 
@@ -295,20 +230,26 @@ class ToolCallingLLM(BaseChatModel, ABC):
             )
             for fn in functions
         ]
-        if "functions" in kwargs:
-            del kwargs["functions"]
-        if "function_call" in kwargs:
-            functions = [
-                fn for fn in functions if fn["name"] == kwargs["function_call"]["name"]
-            ]
-            if not functions:
-                raise ValueError(
-                    "If `function_call` is specified, you must also pass a "
-                    "matching function in `functions`."
-                )
-            del kwargs["function_call"]
+
+        # langchain_openai/chat_models/base.py:
+        # NOTE: Using bind_tools is recommended instead, as the `functions` and
+        # `function_call` request parameters are officially marked as
+        # deprecated by OpenAI.
+
+        # if "functions" in kwargs:
+        #    del kwargs["functions"]
+        # if "function_call" in kwargs:
+        #    functions = [
+        #        fn for fn in functions if fn["name"] == kwargs["function_call"]["name"]
+        #    ]
+        #    if not functions:
+        #        raise ValueError(
+        #            "If `function_call` is specified, you must also pass a "
+        #            "matching function in `functions`."
+        #        )
+        #    del kwargs["function_call"]
+
         functions = [convert_to_openai_tool(fn) for fn in functions]
-        functions.append(DEFAULT_RESPONSE_FUNCTION)
         system_message_prompt_template = SystemMessagePromptTemplate.from_template(
             self.tool_system_prompt_template
         )
@@ -324,79 +265,63 @@ class ToolCallingLLM(BaseChatModel, ABC):
     def _process_response(
         self, response_message: BaseMessage, functions: List[Dict]
     ) -> AIMessage:
-        chat_generation_content = response_message.content
-        if not isinstance(chat_generation_content, str):
+        if not isinstance(response_message.content, str):
             raise ValueError("ToolCallingLLM does not support non-string output.")
 
         # Extract <think>...</think> content and text after </think> for further processing 20250726 jmd
-        think_text, chat_generation_content = extract_think(chat_generation_content)
+        think_text, post_think = extract_think(response_message.content)
 
+        # Parse output for JSON
         try:
-            parsed_chat_result = json.loads(chat_generation_content)
+            parsed_json_result = json.loads(post_think)
         except json.JSONDecodeError:
             try:
-                parsed_chat_result = parse_json_garbage(chat_generation_content)
+                print("parse_json_garbage for content:")
+                print(post_think)
+                parsed_json_result = parse_json_garbage(post_think)
             except Exception:
-                warnings.warn(f"Failed to parse JSON from {self.model} output")
-                return AIMessage(content=chat_generation_content)
+                # Return entire response if JSON is missing or wasn't parsed
+                return AIMessage(content=response_message.content)
 
-        print("parsed_chat_result")
-        print(parsed_chat_result)
+        print("parsed_json_result")
+        print(parsed_json_result)
 
+        # Get tool name from output
         called_tool_name = (
-            parsed_chat_result["tool"]
-            if "tool" in parsed_chat_result
-            else parsed_chat_result["name"] if "name" in parsed_chat_result else None
+            parsed_json_result["tool"]
+            if "tool" in parsed_json_result
+            else parsed_json_result["name"] if "name" in parsed_json_result else None
         )
+
+        # Check if tool name is in functions list
         called_tool = next(
             (fn for fn in functions if fn["function"]["name"] == called_tool_name), None
         )
-        if (
-            called_tool is None
-            or called_tool["function"]["name"]
-            == DEFAULT_RESPONSE_FUNCTION["function"]["name"]
-            or called_tool["function"]["name"]
-            == DEFAULT_RESPONSE_FUNCTION["function"]["name"][2:]
-        ):
-            if (
-                "tool_input" in parsed_chat_result
-                and "response" in parsed_chat_result["tool_input"]
-            ):
-                response = parsed_chat_result["tool_input"]["response"]
-            elif (
-                "parameters" in parsed_chat_result
-                and "response" in parsed_chat_result["parameters"]
-            ):
-                response = parsed_chat_result["parameters"]["response"]
-            elif "response" in parsed_chat_result:
-                response = parsed_chat_result["response"]
-            else:
-                # raise ValueError(
-                #    f"Failed to parse a response from {self.model} output: "  # type: ignore[attr-defined]
-                #    # Keep this commented for privacy in deployed app 20250727 jmd
-                #    # f"{chat_generation_content}"
-                # )
-                # Change to warning and return the generated content 20250727 jmd
-                warnings.warn(f"Failed to parse a response from {self.model} output")
-                response = chat_generation_content
-            return AIMessage(content=response)
+        if called_tool is None:
+            # Issue a warning and return the generated content 20250727 jmd
+            warnings.warn(
+                f"Tool {called_tool} called from {self.model} output not in functions list"
+            )
+            return AIMessage(content=response_message.content)
 
+        # Get tool arguments from output
         called_tool_arguments = (
-            parsed_chat_result["tool_input"]
-            if "tool_input" in parsed_chat_result
+            parsed_json_result["tool_input"]
+            if "tool_input" in parsed_json_result
             else (
-                parsed_chat_result["parameters"]
-                if "parameters" in parsed_chat_result
+                parsed_json_result["parameters"]
+                if "parameters" in parsed_json_result
                 else {}
             )
         )
 
+        # Put together response message
         response_message_with_functions = AIMessage(
             content=f"<think>\n{think_text}\n</think>",
             tool_calls=[
                 ToolCall(
                     name=called_tool_name,
-                    args=called_tool_arguments if called_tool_arguments else {},
+                    args=called_tool_arguments,
                     id=f"call_{str(uuid.uuid4()).replace('-', '')}",
                 )
             ],
