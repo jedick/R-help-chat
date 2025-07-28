@@ -87,7 +87,9 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
             )
         # Get the chat model and build the graph
         chat_model = GetChatModel(compute_mode)
-        graph_builder = BuildGraph(chat_model, compute_mode, search_type)
+        graph_builder = BuildGraph(
+            chat_model, compute_mode, search_type, think_query=True
+        )
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
@@ -398,7 +400,7 @@ with gr.Blocks(
             end = None
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
-            **Features:** RAG, today's date, hybrid search (dense+sparse), thinking display (local),
+            **Features:** RAG, today's date, hybrid search (dense+sparse), thinking output (local),
             multiple retrievals per turn (remote), answer with citations (remote), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
@@ -537,6 +539,12 @@ with gr.Blocks(
         generate_thread_id,
         outputs=[thread_id],
         api_name=False,
+    ).then(
+        # Focus textbox by updating the textbox with the current value
+        lambda x: gr.update(value=x),
+        [input],
+        [input],
+        api_name=False,
     )
 
     input.submit(
@@ -560,6 +568,14 @@ with gr.Blocks(
         update_textbox,
         [citations_text, citations_textbox],
         [citations_textbox, citations_textbox],
+        api_name=False,
+    )
+
+    chatbot.clear(
+        # Focus textbox when the chatbot is cleared
+        lambda x: gr.update(value=x),
+        [input],
+        [input],
         api_name=False,
     )
 

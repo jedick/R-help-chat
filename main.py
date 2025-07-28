@@ -200,10 +200,8 @@ def RunChain(
     # Get chat model (LLM)
     chat_model = GetChatModel(compute_mode)
 
-    # Control thinking for SmolLM3
-    system_prompt = generate_prompt()
-    if hasattr(chat_model, "model_id") and not think:
-        system_prompt = f"/no_think\n{system_prompt}"
+    # Get prompt with /no_think for SmolLM3/Qwen
+    system_prompt = generate_prompt(chat_model)
 
     # Create a prompt template
     system_template = ChatPromptTemplate.from_messages([SystemMessage(system_prompt)])

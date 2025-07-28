@@ -299,9 +299,7 @@ class ToolCallingLLM(BaseChatModel, ABC):
         )
         if called_tool is None:
             # Issue a warning and return the generated content 20250727 jmd
-            warnings.warn(
-                f"Tool {called_tool} called from {self.model} output not in functions list"
-            )
+            warnings.warn(f"Called tool ({called_tool}) not in functions list")
             return AIMessage(content=response_message.content)
 
         # Get tool arguments from output

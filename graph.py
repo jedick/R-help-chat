@@ -71,23 +71,17 @@ def normalize_messages(messages):
     return messages
 
 
-def ToolifyHF(chat_model, system_message, system_message_suffix="", think=False):
+def ToolifyHF(chat_model, system_message, system_message_suffix=""):
     """
     Get a Hugging Face model ready for bind_tools().
     """
-
-    ## Add /no_think flag to turn off thinking mode (SmolLM3 and Qwen)
-    # if not think:
-    #    system_message = "/no_think\n" + system_message
 
     # Combine system prompt and tools template
     tool_system_prompt_template = system_message + generic_tools_template
 
     class HuggingFaceWithTools(ToolCallingLLM, ChatHuggingFace):
-
-        class Config:
-            # Allows adding attributes dynamically
-            extra = "allow"
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
 
     chat_model = HuggingFaceWithTools(
         llm=chat_model.llm,
@@ -95,9 +89,6 @@ def ToolifyHF(chat_model, system_message, system_message_suffix="", think=False)
         # Suffix is for any additional context (not templated)
         system_message_suffix=system_message_suffix,
     )
-
-    # The "model" attribute is needed for ToolCallingLLM to print the response if it can't be parsed
-    chat_model.model = chat_model.model_id + "_for_tools"
 
     return chat_model
 
@@ -107,8 +98,7 @@ def BuildGraph(
     compute_mode,
     search_type,
     top_k=6,
-    think_retrieve=False,
-    think_generate=False,
+    think_query=False,
 ):
     """
     Build conversational RAG graph for email retrieval and answering with citations.
@@ -118,8 +108,7 @@ def BuildGraph(
         compute_mode: remote or local (for retriever)
         search_type: dense, sparse, or hybrid (for retriever)
         top_k: number of documents to retrieve
-        think_retrieve: Whether to use thinking mode for retrieval
-        think_generate: Whether to use thinking mode for generation
+        think_query: Whether to use thinking mode for query
 
     Based on:
         https://python.langchain.com/docs/how_to/qa_sources
@@ -206,7 +195,7 @@ def BuildGraph(
     if is_local:
         # For local models (ChatHuggingFace with SmolLM, Gemma, or Qwen)
         query_model = ToolifyHF(
-            chat_model, query_prompt(compute_mode), "", think_retrieve
+            chat_model, query_prompt(chat_model, think=think_query), ""
         ).bind_tools([retrieve_emails])
         # Don't use answer_with_citations tool because responses with are sometimes unparseable
         generate_model = chat_model
@@ -227,7 +216,7 @@ def BuildGraph(
             messages = normalize_messages(messages)
             # print_message_summaries(messages, "--- query: after normalization ---")
         else:
-            messages = [SystemMessage(query_prompt(compute_mode))] + state["messages"]
+            messages = [SystemMessage(query_prompt(chat_model))] + state["messages"]
         response = query_model.invoke(messages)
 
         return {"messages": response}
@@ -239,12 +228,12 @@ def BuildGraph(
             # print_message_summaries(messages, "--- generate: before normalization ---")
             messages = normalize_messages(messages)
             # Add the system message here because we're not using tools
-            messages = [
-                SystemMessage(generate_prompt(with_tools=False, think=False))
-            ] + messages
+            messages = [SystemMessage(generate_prompt(chat_model))] + messages
             # print_message_summaries(messages, "--- generate: after normalization ---")
         else:
-            messages = [SystemMessage(generate_prompt())] + state["messages"]
+            messages = [
+                SystemMessage(generate_prompt(chat_model, with_tools=True))
+            ] + state["messages"]
         response = generate_model.invoke(messages)
 
         return {"messages": response}
