@@ -50,7 +50,7 @@ def append_content(chunk_messages, history, thinking_about):
                 gr.ChatMessage(
                     role="assistant",
                     content=think_text,
-                    metadata={"title": f"🧠 Thinking about {thinking_about}"},
+                    metadata={"title": f"🧠 Thinking about the {thinking_about}"},
                 )
             )
             if not post_think and not chunk_messages.tool_calls:
@@ -287,15 +287,10 @@ with gr.Blocks(
         render=False,
     )
     data_error = gr.Textbox(
-        value="Email database is missing. Try reloading the page, then contact the maintainer if the problem persists.",
+        value="Email database is missing. Try reloading this page. If the problem persists, please contact the maintainer.",
         lines=1,
         label="Error downloading or extracting data",
         visible=False,
-        render=False,
-    )
-    show_examples = gr.Checkbox(
-        value=False,
-        label="💡 Example Questions",
         render=False,
     )
     chatbot = gr.Chatbot(
@@ -382,8 +377,8 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is about one minute<br>
-            🧠 Add **/think** to enable thinking for answer</br>
-            &emsp;&nbsp; 🔍 Thinking is already enabled for query<br>
+            🔍 Thinking is enabled for the query<br>
+            &emsp;&nbsp; 🧠 Add **/think** to enable thinking for the answer</br>
             ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -407,6 +402,35 @@ with gr.Blocks(
             """
         return info_text
 
+    def get_example_questions(compute_mode, as_dataset=True):
+        """Get example questions based on compute mode"""
+        questions = [
+            # "What is today's date?",
+            "Summarize emails from the last two months",
+            "Advice on using plotmath /think",
+            "When was has.HLC mentioned?",
+            "Who reported installation problems in 2023-2024?",
+        ]
+
+        if compute_mode == "remote":
+            # Remove "/think" from questions in remote mode
+            questions = [q.replace(" /think", "") for q in questions]
+
+        # cf. https://github.com/gradio-app/gradio/pull/8745 for updating examples
+        return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
+
+    def get_multi_tool_questions(compute_mode, as_dataset=True):
+        """Get multi-tool example questions based on compute mode"""
+        questions = [
+            "Differences between lapply and for loops /think",
+            "Compare usage of pipe operator between 2022 and 2024",
+        ]
+
+        if compute_mode == "remote":
+            questions = [q.replace(" /think", "") for q in questions]
+
+        return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
+
     with gr.Row():
         # Left column: Intro, Compute, Chat
         with gr.Column(scale=2):
@@ -429,38 +453,27 @@ with gr.Blocks(
                 info = gr.Markdown(get_info_text())
             with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
-                example_questions = [
-                    # "What is today's date?",
-                    "Summarize emails from the last two months",
-                    "Advice on using plotmath /think",
-                    "When was has.HLC mentioned?",
-                    "Who reported installation problems in 2023-2024?",
-                ]
-                gr.Examples(
-                    examples=[[q] for q in example_questions],
+                example_questions = gr.Examples(
+                    examples=get_example_questions(
+                        compute_mode.value, as_dataset=False
+                    ),
                     inputs=[input],
                     label="Click an example to fill the message box",
-                    elem_id="example-questions",
                 )
-                multi_tool_questions = [
-                    "Differences between lapply and for loops /think",
-                    "Compare usage of pipe operator between 2022 and 2024",
-                ]
-                gr.Examples(
-                    examples=[[q] for q in multi_tool_questions],
+                multi_tool_questions = gr.Examples(
+                    examples=get_multi_tool_questions(
+                        compute_mode.value, as_dataset=False
+                    ),
                     inputs=[input],
                     label="Multiple retrievals",
-                    elem_id="example-questions",
                 )
-                multi_turn_questions = [
-                    "Lookup emails that reference bugs.r-project.org in 2025",
-                    "Did those authors report bugs before 2025?",
-                ]
-                gr.Examples(
-                    examples=[[q] for q in multi_turn_questions],
+                multi_turn_questions = gr.Examples(
+                    examples=[
+                        "Lookup emails that reference bugs.r-project.org in 2025",
+                        "Did those authors report bugs before 2025?",
+                    ],
                     inputs=[input],
                     label="Asking follow-up questions",
-                    elem_id="example-questions",
                 )
 
     # Bottom row: retrieved emails and citations
@@ -518,10 +531,9 @@ with gr.Blocks(
         return component.clear()
 
     compute_mode.change(
-        # Change the app status text
-        get_status_text,
-        [compute_mode],
-        [status],
+        # Start a new thread
+        generate_thread_id,
+        outputs=[thread_id],
         api_name=False,
     ).then(
         # Clear the chatbot history
@@ -536,15 +548,28 @@ with gr.Blocks(
         [chatbot],
         api_name=False,
     ).then(
-        # Start a new thread
-        generate_thread_id,
-        outputs=[thread_id],
-        api_name=False,
-    ).then(
         # Focus textbox by updating the textbox with the current value
         lambda x: gr.update(value=x),
         [input],
         [input],
+        api_name=False,
+    ).then(
+        # Change the app status text
+        get_status_text,
+        [compute_mode],
+        [status],
+        api_name=False,
+    ).then(
+        # Update examples based on compute mode
+        get_example_questions,
+        [compute_mode],
+        [example_questions.dataset],
+        api_name=False,
+    ).then(
+        # Update multi-tool examples based on compute mode
+        get_multi_tool_questions,
+        [compute_mode],
+        [multi_tool_questions.dataset],
         api_name=False,
     )
 

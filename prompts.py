@@ -60,7 +60,7 @@ def generate_prompt(chat_model, think=False, with_tools=False):
         "Summarize the content of the emails rather than copying the headers. "  # Qwen
         "You must include inline citations (email senders and dates) in each part of your response. "
         "Only answer general questions about R if the answer is in the retrieved emails. "
-        "Your response can include URLs, but make sure they are quoted verbatim from the retrieved emails. "  # Qwen
+        "Your response can include URLs, but make sure they are unchanged from the retrieved emails. "  # Qwen
         "Respond with 300 words maximum and 30 lines of code maximum. "
     )
     if with_tools:

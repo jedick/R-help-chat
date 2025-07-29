@@ -142,5 +142,5 @@ Key features of this project wouldn't be possible without the codes adapted from
 
 - The retriever class to use BM25S with persistence is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
 - Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) adds LangChain-compatible tooling to local Hugging Face models
-  - Modified here to handle LLM responses with `<think></think>` blocks
+  - Modified here to handle multiple tool calls and LLM thinking output
 - LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) was modified to use subdirectories for lower per-directory file counts.
