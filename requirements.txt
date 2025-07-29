@@ -25,7 +25,6 @@ posthog==5.4.0
 gradio==5.38.2
 spaces==0.37.1
 # For downloading data from S3
-# Commented because we're using Dropbox
-#boto3==1.39.14
+boto3==1.39.14
 # Others
 python-dotenv

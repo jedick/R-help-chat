@@ -13,7 +13,7 @@ import shutil
 import spaces
 import torch
 
-# import boto3
+import boto3
 import uuid
 import ast
 import os
@@ -211,6 +211,7 @@ def to_workflow(request: gr.Request, *args):
     # Add session_hash to arguments
     new_args = args + (request.session_hash,)
     if compute_mode == "local":
+        # Call the workflow function with the @spaces.GPU decorator
         for value in run_workflow_local(*new_args):
             yield value
     if compute_mode == "remote":
@@ -650,12 +651,12 @@ with gr.Blocks(
 
         if not os.path.isdir(db_dir):
             if not os.path.exists("db.zip"):
-                ## For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
-                # download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
-                # For Dropbox (shared file - key is in URL)
-                shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
-                output_filename = "db.zip"
-                download_dropbox_file(shared_link, output_filename)
+                # For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
+                download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
+                ## For Dropbox (shared file - key is in URL)
+                # shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
+                # output_filename = "db.zip"
+                # download_dropbox_file(shared_link, output_filename)
 
         return None
 
