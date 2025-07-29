@@ -12,9 +12,6 @@ from retriever import BuildRetriever
 from prompts import query_prompt, generate_prompt, generic_tools_template
 from mods.tool_calling_llm import ToolCallingLLM
 
-# Local modules
-from retriever import BuildRetriever
-
 # For tracing (disabled)
 # os.environ["LANGSMITH_TRACING"] = "true"
 # os.environ["LANGSMITH_PROJECT"] = "R-help-chat"

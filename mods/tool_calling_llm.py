@@ -177,6 +177,10 @@ class ToolCallingLLM(BaseChatModel, ABC):
         # Extract <think>...</think> content and text after </think> for further processing 20250726 jmd
         think_text, post_think = extract_think(response_message.content)
 
+        ## For debugging
+        # print("post_think")
+        # print(post_think)
+
         # Parse output for JSON (support multiple objects separated by commas)
         try:
             parsed_json_results = json.loads(f"[{post_think}]")

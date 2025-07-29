@@ -218,7 +218,7 @@ def to_workflow(request: gr.Request, *args):
             yield value
 
 
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=90)
 def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
@@ -264,13 +264,11 @@ with gr.Blocks(
             "local",
             "remote",
         ],
-        value=("local" if torch.cuda.is_available() else "remote"),
+        # Default to remote because it provides a better first impression for most people
+        # value=("local" if torch.cuda.is_available() else "remote"),
+        value="remote",
         label="Compute Mode",
-        info=(
-            "NOTE: remote mode **does not** use ZeroGPU"
-            if torch.cuda.is_available()
-            else "NOTE: local mode requires GPU"
-        ),
+        info="NOTE: remote mode **does not** use ZeroGPU",
         render=False,
     )
 

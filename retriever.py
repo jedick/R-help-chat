@@ -174,9 +174,9 @@ def BuildRetrieverDense(compute_mode: str, top_k=6):
         # Get top k documents
         search_kwargs={"k": top_k},
     )
-    ## Release GPU memory
-    ## https://github.com/langchain-ai/langchain/discussions/10668
-    # torch.cuda.empty_cache()
+    # Fix for ValueError('Could not connect to tenant default_tenant. Are you sure it exists?')
+    # https://github.com/langchain-ai/langchain/issues/26884
+    chromadb.api.client.SharedSystemClient.clear_system_cache()
     return retriever
 
 
