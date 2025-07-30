@@ -72,7 +72,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
                 print_exception=False,
             )
 
-    # Get graph for compute mode
+    # Get graph instance
     graph = graph_instances[compute_mode].get(session_hash)
     if graph is not None:
         print(f"Get {compute_mode} graph for session {session_hash}")
@@ -274,7 +274,7 @@ with gr.Blocks(
     )
 
     loading_data = gr.Textbox(
-        "Please wait for data loading to complete.",
+        "Please wait for the email database to be downloaded and extracted.",
         max_lines=0,
         label="Loading Data",
         visible=False,
@@ -412,8 +412,8 @@ with gr.Blocks(
         """Get example questions based on compute mode"""
         questions = [
             # "What is today's date?",
-            "Summarize emails from the last two months",
-            "Advice on using plotmath /think",
+            "Summarize emails from the last two months /think",
+            "Show me code examples using plotmath",
             "When was has.HLC mentioned?",
             "Who reported installation problems in 2023-2024?",
         ]
