@@ -430,7 +430,7 @@ with gr.Blocks(
         """Get multi-tool example questions based on compute mode"""
         questions = [
             "Differences between lapply and for loops /think",
-            "Compare usage of pipe operator between 2022 and 2024",
+            "Discuss pipe operator usage in 2022, 2023, and 2024",
         ]
 
         if compute_mode == "remote":

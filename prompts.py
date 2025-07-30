@@ -31,10 +31,10 @@ def query_prompt(chat_model, think=False):
         "Do not answer the user's question and do not ask the user for more information. "
         # gpt-4o-mini thinks last two months aren't available with this: "Emails from from {start} to {end} are available for retrieval. "
         f"The emails available for retrieval are from {start} to {end}. "
-        "For questions about differences or comparison between X and Y, retrieve emails about X and Y using separate tool calls. "
+        "For questions about differences, changes, or comparisons between X and Y, retrieve emails about X and Y using separate tool calls. "
+        "Always use retrieve_emails with a non-empty query string for search_query. "
         "For general summaries, use retrieve_emails(search_query='R'). "
-        "For specific questions, use retrieve_emails(search_query=<specific topic>). "
-        "For questions about years, use retrieve_emails(search_query=, start_year=, end_year=) (this month is this year). "
+        "For questions about years, use retrieve_emails(search_query=<query>, start_year=, end_year=) (this month is this year). "
         "For questions about months, use 3-letter abbreviations (Jan...Dec) for the 'month' argument. "
         "Even if retrieved emails are available, you should retrieve more emails to answer the most recent question. "  # Qwen
         # "You must perform the search yourself. Do not tell the user how to retrieve emails. "  # Qwen
