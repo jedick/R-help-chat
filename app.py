@@ -219,7 +219,7 @@ def to_workflow(request: gr.Request, *args):
             yield value
 
 
-@spaces.GPU(duration=90)
+@spaces.GPU(duration=100)
 def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
@@ -273,19 +273,26 @@ with gr.Blocks(
         render=False,
     )
 
+    loading_data = gr.Textbox(
+        "Please wait for data loading to complete.",
+        max_lines=0,
+        label="Loading Data",
+        visible=False,
+        render=False,
+    )
     downloading = gr.Textbox(
-        lines=1,
-        label="Downloading Data, Please Wait",
+        max_lines=1,
+        label="Downloading Data",
         visible=False,
         render=False,
     )
     extracting = gr.Textbox(
-        lines=1,
-        label="Extracting Data, Please Wait",
+        max_lines=1,
+        label="Extracting Data",
         visible=False,
         render=False,
     )
-    data_error = gr.Textbox(
+    missing_data = gr.Textbox(
         value="Email database is missing. Try reloading this page. If the problem persists, please contact the maintainer.",
         lines=1,
         label="Error downloading or extracting data",
@@ -442,9 +449,10 @@ with gr.Blocks(
                 chatbot.render()
                 input.render()
             # Render textboxes for data loading progress
+            loading_data.render()
             downloading.render()
             extracting.render()
-            data_error.render()
+            missing_data.render()
         # Right column: Info, Examples
         with gr.Column(scale=1):
             status = gr.Markdown(get_status_text(compute_mode.value))
@@ -611,21 +619,18 @@ with gr.Blocks(
     def download():
         """Download the application data"""
 
-        # NOTUSED: Code for file download from AWS S3 bucket
-        # https://thecodinginterface.com/blog/aws-s3-python-boto3
+        def download_file_from_bucket(bucket_name, s3_key, output_file):
+            """Download file from S3 bucket"""
 
-        def aws_session(region_name="us-east-1"):
-            return boto3.session.Session(
+            # https://thecodinginterface.com/blog/aws-s3-python-boto3
+            session = boto3.session.Session(
                 aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
                 aws_secret_access_key=os.getenv("AWS_ACCESS_KEY_SECRET"),
-                region_name=region_name,
+                region_name="us-east-1",
             )
-
-        def download_file_from_bucket(bucket_name, s3_key, dst_path):
-            session = aws_session()
             s3_resource = session.resource("s3")
             bucket = s3_resource.Bucket(bucket_name)
-            bucket.download_file(Key=s3_key, Filename=dst_path)
+            bucket.download_file(Key=s3_key, Filename=output_file)
 
         def download_dropbox_file(shared_url, output_file):
             """Download file from Dropbox"""
@@ -649,16 +654,13 @@ with gr.Blocks(
                     f"Failed to download file. HTTP Status Code: {response.status_code}"
                 )
 
-        if not os.path.isdir(db_dir):
-            if not os.path.exists("db.zip"):
-                # For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
-                download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
-                ## For Dropbox (shared file - key is in URL)
-                # shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
-                # output_filename = "db.zip"
-                # download_dropbox_file(shared_link, output_filename)
-
-        return None
+        if not os.path.isdir(db_dir) and not os.path.exists("db.zip"):
+            # For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
+            download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
+            ## For Dropbox (shared file - key is in URL)
+            # shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
+            # output_filename = "db.zip"
+            # download_dropbox_file(shared_link, output_filename)
 
     def extract():
         """Extract the db.zip file"""
@@ -697,51 +699,46 @@ with gr.Blocks(
                 except Exception as e:
                     print(f"An error occurred: {e}")
 
-        return None
+    def visible_if_data_present():
+        """Make component visible if the database directory is present"""
+        visible = os.path.isdir(db_dir)
+        return change_visibility(visible)
 
-    def is_data_present():
-        """Check if the database directory is present"""
-
-        return os.path.isdir(db_dir)
-
-    def is_data_missing():
-        """Check if the database directory is missing"""
-
-        return not os.path.isdir(db_dir)
+    def visible_if_data_missing():
+        """Make component visible if the database directory is missing"""
+        visible = not os.path.isdir(db_dir)
+        return change_visibility(visible)
 
     false = gr.State(False)
-    need_data = gr.State()
-    have_data = gr.State()
+    true = gr.State(True)
 
-    # When app is launched: check if data is present, download and extract it
-    # if necessary, make chat interface visible, update database info, and show
-    # error textbox if data loading failed.
+    # When app is launched: show "Loading Data" textbox, download and extract
+    # data if necessary, make chat interface visible or show error textbox, and
+    # update database info
 
     # fmt: off
     demo.load(
-        is_data_missing, None, [need_data], api_name=False
+        change_visibility, [true], [loading_data], api_name=False
     ).then(
-        change_visibility, [need_data], [downloading], api_name=False
+        visible_if_data_missing, None, [downloading], api_name=False
     ).then(
         download, None, [downloading], api_name=False
     ).then(
         change_visibility, [false], [downloading], api_name=False
     ).then(
-        change_visibility, [need_data], [extracting], api_name=False
+        visible_if_data_missing, None, [extracting], api_name=False
     ).then(
         extract, None, [extracting], api_name=False
     ).then(
         change_visibility, [false], [extracting], api_name=False
     ).then(
-        is_data_present, None, [have_data], api_name=False
+        change_visibility, [false], [loading_data], api_name=False
     ).then(
-        change_visibility, [have_data], [chat_interface], api_name=False
+        visible_if_data_present, None, [chat_interface], api_name=False
+    ).then(
+        visible_if_data_missing, None, [missing_data], api_name=False
     ).then(
         get_info_text, None, [info], api_name=False
-    ).then(
-        is_data_missing, None, [need_data], api_name=False
-    ).then(
-        change_visibility, [need_data], [data_error], api_name=False
     )
     # fmt: on
 
