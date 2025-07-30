@@ -470,6 +470,9 @@ class Chroma(VectorStore):
 
         See more: https://docs.trychroma.com/reference/py-collection#query
         """
+        # Possible fix for ValueError('Could not connect to tenant default_tenant. Are you sure it exists?')
+        # https://github.com/langchain-ai/langchain/issues/26884
+        chromadb.api.client.SharedSystemClient.clear_system_cache()
         return self._collection.query(
             query_texts=query_texts,
             query_embeddings=query_embeddings,  # type: ignore[arg-type]
