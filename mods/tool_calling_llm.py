@@ -183,10 +183,18 @@ class ToolCallingLLM(BaseChatModel, ABC):
 
         # Parse output for JSON (support multiple objects separated by commas)
         try:
+            # Works for one or more JSON objects not enclosed in "[]"
             parsed_json_results = json.loads(f"[{post_think}]")
-        except json.JSONDecodeError:
-            # Return entire response if JSON wasn't parsed (or is missing)
-            return AIMessage(content=response_message.content)
+        except:
+            try:
+                # Works for one or more JSON objects already enclosed in "[]"
+                parsed_json_results = json.loads(f"{post_think}")
+            except json.JSONDecodeError:
+                # Return entire response if JSON wasn't parsed (or is missing)
+                return AIMessage(content=response_message.content)
+
+        # print("parsed_json_results")
+        # print(parsed_json_results)
 
         tool_calls = []
         for parsed_json_result in parsed_json_results:

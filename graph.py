@@ -9,7 +9,7 @@ import os
 
 # Local modules
 from retriever import BuildRetriever
-from prompts import query_prompt, generate_prompt, generic_tools_template
+from prompts import query_prompt, answer_prompt, generic_tools_template
 from mods.tool_calling_llm import ToolCallingLLM
 
 # For tracing (disabled)
@@ -94,6 +94,7 @@ def BuildGraph(
     search_type,
     top_k=6,
     think_query=False,
+    think_answer=False,
 ):
     """
     Build conversational RAG graph for email retrieval and answering with citations.
@@ -103,7 +104,8 @@ def BuildGraph(
         compute_mode: remote or local (for retriever)
         search_type: dense, sparse, or hybrid (for retriever)
         top_k: number of documents to retrieve
-        think_query: Whether to use thinking mode for query
+        think_query: Whether to use thinking mode for the query
+        think_answer: Whether to use thinking mode for the answer
 
     Based on:
         https://python.langchain.com/docs/how_to/qa_sources
@@ -120,8 +122,10 @@ def BuildGraph(
         # Add simple in-memory checkpointer
         from langgraph.checkpoint.memory import MemorySaver
         memory = MemorySaver()
-        # Compile app and draw graph
+        # Compile app
         app = graph.compile(checkpointer=memory)
+        # Draw graph
+        # nb. change orientation (TD to LR) in langchain_core/runnables/graph_mermaid.py
         #app.get_graph().draw_mermaid_png(output_file_path="graph.png")
 
         # Run app
@@ -193,11 +197,11 @@ def BuildGraph(
             chat_model, query_prompt(chat_model, think=think_query)
         ).bind_tools([retrieve_emails])
         # Don't use answer_with_citations tool because responses with are sometimes unparseable
-        generate_model = chat_model
+        answer_model = chat_model
     else:
         # For remote model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
-        generate_model = chat_model.bind_tools([answer_with_citations])
+        answer_model = chat_model.bind_tools([answer_with_citations])
 
     # Initialize the graph object
     graph = StateGraph(MessagesState)
@@ -216,27 +220,29 @@ def BuildGraph(
 
         return {"messages": response}
 
-    def generate(state: MessagesState):
+    def answer(state: MessagesState):
         """Generates an answer with the chat model"""
         if is_local:
             messages = state["messages"]
-            # print_message_summaries(messages, "--- generate: before normalization ---")
+            # print_message_summaries(messages, "--- answer: before normalization ---")
             messages = normalize_messages(messages)
             # Add the system message here because we're not using tools
-            messages = [SystemMessage(generate_prompt(chat_model))] + messages
-            # print_message_summaries(messages, "--- generate: after normalization ---")
+            messages = [
+                SystemMessage(answer_prompt(chat_model, think=think_answer))
+            ] + messages
+            # print_message_summaries(messages, "--- answer: after normalization ---")
         else:
             messages = [
-                SystemMessage(generate_prompt(chat_model, with_tools=True))
+                SystemMessage(answer_prompt(chat_model, with_tools=True))
             ] + state["messages"]
-        response = generate_model.invoke(messages)
+        response = answer_model.invoke(messages)
 
         return {"messages": response}
 
     # Define model and tool nodes
     graph.add_node("query", query)
-    graph.add_node("generate", generate)
     graph.add_node("retrieve_emails", ToolNode([retrieve_emails]))
+    graph.add_node("answer", answer)
     graph.add_node("answer_with_citations", ToolNode([answer_with_citations]))
 
     # Route the user's input to the query model
@@ -249,13 +255,13 @@ def BuildGraph(
         {END: END, "tools": "retrieve_emails"},
     )
     graph.add_conditional_edges(
-        "generate",
+        "answer",
         tools_condition,
         {END: END, "tools": "answer_with_citations"},
     )
 
     # Add edge from the retrieval tool to the generating model
-    graph.add_edge("retrieve_emails", "generate")
+    graph.add_edge("retrieve_emails", "answer")
 
     # Done!
     return graph

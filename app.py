@@ -88,7 +88,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         # Get the chat model and build the graph
         chat_model = GetChatModel(compute_mode)
         graph_builder = BuildGraph(
-            chat_model, compute_mode, search_type, think_query=True
+            chat_model, compute_mode, search_type, think_answer=True
         )
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
@@ -184,7 +184,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
             retrieved_emails = "\n\n".join(retrieved_emails)
             yield history, retrieved_emails, []
 
-        if node == "generate":
+        if node == "answer":
             # Append messages (thinking and non-thinking) to history
             chunk_messages = chunk["messages"]
             history = append_content(chunk_messages, history, thinking_about="answer")
@@ -383,8 +383,9 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is about one minute<br>
-            🔍 Thinking is enabled for the query<br>
-            &emsp;&nbsp; 🧠 Add **/think** to enable thinking for the answer</br>
+            🧠 Thinking is enabled for the answer<br>
+            &emsp;&nbsp; 🔍 Add **/think** to enable thinking for the query</br>
+            &emsp;&nbsp; 🚫 Add **/no_think** to disable all thinking</br>
             ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -412,15 +413,15 @@ with gr.Blocks(
         """Get example questions based on compute mode"""
         questions = [
             # "What is today's date?",
-            "Summarize emails from the last two months /think",
-            "Show me code examples using plotmath",
+            "Summarize emails from the last two months",
+            "Show me code examples using plotmath /no_think",
             "When was has.HLC mentioned?",
             "Who reported installation problems in 2023-2024?",
         ]
 
         if compute_mode == "remote":
-            # Remove "/think" from questions in remote mode
-            questions = [q.replace(" /think", "") for q in questions]
+            # Remove "/no_think" from questions in remote mode
+            questions = [q.replace(" /no_think", "") for q in questions]
 
         # cf. https://github.com/gradio-app/gradio/pull/8745 for updating examples
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions

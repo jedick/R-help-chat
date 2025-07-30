@@ -46,8 +46,8 @@ def query_prompt(chat_model, think=False):
     return prompt
 
 
-def generate_prompt(chat_model, think=False, with_tools=False):
-    """Return system prompt for generate step"""
+def answer_prompt(chat_model, think=False, with_tools=False):
+    """Return system prompt for answer step"""
     prompt = (
         f"Today Date: {date.today()}. "
         "You are a helpful chatbot designed to answer questions about R programming based on the R-help mailing list archives. "

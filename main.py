@@ -23,7 +23,7 @@ from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from index import ProcessFile
 from retriever import BuildRetriever, db_dir
 from graph import BuildGraph
-from prompts import generate_prompt
+from prompts import answer_prompt
 
 # -----------
 # R-help-chat
@@ -201,7 +201,7 @@ def RunChain(
     chat_model = GetChatModel(compute_mode)
 
     # Get prompt with /no_think for SmolLM3/Qwen
-    system_prompt = generate_prompt(chat_model)
+    system_prompt = answer_prompt(chat_model)
 
     # Create a prompt template
     system_template = ChatPromptTemplate.from_messages([SystemMessage(system_prompt)])
@@ -236,8 +236,8 @@ def RunGraph(
     compute_mode: str = "remote",
     search_type: str = "hybrid",
     top_k: int = 6,
-    think_retrieve=False,
-    think_generate=False,
+    think_query=False,
+    think_answer=False,
     thread_id=None,
 ):
     """Run graph for conversational RAG app
@@ -247,8 +247,8 @@ def RunGraph(
         compute_mode: Compute mode for embedding and chat models (remote or local)
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         top_k: Number of documents to retrieve
-        think_retrieve: Whether to use thinking mode for retrieval (tool-calling)
-        think_generate: Whether to use thinking mode for generation
+        think_query: Whether to use thinking mode for the query
+        think_answer: Whether to use thinking mode for the answer
         thread_id: Thread ID for memory (optional)
 
     Example:
@@ -263,8 +263,8 @@ def RunGraph(
         compute_mode,
         search_type,
         top_k,
-        think_retrieve,
-        think_generate,
+        think_query,
+        think_answer,
     )
 
     # Compile the graph with an in-memory checkpointer
