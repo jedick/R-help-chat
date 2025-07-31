@@ -36,6 +36,7 @@ def BuildRetriever(
     top_k=6,
     start_year=None,
     end_year=None,
+    embedding_ckpt_dir=None,
 ):
     """
     Build retriever instance.
@@ -51,10 +52,14 @@ def BuildRetriever(
     if search_type == "dense":
         if not (start_year or end_year):
             # No year filtering, so directly use base retriever
-            return BuildRetrieverDense(compute_mode, top_k=top_k)
+            return BuildRetrieverDense(
+                compute_mode, top_k=top_k, embedding_ckpt_dir=embedding_ckpt_dir
+            )
         else:
             # Get 1000 documents then keep top_k filtered by year
-            base_retriever = BuildRetrieverDense(compute_mode, top_k=1000)
+            base_retriever = BuildRetrieverDense(
+                compute_mode, top_k=1000, embedding_ckpt_dir=embedding_ckpt_dir
+            )
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
@@ -78,10 +83,20 @@ def BuildRetriever(
         # Use floor (top_k // 2) and ceiling -(top_k // -2) to divide odd values of top_k
         # https://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
         dense_retriever = BuildRetriever(
-            compute_mode, "dense", (top_k // 2), start_year, end_year
+            compute_mode,
+            "dense",
+            (top_k // 2),
+            start_year,
+            end_year,
+            embedding_ckpt_dir,
         )
         sparse_retriever = BuildRetriever(
-            compute_mode, "sparse", -(top_k // -2), start_year, end_year
+            compute_mode,
+            "sparse",
+            -(top_k // -2),
+            start_year,
+            end_year,
+            embedding_ckpt_dir,
         )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
@@ -111,7 +126,7 @@ def BuildRetrieverSparse(top_k=6):
     return retriever
 
 
-def BuildRetrieverDense(compute_mode: str, top_k=6):
+def BuildRetrieverDense(compute_mode: str, top_k=6, embedding_ckpt_dir=None):
     """
     Build dense retriever instance with ChromaDB vectorstore
 
@@ -131,13 +146,14 @@ def BuildRetrieverDense(compute_mode: str, top_k=6):
         # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
         # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
         model_name = "nomic-ai/nomic-embed-text-v1.5"
+        id_or_dir = embedding_ckpt_dir if embedding_ckpt_dir else model_name
         model_kwargs = {
             "device": "cuda",
             "trust_remote_code": True,
         }
         encode_kwargs = {"normalize_embeddings": True}
         embedding_function = HuggingFaceBgeEmbeddings(
-            model_name=model_name,
+            model_name=id_or_dir,
             model_kwargs=model_kwargs,
             encode_kwargs=encode_kwargs,
             query_instruction="search_query:",

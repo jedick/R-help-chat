@@ -1,12 +1,12 @@
 import gradio as gr
-from main import GetChatModel
+from main import GetChatModel, openai_model, model_id
 from graph import BuildGraph
 from retriever import db_dir
-from langgraph.checkpoint.memory import MemorySaver
-from dotenv import load_dotenv
-from main import openai_model, model_id
 from util import get_sources, get_start_end_months
 from mods.tool_calling_llm import extract_think
+from huggingface_hub import snapshot_download
+from langgraph.checkpoint.memory import MemorySaver
+from dotenv import load_dotenv
 import requests
 import zipfile
 import shutil
@@ -19,9 +19,18 @@ import ast
 import os
 import re
 
-
 # Setup environment variables
 load_dotenv(dotenv_path=".env", override=True)
+
+# Download model snapshots from Hugging Face Hub
+print(f"Downloading checkpoints for {model_id}...")
+ckpt_dir = snapshot_download(model_id, local_dir_use_symlinks=False)
+print(f"Using checkpoints from {ckpt_dir}")
+
+embedding_model_id = "nomic-ai/nomic-embed-text-v1.5"
+print(f"Downloading checkpoints for {embedding_model_id}...")
+embedding_ckpt_dir = snapshot_download(embedding_model_id, local_dir_use_symlinks=False)
+print(f"Using embedding checkpoints from {embedding_ckpt_dir}")
 
 # Global setting for search type
 search_type = "hybrid"
@@ -82,13 +91,16 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         if compute_mode == "local":
             gr.Info(
                 f"Please wait for the local model to load",
-                duration=15,
                 title=f"Model loading...",
             )
         # Get the chat model and build the graph
-        chat_model = GetChatModel(compute_mode)
+        chat_model = GetChatModel(compute_mode, ckpt_dir)
         graph_builder = BuildGraph(
-            chat_model, compute_mode, search_type, think_answer=True
+            chat_model,
+            compute_mode,
+            search_type,
+            think_answer=True,
+            embedding_ckpt_dir=embedding_ckpt_dir,
         )
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()

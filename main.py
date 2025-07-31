@@ -128,12 +128,13 @@ def ProcessDirectory(path, compute_mode):
             print(f"Chroma: no change for {file_path}")
 
 
-def GetChatModel(compute_mode):
+def GetChatModel(compute_mode, ckpt_dir=None):
     """
     Get a chat model.
 
     Args:
         compute_mode: Compute mode for chat model (remote or local)
+        ckpt_dir: Checkpoint directory for model weights (optional)
     """
 
     if compute_mode == "remote":
@@ -148,9 +149,10 @@ def GetChatModel(compute_mode):
 
         # Define the pipeline to pass to the HuggingFacePipeline class
         # https://huggingface.co/blog/langchain
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        id_or_dir = ckpt_dir if ckpt_dir else model_id
+        tokenizer = AutoTokenizer.from_pretrained(id_or_dir)
         model = AutoModelForCausalLM.from_pretrained(
-            model_id,
+            id_or_dir,
             # We need this to load the model in BF16 instead of fp32 (torch.float)
             torch_dtype=torch.bfloat16,
         )

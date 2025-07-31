@@ -95,6 +95,7 @@ def BuildGraph(
     top_k=6,
     think_query=False,
     think_answer=False,
+    embedding_ckpt_dir=None,
 ):
     """
     Build conversational RAG graph for email retrieval and answering with citations.
@@ -157,7 +158,7 @@ def BuildGraph(
             end_year: Ending year for emails (optional)
         """
         retriever = BuildRetriever(
-            compute_mode, search_type, top_k, start_year, end_year
+            compute_mode, search_type, top_k, start_year, end_year, embedding_ckpt_dir
         )
         # For now, just add the months to the search query
         if months:
