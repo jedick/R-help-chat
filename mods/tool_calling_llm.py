@@ -181,6 +181,12 @@ class ToolCallingLLM(BaseChatModel, ABC):
         # print("post_think")
         # print(post_think)
 
+        # Remove backticks around code blocks
+        post_think = re.sub(r"^```json", "", post_think)
+        post_think = re.sub(r"^```", "", post_think)
+        post_think = re.sub(r"```$", "", post_think)
+        # Remove intervening backticks from adjacent code blocks
+        post_think = re.sub(r"```\n```json", ",", post_think)
         # Remove trailing comma (if there is one)
         post_think = post_think.rstrip(",")
         # Parse output for JSON (support multiple objects separated by commas)
