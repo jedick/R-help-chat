@@ -29,6 +29,9 @@ from mods.file_system import LocalFileStore
 # Database directory
 db_dir = "db"
 
+# Embedding model
+embedding_model_id = "nomic-ai/nomic-embed-text-v1.5"
+
 
 def BuildRetriever(
     compute_mode,
@@ -145,13 +148,13 @@ def BuildRetrieverDense(compute_mode: str, top_k=6, embedding_ckpt_dir=None):
     if compute_mode == "local":
         # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
         # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
-        model_name = "nomic-ai/nomic-embed-text-v1.5"
-        id_or_dir = embedding_ckpt_dir if embedding_ckpt_dir else model_name
         model_kwargs = {
             "device": "cuda",
             "trust_remote_code": True,
         }
         encode_kwargs = {"normalize_embeddings": True}
+        # Use embedding model ID or checkpoint directory if given
+        id_or_dir = embedding_ckpt_dir if embedding_ckpt_dir else embedding_model_id
         embedding_function = HuggingFaceBgeEmbeddings(
             model_name=id_or_dir,
             model_kwargs=model_kwargs,

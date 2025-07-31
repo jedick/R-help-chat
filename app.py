@@ -1,23 +1,21 @@
-import gradio as gr
-from main import GetChatModel, openai_model, model_id
-from graph import BuildGraph
-from retriever import db_dir
-from util import get_sources, get_start_end_months
-from mods.tool_calling_llm import extract_think
-from huggingface_hub import snapshot_download
 from langgraph.checkpoint.memory import MemorySaver
+from huggingface_hub import snapshot_download
 from dotenv import load_dotenv
-import requests
-import zipfile
-import shutil
+import gradio as gr
 import spaces
 import torch
-
-import boto3
 import uuid
 import ast
 import os
 import re
+
+# Local modules
+from main import GetChatModel, openai_model, model_id
+from util import get_sources, get_start_end_months
+from retriever import db_dir, embedding_model_id
+from mods.tool_calling_llm import extract_think
+from data import download_data, extract_data
+from graph import BuildGraph
 
 # Setup environment variables
 load_dotenv(dotenv_path=".env", override=True)
@@ -26,11 +24,18 @@ load_dotenv(dotenv_path=".env", override=True)
 print(f"Downloading checkpoints for {model_id}...")
 ckpt_dir = snapshot_download(model_id, local_dir_use_symlinks=False)
 print(f"Using checkpoints from {ckpt_dir}")
-
-embedding_model_id = "nomic-ai/nomic-embed-text-v1.5"
 print(f"Downloading checkpoints for {embedding_model_id}...")
 embedding_ckpt_dir = snapshot_download(embedding_model_id, local_dir_use_symlinks=False)
 print(f"Using embedding checkpoints from {embedding_ckpt_dir}")
+
+# Download and extract data if data directory is not present
+if not os.path.isdir(db_dir):
+    print("Downloading data ... ", end="")
+    download_data()
+    print("done!")
+    print("Extracting data ... ", end="")
+    extract_data()
+    print("done!")
 
 # Global setting for search type
 search_type = "hybrid"
@@ -91,6 +96,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         if compute_mode == "local":
             gr.Info(
                 f"Please wait for the local model to load",
+                duration=8,
                 title=f"Model loading...",
             )
         # Get the chat model and build the graph
@@ -398,7 +404,7 @@ with gr.Blocks(
             🧠 Thinking is enabled for the answer<br>
             &emsp;&nbsp; 🔍 Add **/think** to enable thinking for the query</br>
             &emsp;&nbsp; 🚫 Add **/no_think** to disable all thinking</br>
-            ✨ [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
+            ✨ [{embedding_model_id.split("/")[-1]}](https://huggingface.co/{embedding_model_id}) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return status_text
@@ -458,7 +464,7 @@ with gr.Blocks(
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
                     compute_mode.render()
-            with gr.Group(visible=False) as chat_interface:
+            with gr.Group() as chat_interface:
                 chatbot.render()
                 input.render()
             # Render textboxes for data loading progress
@@ -624,136 +630,6 @@ with gr.Blocks(
         [input],
         api_name=False,
     )
-
-    # ------------
-    # Data loading
-    # ------------
-
-    def download():
-        """Download the application data"""
-
-        def download_file_from_bucket(bucket_name, s3_key, output_file):
-            """Download file from S3 bucket"""
-
-            # https://thecodinginterface.com/blog/aws-s3-python-boto3
-            session = boto3.session.Session(
-                aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-                aws_secret_access_key=os.getenv("AWS_ACCESS_KEY_SECRET"),
-                region_name="us-east-1",
-            )
-            s3_resource = session.resource("s3")
-            bucket = s3_resource.Bucket(bucket_name)
-            bucket.download_file(Key=s3_key, Filename=output_file)
-
-        def download_dropbox_file(shared_url, output_file):
-            """Download file from Dropbox"""
-
-            # Modify the shared URL to enable direct download
-            direct_url = shared_url.replace(
-                "www.dropbox.com", "dl.dropboxusercontent.com"
-            ).replace("?dl=0", "")
-
-            # Send a GET request to the direct URL
-            response = requests.get(direct_url, stream=True)
-
-            if response.status_code == 200:
-                # Write the content to a local file
-                with open(output_file, "wb") as file:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        file.write(chunk)
-                print(f"File downloaded successfully as '{output_file}'")
-            else:
-                print(
-                    f"Failed to download file. HTTP Status Code: {response.status_code}"
-                )
-
-        if not os.path.isdir(db_dir) and not os.path.exists("db.zip"):
-            # For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
-            download_file_from_bucket("r-help-chat", "db.zip", "db.zip")
-            ## For Dropbox (shared file - key is in URL)
-            # shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
-            # output_filename = "db.zip"
-            # download_dropbox_file(shared_link, output_filename)
-
-    def extract():
-        """Extract the db.zip file"""
-
-        if not os.path.isdir(db_dir):
-
-            file_path = "db.zip"
-            extract_to_path = "./"
-            try:
-                with zipfile.ZipFile(file_path, "r") as zip_ref:
-                    zip_ref.extractall(extract_to_path)
-            except:
-                # If there were any errors, remove zip file and db directory
-                # to initiate a new download when app is reloaded
-
-                try:
-                    os.remove(file_path)
-                    print(f"{file_path} has been deleted.")
-                except FileNotFoundError:
-                    print(f"{file_path} does not exist.")
-                except PermissionError:
-                    print(f"Permission denied to delete {file_path}.")
-                except Exception as e:
-                    print(f"An error occurred: {e}")
-
-                directory_path = "./db"
-
-                try:
-                    # Forcefully and recursively delete a directory, like rm -rf
-                    shutil.rmtree(directory_path)
-                    print(f"Successfully deleted: {directory_path}")
-                except FileNotFoundError:
-                    print(f"Directory not found: {directory_path}")
-                except PermissionError:
-                    print(f"Permission denied: {directory_path}")
-                except Exception as e:
-                    print(f"An error occurred: {e}")
-
-    def visible_if_data_present():
-        """Make component visible if the database directory is present"""
-        visible = os.path.isdir(db_dir)
-        return change_visibility(visible)
-
-    def visible_if_data_missing():
-        """Make component visible if the database directory is missing"""
-        visible = not os.path.isdir(db_dir)
-        return change_visibility(visible)
-
-    false = gr.State(False)
-    true = gr.State(True)
-
-    # When app is launched: show "Loading Data" textbox, download and extract
-    # data if necessary, make chat interface visible or show error textbox, and
-    # update database info
-
-    # fmt: off
-    demo.load(
-        change_visibility, [true], [loading_data], api_name=False
-    ).then(
-        visible_if_data_missing, None, [downloading], api_name=False
-    ).then(
-        download, None, [downloading], api_name=False
-    ).then(
-        change_visibility, [false], [downloading], api_name=False
-    ).then(
-        visible_if_data_missing, None, [extracting], api_name=False
-    ).then(
-        extract, None, [extracting], api_name=False
-    ).then(
-        change_visibility, [false], [extracting], api_name=False
-    ).then(
-        change_visibility, [false], [loading_data], api_name=False
-    ).then(
-        visible_if_data_present, None, [chat_interface], api_name=False
-    ).then(
-        visible_if_data_missing, None, [missing_data], api_name=False
-    ).then(
-        get_info_text, None, [info], api_name=False
-    )
-    # fmt: on
 
     # Clean up graph instances when page is closed/refreshed
     demo.unload(cleanup_graph)
