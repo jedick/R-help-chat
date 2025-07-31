@@ -96,7 +96,6 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         if compute_mode == "local":
             gr.Info(
                 f"Please wait for the local model to load",
-                duration=8,
                 title=f"Model loading...",
             )
         # Get the chat model and build the graph
@@ -105,7 +104,6 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
             chat_model,
             compute_mode,
             search_type,
-            think_answer=True,
             embedding_ckpt_dir=embedding_ckpt_dir,
         )
         # Compile the graph with an in-memory checkpointer
@@ -225,20 +223,31 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
 
 def to_workflow(request: gr.Request, *args):
     """Wrapper function to call function with or without @spaces.GPU"""
+    input = args[0]
     compute_mode = args[2]
     # Add session_hash to arguments
     new_args = args + (request.session_hash,)
     if compute_mode == "local":
         # Call the workflow function with the @spaces.GPU decorator
-        for value in run_workflow_local(*new_args):
-            yield value
+        if "/think" in input:
+            for value in run_workflow_local_long(*new_args):
+                yield value
+        else:
+            for value in run_workflow_local(*new_args):
+                yield value
     if compute_mode == "remote":
         for value in run_workflow_remote(*new_args):
             yield value
 
 
-@spaces.GPU(duration=100)
+@spaces.GPU(duration=60)
 def run_workflow_local(*args):
+    for value in run_workflow(*args):
+        yield value
+
+
+@spaces.GPU(duration=100)
+def run_workflow_local_long(*args):
     for value in run_workflow(*args):
         yield value
 
@@ -401,9 +410,8 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is about one minute<br>
-            🧠 Thinking is enabled for the answer<br>
-            &emsp;&nbsp; 🔍 Add **/think** to enable thinking for the query</br>
-            &emsp;&nbsp; 🚫 Add **/no_think** to disable all thinking</br>
+            🧠 Add **/think** to enable thinking</br>
+            &emsp;&nbsp; 🐢 Increases ZeroGPU allotment to 100 seconds</br>
             ✨ [{embedding_model_id.split("/")[-1]}](https://huggingface.co/{embedding_model_id}) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -432,7 +440,7 @@ with gr.Blocks(
         questions = [
             # "What is today's date?",
             "Summarize emails from the last two months",
-            "Show me code examples using plotmath /no_think",
+            "Show me code examples using plotmath",
             "When was has.HLC mentioned?",
             "Who reported installation problems in 2023-2024?",
         ]
@@ -449,6 +457,18 @@ with gr.Blocks(
         questions = [
             "Differences between lapply and for loops /think",
             "Discuss pipe operator usage in 2022, 2023, and 2024",
+        ]
+
+        if compute_mode == "remote":
+            questions = [q.replace(" /think", "") for q in questions]
+
+        return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
+
+    def get_multi_turn_questions(compute_mode, as_dataset=True):
+        """Get multi-turn example questions based on compute mode"""
+        questions = [
+            "Lookup emails that reference bugs.r-project.org in 2025",
+            "Did those authors report bugs before 2025? /think",
         ]
 
         if compute_mode == "remote":
@@ -494,10 +514,9 @@ with gr.Blocks(
                     label="Multiple retrievals",
                 )
                 multi_turn_questions = gr.Examples(
-                    examples=[
-                        "Lookup emails that reference bugs.r-project.org in 2025",
-                        "Did those authors report bugs before 2025?",
-                    ],
+                    examples=get_multi_turn_questions(
+                        compute_mode.value, as_dataset=False
+                    ),
                     inputs=[input],
                     label="Asking follow-up questions",
                 )
@@ -586,16 +605,16 @@ with gr.Blocks(
         [status],
         api_name=False,
     ).then(
-        # Update examples based on compute mode
-        get_example_questions,
-        [compute_mode],
-        [example_questions.dataset],
-        api_name=False,
-    ).then(
         # Update multi-tool examples based on compute mode
         get_multi_tool_questions,
         [compute_mode],
         [multi_tool_questions.dataset],
+        api_name=False,
+    ).then(
+        # Update multi-turn examples based on compute mode
+        get_multi_turn_questions,
+        [compute_mode],
+        [multi_turn_questions.dataset],
         api_name=False,
     )
 
