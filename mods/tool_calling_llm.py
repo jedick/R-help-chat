@@ -181,16 +181,20 @@ class ToolCallingLLM(BaseChatModel, ABC):
         # print("post_think")
         # print(post_think)
 
+        # Remove trailing comma (if there is one)
+        post_think = post_think.rstrip(",")
         # Parse output for JSON (support multiple objects separated by commas)
         try:
-            # Works for one or more JSON objects not enclosed in "[]"
-            parsed_json_results = json.loads(f"[{post_think}]")
+            # Works for one JSON object, or multiple JSON objects enclosed in "[]"
+            parsed_json_results = json.loads(f"{post_think}")
+            if not isinstance(parsed_json_results, list):
+                parsed_json_results = [parsed_json_results]
         except:
             try:
-                # Works for one or more JSON objects already enclosed in "[]"
-                parsed_json_results = json.loads(f"{post_think}")
+                # Works for multiple JSON objects not enclosed in "[]"
+                parsed_json_results = json.loads(f"[{post_think}]")
             except json.JSONDecodeError:
-                # Return entire response if JSON wasn't parsed (or is missing)
+                # Return entire response if JSON wasn't parsed or is missing
                 return AIMessage(content=response_message.content)
 
         # print("parsed_json_results")
