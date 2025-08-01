@@ -1,6 +1,8 @@
 # Pin torch and chroma versions
 torch==2.5.1
-chromadb==1.0.13
+chromadb==0.6.3
+# NOTE: chromadb==1.0.13 was giving intermittent error:
+#   ValueError('Could not connect to tenant default_tenant. Are you sure it exists?')
 
 # Stated requirements:
 #   Gemma 3: transformers>=4.50
@@ -9,6 +11,7 @@ chromadb==1.0.13
 # NOTE: Gemma 3 with transformers==4.54.0 gives:
 #   ValueError: Max cache length is not consistent across layers
 transformers==4.51.3
+tokenizers==0.21.2
 # Required by langchain-huggingface
 sentence-transformers==5.0.0
 # For snapshot_download
@@ -17,7 +20,7 @@ huggingface-hub==0.34.3
 # Langchain packages
 langchain==0.3.26
 langchain-core==0.3.72
-langchain-chroma==0.2.5
+langchain-chroma==0.2.3
 langchain-openai==0.3.27
 langchain-community==0.3.27
 langchain-huggingface==0.3.0

@@ -246,7 +246,7 @@ def to_workflow(request: gr.Request, *args):
             yield value
 
 
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=75)
 def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
@@ -472,7 +472,7 @@ with gr.Blocks(
         """Get multi-turn example questions based on compute mode"""
         questions = [
             "Lookup emails that reference bugs.r-project.org in 2025",
-            "Did those authors report bugs before 2025?",
+            "Did the authors you cited report bugs before 2025?",
         ]
 
         if compute_mode == "remote":
