@@ -21,12 +21,18 @@ from graph import BuildGraph
 load_dotenv(dotenv_path=".env", override=True)
 
 # Download model snapshots from Hugging Face Hub
-print(f"Downloading checkpoints for {model_id}...")
-ckpt_dir = snapshot_download(model_id, local_dir_use_symlinks=False)
-print(f"Using checkpoints from {ckpt_dir}")
-print(f"Downloading checkpoints for {embedding_model_id}...")
-embedding_ckpt_dir = snapshot_download(embedding_model_id, local_dir_use_symlinks=False)
-print(f"Using embedding checkpoints from {embedding_ckpt_dir}")
+if torch.cuda.is_available():
+    print(f"Downloading checkpoints for {model_id}...")
+    ckpt_dir = snapshot_download(model_id, local_dir_use_symlinks=False)
+    print(f"Using checkpoints from {ckpt_dir}")
+    print(f"Downloading checkpoints for {embedding_model_id}...")
+    embedding_ckpt_dir = snapshot_download(
+        embedding_model_id, local_dir_use_symlinks=False
+    )
+    print(f"Using embedding checkpoints from {embedding_ckpt_dir}")
+else:
+    ckpt_dir = None
+    embedding_ckpt_dir = None
 
 # Download and extract data if data directory is not present
 if not os.path.isdir(db_dir):

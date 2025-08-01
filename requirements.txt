@@ -9,6 +9,10 @@ chromadb==1.0.13
 # NOTE: Gemma 3 with transformers==4.54.0 gives:
 #   ValueError: Max cache length is not consistent across layers
 transformers==4.51.3
+# Required by langchain-huggingface
+sentence-transformers==5.0.0
+# For snapshot_download
+huggingface-hub==0.34.3
 
 # Langchain packages
 langchain==0.3.26
@@ -23,8 +27,6 @@ langgraph-sdk==0.1.72
 langgraph-prebuilt==0.5.2
 langgraph-checkpoint==2.1.0
 
-# Required by langchain-huggingface
-sentence-transformers==5.0.0
 # Required by Nomic embeddings
 einops==0.8.1
 
