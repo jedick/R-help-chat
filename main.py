@@ -207,15 +207,14 @@ def RunChain(
 
     # Create a prompt template
     system_template = ChatPromptTemplate.from_messages([SystemMessage(system_prompt)])
+    # NOTE: Each new email starts with \n\n\nFrom, so we don't need newlines after Retrieved Emails:
     human_template = ChatPromptTemplate.from_template(
         """"
         ### Question:
 
         {question}
 
-        ### Retrieved Emails:
-
-        {context}
+        ### Retrieved Emails:{context}
         """
     )
     prompt_template = system_template + human_template

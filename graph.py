@@ -44,24 +44,45 @@ def print_message_summaries(messages, header):
 
 
 def normalize_messages(messages):
-    """Normalize messages to sequence of types expected by chat templates"""
+    """Normalize messages to sequence of types expected by chat models"""
     # Copy the most recent HumanMessage to the end
-    # (avoids SmolLM and Qwen ValueError: Last message must be a HumanMessage!)
+    # - Avoids SmolLM and Qwen ValueError: Last message must be a HumanMessage!
     if not type(messages[-1]) is HumanMessage:
         for msg in reversed(messages):
             if type(msg) is HumanMessage:
                 messages.append(msg)
                 break
-    # Convert tool output (ToolMessage) to AIMessage
-    # (avoids SmolLM and Qwen ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>)
-    messages = [
-        AIMessage(msg.content) if type(msg) is ToolMessage else msg for msg in messages
-    ]
+
+    # Convert tool output (one or more consecutive ToolMessages) to AIMessage
+    # - Avoids SmolLM and Qwen ValueError: Unknown message type: <class 'langchain_core.messages.tool.ToolMessage'>
+    processed_messages = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+
+        if type(msg) is ToolMessage:
+            # Collect consecutive ToolMessages
+            tool_messages = []
+            count = 1
+            while i < len(messages) and type(messages[i]) is ToolMessage:
+                tool_msg = messages[i]
+                formatted_content = f"## Tool Call {count}\n\n{tool_msg.content}"
+                tool_messages.append(formatted_content)
+                count += 1
+                i += 1
+
+            # Combine all tool message contents into a single AIMessage
+            combined_content = "\n\n".join(tool_messages)
+            processed_messages.append(AIMessage(combined_content))
+        else:
+            processed_messages.append(msg)
+            i += 1
+
     # Delete tool call (AIMessage)
-    # (avoids Gemma TemplateError: Conversation roles must alternate user/assistant/user/assistant/...)
+    # - Avoids Gemma TemplateError: Conversation roles must alternate user/assistant/user/assistant/...
     messages = [
         msg
-        for msg in messages
+        for msg in processed_messages
         if not hasattr(msg, "tool_calls")
         or (hasattr(msg, "tool_calls") and not msg.tool_calls)
     ]
@@ -168,12 +189,12 @@ def BuildGraph(
             search_query = " ".join([search_query, start_year, end_year])
         retrieved_docs = retriever.invoke(search_query)
         serialized = "\n\n--- --- --- --- Next Email --- --- --- ---".join(
-            # source key has file names (e.g. R-help/2024-December.txt), useful for retrieval and reporting
+            # Add file name (e.g. R-help/2024-December.txt) from source key
             "\n\n" + doc.metadata["source"] + doc.page_content
             for doc in retrieved_docs
         )
         retrieved_emails = (
-            "### Retrieved Emails:\n\n" + serialized
+            "### Retrieved Emails:" + serialized
             if serialized
             else "### No emails were retrieved"
         )

@@ -175,7 +175,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
                 count += 1
                 # Get the retrieved emails as a list
                 email_list = message.content.replace(
-                    "### Retrieved Emails:\n\n\n\n", ""
+                    "### Retrieved Emails:\n\n", ""
                 ).split("--- --- --- --- Next Email --- --- --- ---\n\n")
                 # Get the list of source files (e.g. R-help/2024-December.txt) for retrieved emails
                 month_list = [text.splitlines()[0] for text in email_list]
@@ -198,7 +198,7 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
                 # Format the retrieved emails with Tool Call heading
                 retrieved_emails.append(
                     message.content.replace(
-                        "### Retrieved Emails:\n\n\n\n",
+                        "### Retrieved Emails:\n\n",
                         f"### ### ### ### Tool Call {count} ### ### ### ###\n\n",
                     )
                 )
