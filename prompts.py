@@ -36,9 +36,11 @@ def query_prompt(chat_model, think=False):
         "For general summaries, use retrieve_emails(search_query='R'). "
         "For questions about years, use retrieve_emails(search_query=<query>, start_year=, end_year=) (this month is this year). "
         "For questions about months, use 3-letter abbreviations (Jan...Dec) for the 'month' argument. "
-        "Even if retrieved emails are available, you should retrieve more emails to answer the most recent question. "  # Qwen
+        "Use all previous messages as context to formulate your search query. "  # Gemma
+        "You should always retrieve more emails based on context and the most recent question. "  # Qwen
+        # "Even if retrieved emails are available, you should retrieve more emails to answer the most recent question. "  # Qwen
         # "You must perform the search yourself. Do not tell the user how to retrieve emails. "  # Qwen
-        "Do not use your memory or knowledge to answer the user's question. Only retrieve emails based on the user's question. "  # Qwen
+        # "Do not use your memory or knowledge to answer the user's question. Only retrieve emails based on the user's question. "  # Qwen
         # "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list. "
     )
     prompt = check_prompt(prompt, chat_model, think)
@@ -60,7 +62,7 @@ def answer_prompt(chat_model, think=False, with_tools=False):
         "Summarize the content of the emails rather than copying the headers. "  # Qwen
         "You must include inline citations (email senders and dates) in each part of your response. "
         "Only answer general questions about R if the answer is in the retrieved emails. "
-        "Your response can include URLs, but make sure they are unchanged from the retrieved emails. "  # Qwen
+        "Only include URLs if they were used by human authors (not in email headers), and do not modify any URLs. "  # Qwen, Gemma
         "Respond with 500 words maximum and 50 lines of code maximum. "
     )
     if with_tools:

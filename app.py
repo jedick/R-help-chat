@@ -416,8 +416,6 @@ with gr.Blocks(
             status_text = f"""
             📍 Now in **local** mode, using ZeroGPU hardware<br>
             ⌛ Response time is about one minute<br>
-            🧠 Add **/think** to enable thinking</br>
-            &emsp;&nbsp; 🐢 Increases ZeroGPU allotment to 100 seconds</br>
             ✨ [{embedding_model_id.split("/")[-1]}](https://huggingface.co/{embedding_model_id}) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
             """
@@ -461,7 +459,7 @@ with gr.Blocks(
     def get_multi_tool_questions(compute_mode, as_dataset=True):
         """Get multi-tool example questions based on compute mode"""
         questions = [
-            "Differences between lapply and for loops /think",
+            "Differences between lapply and for loops",
             "Discuss pipe operator usage in 2022, 2023, and 2024",
         ]
 
@@ -474,7 +472,7 @@ with gr.Blocks(
         """Get multi-turn example questions based on compute mode"""
         questions = [
             "Lookup emails that reference bugs.r-project.org in 2025",
-            "Did those authors report bugs before 2025? /think",
+            "Did those authors report bugs before 2025?",
         ]
 
         if compute_mode == "remote":
@@ -609,18 +607,6 @@ with gr.Blocks(
         get_status_text,
         [compute_mode],
         [status],
-        api_name=False,
-    ).then(
-        # Update multi-tool examples based on compute mode
-        get_multi_tool_questions,
-        [compute_mode],
-        [multi_tool_questions.dataset],
-        api_name=False,
-    ).then(
-        # Update multi-turn examples based on compute mode
-        get_multi_turn_questions,
-        [compute_mode],
-        [multi_turn_questions.dataset],
         api_name=False,
     )
 

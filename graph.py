@@ -65,9 +65,11 @@ def normalize_messages(messages):
             tool_messages = []
             count = 1
             while i < len(messages) and type(messages[i]) is ToolMessage:
-                tool_msg = messages[i]
-                formatted_content = f"## Tool Call {count}\n\n{tool_msg.content}"
-                tool_messages.append(formatted_content)
+                tool_msg = messages[i].content.replace(
+                    "### Retrieved Emails:",
+                    f"### Retrieved Emails from Tool Call {count}:",
+                )
+                tool_messages.append(tool_msg)
                 count += 1
                 i += 1
 
