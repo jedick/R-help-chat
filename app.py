@@ -58,10 +58,10 @@ def cleanup_graph(request: gr.Request):
     timestamp = datetime.now().replace(microsecond=0).isoformat()
     if request.session_hash in graph_instances["local"]:
         del graph_instances["local"][request.session_hash]
-        print(f"{timestamp} - Deleted local graph for session {request.session_hash}")
+        print(f"{timestamp} - Delete local graph for session {request.session_hash}")
     if request.session_hash in graph_instances["remote"]:
         del graph_instances["remote"][request.session_hash]
-        print(f"{timestamp} - Deleted remote graph for session {request.session_hash}")
+        print(f"{timestamp} - Delete remote graph for session {request.session_hash}")
 
 
 def append_content(chunk_messages, history, thinking_about):

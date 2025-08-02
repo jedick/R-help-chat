@@ -7,14 +7,16 @@ import typing
 from bm25s.utils import json_functions
 
 try:
-    from tqdm.auto import tqdm
+    # To hide progress bars, don't import tqdm
+    # from tqdm.auto import tqdm
+    raise ImportError("Not importing tqdm")
 except ImportError:
 
     def tqdm(iterable, *args, **kwargs):
         return iterable
 
 
-from .stopwords import (
+from bm25s.stopwords import (
     STOPWORDS_EN,
     STOPWORDS_EN_PLUS,
     STOPWORDS_GERMAN,
@@ -183,7 +185,7 @@ class Tokenizer:
         ----------
         save_dir : str
             The directory where the vocabulary file is saved.
-        
+
         vocab_name : str, optional
             The name of the vocabulary file. Default is "vocab.tokenizer.json". Make
             sure to not use the same name as the vocab.index.json file saved by the BM25
@@ -193,14 +195,14 @@ class Tokenizer:
         path = save_dir / vocab_name
 
         save_dir.mkdir(parents=True, exist_ok=True)
-        with open(path, "w", encoding='utf-8') as f:
+        with open(path, "w", encoding="utf-8") as f:
             d = {
                 "word_to_stem": self.word_to_stem,
                 "stem_to_sid": self.stem_to_sid,
                 "word_to_id": self.word_to_id,
             }
             f.write(json_functions.dumps(d, ensure_ascii=False))
-        
+
     def load_vocab(self, save_dir: str, vocab_name: str = "vocab.tokenizer.json"):
         """
         Load the vocabulary dictionaries from a file. The file should be saved in JSON format.
@@ -209,10 +211,10 @@ class Tokenizer:
         ----------
         save_dir : str
             The directory where the vocabulary file is saved.
-        
+
         vocab_name : str, optional
             The name of the vocabulary file.
-        
+
         Note
         ----
         The vocabulary file should be saved in JSON format, with the following keys:
@@ -222,13 +224,15 @@ class Tokenizer:
         """
         path = Path(save_dir) / vocab_name
 
-        with open(path, "r", encoding='utf-8') as f:
+        with open(path, "r", encoding="utf-8") as f:
             d = json_functions.loads(f.read())
             self.word_to_stem = d["word_to_stem"]
             self.stem_to_sid = d["stem_to_sid"]
             self.word_to_id = d["word_to_id"]
-    
-    def save_stopwords(self, save_dir: str, stopwords_name: str = "stopwords.tokenizer.json"):
+
+    def save_stopwords(
+        self, save_dir: str, stopwords_name: str = "stopwords.tokenizer.json"
+    ):
         """
         Save the stopwords to a file. The file is saved in JSON format.
 
@@ -236,7 +240,7 @@ class Tokenizer:
         ----------
         save_dir : str
             The directory where the stopwords file is saved.
-        
+
         stopwords_name : str, optional
             The name of the stopwords file. Default is "stopwords.tokenizer.json".
         """
@@ -246,8 +250,10 @@ class Tokenizer:
         save_dir.mkdir(parents=True, exist_ok=True)
         with open(path, "w") as f:
             f.write(json_functions.dumps(self.stopwords))
-    
-    def load_stopwords(self, save_dir: str, stopwords_name: str = "stopwords.tokenizer.json"):
+
+    def load_stopwords(
+        self, save_dir: str, stopwords_name: str = "stopwords.tokenizer.json"
+    ):
         """
         Load the stopwords from a file. The file should be saved in JSON format.
 
@@ -255,7 +261,7 @@ class Tokenizer:
         ----------
         save_dir : str
             The directory where the stopwords file is saved.
-        
+
         stopwords_name : str, optional
             The name of the stopwords file.
         """
@@ -265,7 +271,10 @@ class Tokenizer:
             self.stopwords = json_functions.loads(f.read())
 
     def streaming_tokenize(
-        self, texts: List[str], update_vocab: Union[bool, str] = True, allow_empty: bool = True
+        self,
+        texts: List[str],
+        update_vocab: Union[bool, str] = True,
+        allow_empty: bool = True,
     ):
         """
         Tokenize a list of strings and return a generator of token IDs.
@@ -283,26 +292,26 @@ class Tokenizer:
             the function will never update the vocabulary, even if the stemmed word is in
             the stem_to_sid dictionary. Note that update_vocab="if_empty" is not supported
             in this method, only in the `tokenize` method.
-        
+
         allow_empty : bool, optional
-            Whether to allow the splitter to return an empty string. If False, the splitter 
+            Whether to allow the splitter to return an empty string. If False, the splitter
             will return an empty list, which may cause issues if the tokenizer is not expecting
             an empty list. If True, the splitter will return a list with a single empty string.
         """
         stopwords_set = set(self.stopwords) if self.stopwords is not None else None
         using_stopwords = stopwords_set is not None
         using_stemmer = self.stemmer is not None
-            
+
         if allow_empty is True and update_vocab is True and "" not in self.word_to_id:
             idx = max(self.word_to_id.values(), default=-1) + 1
             self.word_to_id[""] = idx
-            
+
             if using_stemmer:
                 if "" not in self.word_to_stem:
                     self.word_to_stem[""] = ""
                 if "" not in self.stem_to_sid:
                     self.stem_to_sid[""] = idx
-        
+
         for text in texts:
             if self.lower:
                 text = text.lower()
@@ -311,7 +320,7 @@ class Tokenizer:
 
             if allow_empty is True and len(splitted_words) == 0:
                 splitted_words = [""]
-            
+
             doc_ids = []
             for word in splitted_words:
                 if word in self.word_to_id:
@@ -355,7 +364,7 @@ class Tokenizer:
 
             if len(doc_ids) == 0 and allow_empty is True and "" in self.word_to_id:
                 doc_ids = [self.word_to_id[""]]
-            
+
             yield doc_ids
 
     def tokenize(
@@ -407,9 +416,9 @@ class Tokenizer:
             If "string", this return a list of lists of strings, each string being a token.
             If "ids", this return a list of lists of integers corresponding to the token IDs,
             or stemmed IDs if a stemmer is used.
-        
+
         allow_empty : bool, optional
-            Whether to allow the splitter to return an empty string. If False, the splitter 
+            Whether to allow the splitter to return an empty string. If False, the splitter
             will return an empty list, which may cause issues if the tokenizer is not expecting
             an empty list. If True, the splitter will return a list with a single empty string.
 
@@ -436,7 +445,9 @@ class Tokenizer:
         if update_vocab == "if_empty":
             update_vocab = len(self.word_to_id) == 0
 
-        stream_fn = self.streaming_tokenize(texts=texts, update_vocab=update_vocab, allow_empty=allow_empty)
+        stream_fn = self.streaming_tokenize(
+            texts=texts, update_vocab=update_vocab, allow_empty=allow_empty
+        )
 
         if return_as == "stream":
             return stream_fn
@@ -613,7 +624,7 @@ def tokenize(
         will disappear after completion. If True, the progress bar will stay on the screen.
 
     allow_empty : bool, optional
-        Whether to allow the splitter to return an empty string. If False, the splitter 
+        Whether to allow the splitter to return an empty string. If False, the splitter
         will return an empty list, which may cause issues if the tokenizer is not expecting
         an empty list. If True, the splitter will return a list with a single empty string.
     Note
@@ -633,7 +644,7 @@ def tokenize(
 
     for text in tqdm(
         texts, desc="Split strings", leave=leave, disable=not show_progress
-    ):  
+    ):
         stopwords_set = set(stopwords)
         if lower:
             text = text.lower()
@@ -642,7 +653,7 @@ def tokenize(
 
         if allow_empty is False and len(splitted) == 0:
             splitted = [""]
-        
+
         doc_ids = []
 
         for token in splitted:

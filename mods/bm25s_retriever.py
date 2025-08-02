@@ -155,17 +155,20 @@ class BM25SRetriever(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
     ) -> List[Document]:
-        from bm25s import tokenize as bm25s_tokenize
+        from mods.bm25s_tokenization import tokenize as bm25s_tokenize
 
         processed_query = bm25s_tokenize(query, return_ids=False)
         if self.activate_numba:
             self.vectorizer.activate_numba_scorer()
             return_docs = self.vectorizer.retrieve(
-                processed_query, k=self.k, backend_selection="numba"
+                processed_query,
+                k=self.k,
+                backend_selection="numba",
+                show_progress=False,
             )
             return [self.docs[i] for i in return_docs.documents[0]]
         else:
             return_docs, scores = self.vectorizer.retrieve(
-                processed_query, self.docs, k=self.k
+                processed_query, self.docs, k=self.k, show_progress=False
             )
             return [return_docs[0, i] for i in range(return_docs.shape[1])]
