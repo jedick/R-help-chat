@@ -1,29 +1,28 @@
-from langchain_core.messages import SystemMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.prompts import ChatPromptTemplate
 from langgraph.checkpoint.memory import MemorySaver
+from langchain_core.messages import SystemMessage
 from langchain_core.messages import ToolMessage
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-from datetime import datetime
 from dotenv import load_dotenv
-import os
-import glob
-import torch
+from datetime import datetime
 import logging
+import torch
+import glob
 import ast
+import os
 
-# To use OpenAI models (remote)
+# Imports for local and remote chat models
+from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
 from langchain_openai import ChatOpenAI
 
-# To use Hugging Face models (local)
-from langchain_huggingface import ChatHuggingFace, HuggingFacePipeline
-
 # Local modules
-from index import ProcessFile
+from pipeline import MyTextGenerationPipeline
 from retriever import BuildRetriever, db_dir
-from graph import BuildGraph
 from prompts import answer_prompt
+from index import ProcessFile
+from graph import BuildGraph
 
 # -----------
 # R-help-chat
@@ -157,16 +156,20 @@ def GetChatModel(compute_mode, ckpt_dir=None):
             torch_dtype=torch.bfloat16,
         )
 
-        # ToolCallingLLM needs return_full_text=False in order to parse just the assistant response;
-        # the JSON function descriptions in the full response cause an error in ToolCallingLLM
-        pipe = pipeline(
-            "text-generation",
+        # Use MyTextGenerationPipeline with custom preprocess() method
+        pipe = MyTextGenerationPipeline(
             model=model,
             tokenizer=tokenizer,
+            # ToolCallingLLM needs return_full_text=False in order to parse just the assistant response
             return_full_text=False,
             # It seems that max_new_tokens has to be specified here, not in .invoke()
-            max_new_tokens=1000,
+            max_new_tokens=2000,
+            # Use padding for FlashAttention alignment
+            # https://github.com/google-deepmind/gemma/issues/169
+            padding="longest",
         )
+        # We need the task so HuggingFacePipeline can deal with our class
+        pipe.task = "text-generation"
 
         llm = HuggingFacePipeline(pipeline=pipe)
         chat_model = ChatHuggingFace(llm=llm)
