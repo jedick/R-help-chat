@@ -156,9 +156,12 @@ def GetChatModel(compute_mode, ckpt_dir=None):
             torch_dtype=torch.bfloat16,
             # Enable FlashAttention (requires pip install flash-attn)
             # https://huggingface.co/docs/transformers/en/attention_interface
-            # https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-2
+            # https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention
             attn_implementation="flash_attention_2",
+            device_map="auto",
         )
+        # For Flash Attention version of Qwen3
+        tokenizer.padding_side = "left"
 
         # Use MyTextGenerationPipeline with custom preprocess() method
         pipe = MyTextGenerationPipeline(
