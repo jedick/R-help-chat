@@ -155,6 +155,7 @@ class BM25SRetriever(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
     ) -> List[Document]:
+        # from bm25s import tokenize as bm25s_tokenize
         from mods.bm25s_tokenization import tokenize as bm25s_tokenize
 
         processed_query = bm25s_tokenize(query, return_ids=False)
