@@ -154,6 +154,10 @@ def GetChatModel(compute_mode, ckpt_dir=None):
             id_or_dir,
             # We need this to load the model in BF16 instead of fp32 (torch.float)
             torch_dtype=torch.bfloat16,
+            # Enable FlashAttention (requires pip install flash-attn)
+            # https://huggingface.co/docs/transformers/en/attention_interface
+            # https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention-2
+            attn_implementation="flash_attention_2",
         )
 
         # Use MyTextGenerationPipeline with custom preprocess() method
@@ -164,7 +168,8 @@ def GetChatModel(compute_mode, ckpt_dir=None):
             return_full_text=False,
             # It seems that max_new_tokens has to be specified here, not in .invoke()
             max_new_tokens=2000,
-            # Use padding for FlashAttention alignment
+            # Use padding for proper alignment for FlashAttention
+            # Part of fix for: "RuntimeError: p.attn_bias_ptr is not correctly aligned"
             # https://github.com/google-deepmind/gemma/issues/169
             padding="longest",
         )

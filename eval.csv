@@ -59,59 +59,9 @@ If you need timezone information, the suggested approach is to use POSIXt object
 Avi Gross (2021-10-11) described ifelse() as implemented in a way that it creates a vector of the right length, evaluates the condition, calculates TRUE and FALSE vectors, and then copies values accordingly. While this implementation can be efficient, it involves extra work.
 
 Martin Maechler (2024-05-06) notes that while ifelse() can be convenient, it is ""almost always suboptimal"" compared to indexing, which is often more efficient. He suggests that the choice depends on whether overall efficiency or human time is the priority.",2020-January,2025-June,hybrid,graph,local,google/gemma-3-12b-it,2025-07-25
-"Fix ""trailing garbage"" error in fromJSON","The ""trailing garbage"" error in fromJSON typically occurs when the input JSON string contains characters or text that are not part of a valid JSON object, often due to extra text or formatting issues after the actual JSON content. Based on the retrieved emails, there are a few approaches to resolve this issue.
+"Fix ""trailing garbage"" error in fromJSON","According to the R-help mailing list archives, a ""trailing garbage"" error when using fromJSON can sometimes be resolved by ensuring that the input is correctly formatted as a single JSON object or list, rather than a multi-line file or list that requires separate processing.
 
-One approach is to read the entire file content into a character vector and then process it line by line, using a custom function to extract valid JSON objects. This method is particularly useful when dealing with multiple JSON objects in a single file, as shown in the email from Mark Sharp:
+Kimmo (2015-10-25) encountered a similar issue and found that fromJSON doesn't inherently handle multi-line files or lists. He successfully addressed this by reading the file with readLines into a list and then processing each item in the list with fromJSON within a for loop.
 
-library(stringi)
-match_braces <- function(txt) {
-  txt <- txt[1]
-  left <- stri_locate_all_regex(txt, ""\\{"")[[1]][, 1]
-  right <- stri_locate_all_regex(txt, ""\\}"")[[1]][, 2]
-  len <- length(left)
-  braces <- data.frame(left = rep(0, len), right = rep(0, len))
-  for (i in seq_along(right)) {
-    for (j in rev(seq_along(left))) {
-      if (left[j] < right[i] & left[j]!= 0) {
-        braces$left[i] <- left[j]
-        braces$right[i] <- right[i]
-        left[j] <- 0
-        break
-      }
-    }
-  }
-  braces[order(braces$left), ]
-}
-
-get_first_json_message <- function(json_txt) {
-  len <- stri_length(json_txt)
-  braces <- match_braces(json_txt)
-  if (braces$right[1] + 1 > len) {
-    remainder <- """"
-  } else {
-    remainder <- stri_trim_both(stri_sub(json_txt, braces$right[1] + 1))
-  }
-  list(object = stri_sub(json_txt, braces$left[1], to = braces$right[1]),
-       remainder = remainder)
-}
-
-get_json_list <- function(json_txt) {
-  t_json_txt <- json_txt
-  i <- 0
-  json_list <- list()
-  repeat {
-    i <- i + 1
-    message_remainder <- get_first_json_message(t_json_txt)
-    json_list[i] <- list(fromJSON(message_remainder$object))
-    if (message_remainder$remainder == """") break
-    t_json_txt <- message_remainder$remainder
-  }
-  json_list
-}
-
-Another approach is to ensure that the input string is properly formatted and does not contain any extraneous characters. If the JSON data is obtained from a URL, using the fromJSON function with a URL as the second argument can sometimes help, as noted by Eric Berger in the email:
-
-library(rjson)
-data <- fromJSON(""http://example.com/data.json"")
-
-If the issue persists, it might be due to malformed JSON or extra characters at the end of the string. In such cases, trimming the string or using a JSON parser that is more forgiving of such issues, like jsonlite, might be beneficial. However, the specific solution should be tailored to the exact nature of the input data and the error message.",2015-January,2025-June,hybrid,graph,local,Qwen/Qwen3-8B,2025-07-28
+Furthermore, Kimmo (2018-11-05) suggests trying the fromJSON function with the argument simplifyDataFrame set to TRUE. He references a section of the jsonlite package vignette (https://cran.r-project.org/web/packages/jsonlite/vignettes/json-aaquickstart.html) that explains how this option affects the data frame structure. This approach might resolve the error related to how the data frame is structured.
+",2015-January,2025-July,hybrid,graph,local,google/gemma-3-12b-it,2025-08-01

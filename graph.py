@@ -43,8 +43,18 @@ def print_message_summaries(messages, header):
         print(f"{type_txt}: {summary_txt}")
 
 
-def normalize_messages(messages):
-    """Normalize messages to sequence of types expected by chat models"""
+def normalize_messages(messages, summaries_for=None):
+    """
+    Normalize messages to sequence of types expected by chat models
+
+    Args:
+        messages (list): message list
+        summaries_for (str): "query" or "answer" to print messages summaries or None for no summaries
+    """
+    if summaries_for:
+        print_message_summaries(
+            messages, f"--- {summaries_for}: before normalization ---"
+        )
     # Copy the most recent HumanMessage to the end
     # - Avoids SmolLM and Qwen ValueError: Last message must be a HumanMessage!
     if not type(messages[-1]) is HumanMessage:
@@ -88,6 +98,10 @@ def normalize_messages(messages):
         if not hasattr(msg, "tool_calls")
         or (hasattr(msg, "tool_calls") and not msg.tool_calls)
     ]
+    if summaries_for:
+        print_message_summaries(
+            messages, f"--- {summaries_for}: after normalization ---"
+        )
     return messages
 
 
@@ -118,6 +132,7 @@ def BuildGraph(
     top_k=6,
     think_query=False,
     think_answer=False,
+    local_citations=False,
     embedding_ckpt_dir=None,
 ):
     """
@@ -128,8 +143,10 @@ def BuildGraph(
         compute_mode: remote or local (for retriever)
         search_type: dense, sparse, or hybrid (for retriever)
         top_k: number of documents to retrieve
-        think_query: Whether to use thinking mode for the query
-        think_answer: Whether to use thinking mode for the answer
+        think_query: Whether to use thinking mode for the query (local model)
+        think_answer: Whether to use thinking mode for the answer (local model)
+        local_citations: Whether to use answer_with_citations() tool (local model)
+        embedding_ckpt_dir: Directory for embedding model checkpoint
 
     Based on:
         https://python.langchain.com/docs/how_to/qa_sources
@@ -175,10 +192,10 @@ def BuildGraph(
         Use optional "months" argument to search by month.
 
         Args:
-            search_query: Search query (required)
-            months: One or more months (optional)
-            start_year: Starting year for emails (optional)
-            end_year: Ending year for emails (optional)
+            search_query (str): Search query
+            start_year (int, optional): Starting year for emails
+            end_year (int, optional): Ending year for emails
+            months (str, optional): One or more months separated by spaces
         """
         retriever = BuildRetriever(
             compute_mode, search_type, top_k, start_year, end_year, embedding_ckpt_dir
@@ -208,8 +225,8 @@ def BuildGraph(
         An answer to the question, with citations of the emails used (senders and dates).
 
         Args:
-            answer: An answer to the question
-            citations: Citations of emails used to answer the question, e.g. Jane Doe, 2025-07-04; John Smith, 2020-01-01
+            answer (str): An answer to the question
+            citations (str): Citations of emails used to answer the question, e.g. Jane Doe, 2025-07-04; John Smith, 2020-01-01
         """
         return answer, citations
 
@@ -220,8 +237,14 @@ def BuildGraph(
         query_model = ToolifyHF(
             chat_model, query_prompt(chat_model, think=think_query)
         ).bind_tools([retrieve_emails])
-        # Don't use answer_with_citations tool because responses with are sometimes unparseable
-        answer_model = chat_model
+        if local_citations:
+            answer_model = ToolifyHF(
+                chat_model,
+                answer_prompt(chat_model, think=think_answer, with_tools=True),
+            ).bind_tools([answer_with_citations])
+        else:
+            # Don't use answer_with_citations tool because responses with are sometimes unparseable
+            answer_model = chat_model
     else:
         # For remote model (OpenAI API)
         query_model = chat_model.bind_tools([retrieve_emails])
@@ -235,9 +258,7 @@ def BuildGraph(
         if is_local:
             # Don't include the system message here because it's defined in ToolCallingLLM
             messages = state["messages"]
-            # print_message_summaries(messages, "--- query: before normalization ---")
             messages = normalize_messages(messages)
-            # print_message_summaries(messages, "--- query: after normalization ---")
         else:
             messages = [SystemMessage(query_prompt(chat_model))] + state["messages"]
         response = query_model.invoke(messages)
@@ -248,13 +269,12 @@ def BuildGraph(
         """Generates an answer with the chat model"""
         if is_local:
             messages = state["messages"]
-            # print_message_summaries(messages, "--- answer: before normalization ---")
             messages = normalize_messages(messages)
-            # Add the system message here because we're not using tools
-            messages = [
-                SystemMessage(answer_prompt(chat_model, think=think_answer))
-            ] + messages
-            # print_message_summaries(messages, "--- answer: after normalization ---")
+            if not local_citations:
+                # Add the system message here if we're not using tools
+                messages = [
+                    SystemMessage(answer_prompt(chat_model, think=think_answer))
+                ] + messages
         else:
             messages = [
                 SystemMessage(answer_prompt(chat_model, with_tools=True))

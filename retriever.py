@@ -49,6 +49,7 @@ def BuildRetriever(
         top_k: Number of documents to retrieve for "dense" and "sparse"
         start_year: Start year (optional)
         end_year: End year (optional)
+        embedding_ckpt_dir: Directory for embedding model checkpoint
     """
     if search_type == "dense":
         if not (start_year or end_year):
@@ -134,6 +135,7 @@ def BuildRetrieverDense(compute_mode: str, top_k=6, embedding_ckpt_dir=None):
     Args:
         compute_mode: Compute mode for embeddings (remote or local)
         top_k: Number of documents to retrieve
+        embedding_ckpt_dir: Directory for embedding model checkpoint
     """
 
     # Don't try to use local models without a GPU

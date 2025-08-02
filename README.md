@@ -127,7 +127,7 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 - **Response groundedness:** how well a response is supported by the retrieved context
 - **Answer accuracy:** agreement betwen the response and a reference answer
 
-Results for queries and reference answers in `eval.csv` with retrieval from 5.5 years of the R-help archives (January 2020-June 2025):
+Results for queries and reference answers in `eval.csv` with retrieval from 5.5 years of the R-help archives (January 2020-July 2025):
 
 | Compute | Workflow | Relevance | Groundedness | Accuracy |
 |-|-|-|-|-|

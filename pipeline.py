@@ -8,6 +8,7 @@ class MyTextGenerationPipeline(TextGenerationPipeline):
     This subclass overrides the preprocess method to add pad_to_multiple_of=8 to tokenizer_kwargs.
     Fix for: "RuntimeError: p.attn_bias_ptr is not correctly aligned"
     https://github.com/google-deepmind/gemma/issues/169
+    NOTE: we also need padding="longest", which is set during class instantiation
     """
 
     def preprocess(
