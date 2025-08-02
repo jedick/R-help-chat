@@ -59,7 +59,7 @@ Here's a drawing of the graph workflow for one conversational turn:
 
 - Choice of compute modes to balance performance, price, and privacy
     - Remote mode: OpenAI API for embeddings and chat model
-    - Local mode: [nomic-embed-text-v1.5](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [Qwen3 8B](Qwen/Qwen3-8B)
+    - Local mode: [Nomic embeddings](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [Gemma 3](https://huggingface.co/google/gemma-3-12b-it)
     - <a href="https://huggingface.co/spaces?q=R-help&hardware=zerogpu"><img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"></a> Local mode runs on ZeroGPU (dynamic GPU resources) in HF Spaces
     - 🧠 Local mode shows thinking output for query and answer steps
 

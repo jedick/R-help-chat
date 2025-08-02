@@ -2,8 +2,6 @@
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
 from langchain_chroma import Chroma
-
-# from mods.langchain_chroma import Chroma
 from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever, RetrieverLike

@@ -1,6 +1,7 @@
 from langgraph.checkpoint.memory import MemorySaver
 from huggingface_hub import snapshot_download
 from dotenv import load_dotenv
+from datetime import datetime
 import gradio as gr
 import spaces
 import torch
@@ -17,8 +18,10 @@ from mods.tool_calling_llm import extract_think
 from data import download_data, extract_data
 from graph import BuildGraph
 
-# Setup environment variables
+# Set environment variables
 load_dotenv(dotenv_path=".env", override=True)
+# Hide BM25S progress bars
+os.environ["DISABLE_TQDM"] = "true"
 
 # Download model snapshots from Hugging Face Hub
 if torch.cuda.is_available():
@@ -52,12 +55,13 @@ graph_instances = {"local": {}, "remote": {}}
 
 
 def cleanup_graph(request: gr.Request):
+    timestamp = datetime.now().replace(microsecond=0).isoformat()
     if request.session_hash in graph_instances["local"]:
         del graph_instances["local"][request.session_hash]
-        print(f"Deleted local graph for session {request.session_hash}")
+        print(f"{timestamp} - Deleted local graph for session {request.session_hash}")
     if request.session_hash in graph_instances["remote"]:
         del graph_instances["remote"][request.session_hash]
-        print(f"Deleted remote graph for session {request.session_hash}")
+        print(f"{timestamp} - Deleted remote graph for session {request.session_hash}")
 
 
 def append_content(chunk_messages, history, thinking_about):
@@ -94,8 +98,6 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
 
     # Get graph instance
     graph = graph_instances[compute_mode].get(session_hash)
-    if graph is not None:
-        print(f"Get {compute_mode} graph for session {session_hash}")
 
     if graph is None:
         # Notify when we're loading the local model because it takes some time
@@ -117,11 +119,16 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
         graph = graph_builder.compile(checkpointer=memory)
         # Set global graph for compute mode
         graph_instances[compute_mode][session_hash] = graph
-        print(f"Set {compute_mode} graph for session {session_hash}")
+        # ISO 8601 timestamp with local timezone information without microsecond
+        timestamp = datetime.now().replace(microsecond=0).isoformat()
+        print(f"{timestamp} - Set {compute_mode} graph for session {session_hash}")
         # Notify when model finishes loading
         gr.Success(f"{compute_mode}", duration=4, title=f"Model loaded!")
+    else:
+        timestamp = datetime.now().replace(microsecond=0).isoformat()
+        print(f"{timestamp} - Get {compute_mode} graph for session {session_hash}")
 
-    print(f"Using thread_id: {thread_id}")
+    # print(f"Using thread_id: {thread_id}")
 
     # Display the user input in the chatbot
     history.append(gr.ChatMessage(role="user", content=input))
@@ -377,7 +384,7 @@ with gr.Blocks(
     def generate_thread_id():
         """Generate a new thread ID"""
         thread_id = uuid.uuid4()
-        print(f"Generated thread_id: {thread_id}")
+        # print(f"Generated thread_id: {thread_id}")
         return thread_id
 
     # Define thread_id variable
@@ -407,7 +414,7 @@ with gr.Blocks(
     def get_status_text(compute_mode):
         if compute_mode == "remote":
             status_text = f"""
-            📍 Now in **remote** mode, using the OpenAI API<br>
+            🌐 Now in **remote** mode, using the OpenAI API<br>
             ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
             ✨ text-embedding-3-small and {openai_model}<br>
             🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
