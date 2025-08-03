@@ -158,7 +158,6 @@ def GetChatModel(compute_mode, ckpt_dir=None):
             # https://huggingface.co/docs/transformers/en/attention_interface
             # https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention
             attn_implementation="flash_attention_2",
-            device_map="auto",
         )
         # For Flash Attention version of Qwen3
         tokenizer.padding_side = "left"

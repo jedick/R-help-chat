@@ -34,7 +34,7 @@ def query_prompt(chat_model, think=False):
         "For questions about differences, changes, or comparisons between X and Y, retrieve emails about X and Y using separate tool calls. "
         "Always use retrieve_emails with a non-empty query string for search_query. "
         "For general summaries, use retrieve_emails(search_query='R'). "
-        "For questions about years, use retrieve_emails(search_query=<query>, start_year=, end_year=) (this month is this year). "
+        "For questions about years, use retrieve_emails(search_query=<query>, start_year=, end_year=). "
         "For questions about months, use 3-letter abbreviations (Jan...Dec) for the 'month' argument. "
         "Use all previous messages as context to formulate your search query. "  # Gemma
         "You should always retrieve more emails based on context and the most recent question. "  # Qwen

@@ -242,25 +242,15 @@ def to_workflow(request: gr.Request, *args):
     new_args = args + (request.session_hash,)
     if compute_mode == "local":
         # Call the workflow function with the @spaces.GPU decorator
-        if "/think" in input:
-            for value in run_workflow_local_long(*new_args):
-                yield value
-        else:
-            for value in run_workflow_local(*new_args):
-                yield value
+        for value in run_workflow_local(*new_args):
+            yield value
     if compute_mode == "remote":
         for value in run_workflow_remote(*new_args):
             yield value
 
 
-@spaces.GPU(duration=75)
-def run_workflow_local(*args):
-    for value in run_workflow(*args):
-        yield value
-
-
 @spaces.GPU(duration=100)
-def run_workflow_local_long(*args):
+def run_workflow_local(*args):
     for value in run_workflow(*args):
         yield value
 
@@ -440,8 +430,7 @@ with gr.Blocks(
             end = None
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
-            **Features:** RAG, today's date, hybrid search (dense+sparse), multiple retrievals,
-            thinking output (local), citations output (remote), chat memory.
+            **Features:** RAG, today's date, hybrid search (dense+sparse), multiple retrievals, citations output (remote), chat memory.
             **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
@@ -456,9 +445,9 @@ with gr.Blocks(
             "Who reported installation problems in 2023-2024?",
         ]
 
-        if compute_mode == "remote":
-            # Remove "/no_think" from questions in remote mode
-            questions = [q.replace(" /no_think", "") for q in questions]
+        ## Remove "/think" from questions in remote mode
+        # if compute_mode == "remote":
+        #     questions = [q.replace(" /think", "") for q in questions]
 
         # cf. https://github.com/gradio-app/gradio/pull/8745 for updating examples
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
@@ -470,9 +459,6 @@ with gr.Blocks(
             "Discuss pipe operator usage in 2022, 2023, and 2024",
         ]
 
-        if compute_mode == "remote":
-            questions = [q.replace(" /think", "") for q in questions]
-
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
 
     def get_multi_turn_questions(compute_mode, as_dataset=True):
@@ -481,9 +467,6 @@ with gr.Blocks(
             "Lookup emails that reference bugs.r-project.org in 2025",
             "Did the authors you cited report bugs before 2025?",
         ]
-
-        if compute_mode == "remote":
-            questions = [q.replace(" /think", "") for q in questions]
 
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
 
@@ -592,18 +575,6 @@ with gr.Blocks(
         outputs=[thread_id],
         api_name=False,
     ).then(
-        # Clear the chatbot history
-        clear_component,
-        [chatbot],
-        [chatbot],
-        api_name=False,
-    ).then(
-        # Change the chatbot avatar
-        set_avatar,
-        [compute_mode],
-        [chatbot],
-        api_name=False,
-    ).then(
         # Focus textbox by updating the textbox with the current value
         lambda x: gr.update(value=x),
         [input],
@@ -614,6 +585,18 @@ with gr.Blocks(
         get_status_text,
         [compute_mode],
         [status],
+        api_name=False,
+    ).then(
+        # Clear the chatbot history
+        clear_component,
+        [chatbot],
+        [chatbot],
+        api_name=False,
+    ).then(
+        # Change the chatbot avatar
+        set_avatar,
+        [compute_mode],
+        [chatbot],
         api_name=False,
     )
 

@@ -11,11 +11,10 @@ flash-attn==2.8.2
 #   Gemma 3: transformers>=4.50
 #   Qwen3:   transformers>=4.51
 #   SmolLM3: transformers>=4.53
-# NOTE: Gemma 3 with transformers==4.54.0 gives:
-#   ValueError: Max cache length is not consistent across layers
 transformers==4.51.3
 tokenizers==0.21.2
-accelerate==1.8.1
+# Only needed with AutoModelForCausalLM.from_pretrained(device_map="auto")
+#accelerate==1.8.1
 
 # Required by langchain-huggingface
 sentence-transformers==5.0.0
