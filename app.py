@@ -439,7 +439,7 @@ with gr.Blocks(
         """Get example questions based on compute mode"""
         questions = [
             # "What is today's date?",
-            "Summarize emails from the last two months",
+            "Summarize emails from the most recent two months",
             "Show me code examples using plotmath",
             "When was has.HLC mentioned?",
             "Who reported installation problems in 2023-2024?",

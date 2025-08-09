@@ -24,7 +24,7 @@ This launches an interactive chat interface in a web browser.
 The interface comes with example questions and allows choosing remote or local processing.
 
 <div align="center">
-  <img src="https://chnosz.net/images/R-help-chat.png" alt="R-help-chat screenshot" style="width:65%;"/>
+  <img src="https://chnosz.net/guest/R-help-chat/screenshot.png" alt="R-help-chat screenshot" style="width:65%;"/>
 </div>
 
 Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app and chat with emails from **January 2015** to **June 2025**!
@@ -61,7 +61,6 @@ Here's a drawing of the graph workflow for one conversational turn:
     - Remote mode: OpenAI API for embeddings and chat model
     - Local mode: [Nomic embeddings](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [Gemma 3](https://huggingface.co/google/gemma-3-12b-it)
     - <a href="https://huggingface.co/spaces?q=R-help&hardware=zerogpu"><img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"></a> Local mode runs on ZeroGPU (dynamic GPU resources) in HF Spaces
-    - 🧠 Local mode shows thinking output for query and answer steps
 
 ## Command-Line Usage
 

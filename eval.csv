@@ -65,3 +65,10 @@ Kimmo (2015-10-25) encountered a similar issue and found that fromJSON doesn't i
 
 Furthermore, Kimmo (2018-11-05) suggests trying the fromJSON function with the argument simplifyDataFrame set to TRUE. He references a section of the jsonlite package vignette (https://cran.r-project.org/web/packages/jsonlite/vignettes/json-aaquickstart.html) that explains how this option affects the data frame structure. This approach might resolve the error related to how the data frame is structured.
 ",2015-January,2025-July,hybrid,graph,local,google/gemma-3-12b-it,2025-08-01
+"What Docker images are available for R?","There are several Docker images available for R, particularly from the Rocker project, which is a popular source for R-related Docker images. For instance, the Bioconductor Docker image can be used to run R with specific packages like UMI4Cats, and it can be accessed using the command: `docker run -it --entrypoint=Rscript bioconductor/bioconductor_docker:RELEASE_3_13 -e 'capabilities()'` (Bogdan Tanasa, 2021-10-27). 
+
+Additionally, the Rocker project provides a variety of images tailored for different R environments and package dependencies. You can find these images on Docker Hub under the Rocker organization, which includes images for R with various configurations and pre-installed packages (Michael Sumner, 2016-09-10). 
+
+It's important to note that the choice of Docker image may depend on the specific requirements of the R packages you intend to use, as some packages have extensive dependencies that need to be managed within the Docker container (Jeff Newmiller, 2021-10-27). 
+
+For more information, you can visit the Rocker project at https://hub.docker.com/u/rocker/ and the Bioconductor Docker documentation at https://www.bioconductor.org/help/docker/#running.",2015-January,2025-July,hybrid,graph,remote,,2025-08-03
