@@ -55,7 +55,30 @@ Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to
 
 Here's a drawing of the graph workflow for one conversational turn:
 
-![R-help-chat workflow](images/graph_LR.png)
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph LR;
+	__start__([<p>__start__</p>]):::first
+	query(query)
+	retrieve_emails(retrieve_emails)
+	answer(answer)
+	answer_with_citations(answer_with_citations)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> query;
+	answer -.-> __end__;
+	answer -. &nbsp;tools&nbsp; .-> answer_with_citations;
+	query -.-> __end__;
+	query -. &nbsp;tools&nbsp; .-> retrieve_emails;
+	retrieve_emails --> answer;
+	answer_with_citations --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
 
 - Choice of compute modes to balance performance, price, and privacy
     - Remote mode: OpenAI API for embeddings and chat model
