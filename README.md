@@ -27,7 +27,7 @@ The interface comes with example questions and allows choosing remote or local p
   <img src="https://chnosz.net/guest/R-help-chat/screenshot.png" alt="R-help-chat screenshot" style="width:65%;"/>
 </div>
 
-Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app and chat with emails from **January 2015** to **June 2025**!
+Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to try the live app and chat with emails from **January 2015** to **August 2025**!
 
 ## Features
 
