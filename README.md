@@ -12,6 +12,10 @@ R-help-chat is a chatbot for the R-help archives.
 The end-to-end scope of this project includes data processing, email retrieval, conversational RAG, model evaluation, and deployment with a user-friendly web interface.
 Domain-specific features for mailing list chatbots, like providing source citations and retrieving whole emails for context, are also included.
 
+Watch the walkthrough video here:
+
+<a href="https://youtu.be/mLQqW7zea-k"><img width="50%" alt="Watch the video" src="https://img.youtube.com/vi/mLQqW7zea-k/maxresdefault.jpg" href="https://youtu.be/mLQqW7zea-k" /></a>
+
 ## Web Interface
 
 A Gradio web interface is available for easy interaction with the chatbot:
