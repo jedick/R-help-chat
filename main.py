@@ -157,7 +157,7 @@ def GetChatModel(compute_mode, ckpt_dir=None):
             # Enable FlashAttention (requires pip install flash-attn)
             # https://huggingface.co/docs/transformers/en/attention_interface
             # https://huggingface.co/docs/transformers/perf_infer_gpu_one#flashattention
-            attn_implementation="flash_attention_2",
+            # attn_implementation="flash_attention_2",
         )
         # For Flash Attention version of Qwen3
         tokenizer.padding_side = "left"

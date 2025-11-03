@@ -5,7 +5,7 @@ chromadb==0.6.3
 #   ValueError('Could not connect to tenant default_tenant. Are you sure it exists?')
 
 # FlashAttention
-flash-attn==2.8.2
+#flash-attn==2.8.2
 
 # Stated requirements:
 #   Gemma 3: transformers>=4.50
