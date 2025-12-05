@@ -396,8 +396,7 @@ with gr.Blocks(
             **Chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
             An LLM turns your question into a search query, including year ranges and months, and generates an answer from the retrieved emails.
             You can ask follow-up questions with the chat history as context.
-            ➡️ To clear the history and start a new chat, press the 🗑️ clear button.
-            **_Answers may be incorrect._**
+            *To clear the history and start a new chat, press the clear button* (🗑).
             """
         return intro
 
