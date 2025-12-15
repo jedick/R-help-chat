@@ -393,10 +393,11 @@ with gr.Blocks(
             <!-- Get AI-powered answers about R programming backed by email retrieval. -->
             ## 🇷🤝💬 R-help-chat
             
-            **Chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
-            An LLM turns your question into a search query, including year ranges and months, and generates an answer from the retrieved emails.
+            **Search and chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
+            An LLM turns your question into a search query, including year ranges and months,
+            and generates an answer from the retrieved emails (*emails are shown below the chatbot*).
             You can ask follow-up questions with the chat history as context.
-            *To clear the history and start a new chat, press the clear button* (🗑).
+            Press the clear button (🗑) to clear the history and start a new chat.
             """
         return intro
 
