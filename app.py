@@ -177,7 +177,7 @@ def run_workflow(input, history, thread_id, session_hash):
                 )
                 # Get the number of retrieved emails
                 n_emails = len(email_list)
-                title = f"🛒 Retrieved {n_emails} emails"
+                title = f"🗎 Retrieved {n_emails} emails"
                 if email_list[0] == "### No emails were retrieved":
                     title = "❌ Retrieved 0 emails"
                 history.append(
@@ -228,30 +228,8 @@ def to_workflow(request: gr.Request, *args):
         yield value
 
 
-# Custom CSS for bottom alignment
-css = """
-.row-container {
-    display: flex;
-    align-items: flex-end; /* Align components at the bottom */
-    gap: 10px; /* Add spacing between components */
-}
-"""
-
 with gr.Blocks(
     title="R-help-chat",
-    # Noto Color Emoji gets a nice-looking Unicode Character “🇷” (U+1F1F7) on Chrome
-    theme=gr.themes.Soft(
-        font=[
-            "ui-sans-serif",
-            "system-ui",
-            "sans-serif",
-            "Apple Color Emoji",
-            "Segoe UI Emoji",
-            "Segoe UI Symbol",
-            "Noto Color Emoji",
-        ]
-    ),
-    css=css,
 ) as demo:
 
     # -----------------
@@ -285,10 +263,9 @@ with gr.Blocks(
         render=False,
     )
     chatbot = gr.Chatbot(
-        type="messages",
         show_label=False,
         avatar_images=(None, "images/cloud.png"),
-        show_copy_all_button=True,
+        buttons=["copy", "copy_all"],
         render=False,
     )
     # Modified from gradio/chat_interface.py
@@ -486,14 +463,14 @@ with gr.Blocks(
 
     # Start a new thread when the user presses the clear (trash) button
     # https://github.com/gradio-app/gradio/issues/9722
-    chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
+    chatbot.clear(generate_thread_id, outputs=[thread_id], api_visibility="private")
 
     input.submit(
         # Submit input to the chatbot
         to_workflow,
         [input, chatbot, thread_id],
         [chatbot, retrieved_emails, citations_text],
-        api_name=False,
+        api_visibility="private",
     )
 
     retrieved_emails.change(
@@ -501,7 +478,7 @@ with gr.Blocks(
         update_textbox,
         [retrieved_emails, emails_textbox],
         [emails_textbox, emails_textbox],
-        api_name=False,
+        api_visibility="private",
     )
 
     citations_text.change(
@@ -509,7 +486,7 @@ with gr.Blocks(
         update_textbox,
         [citations_text, citations_textbox],
         [citations_textbox, citations_textbox],
-        api_name=False,
+        api_visibility="private",
     )
 
     chatbot.clear(
@@ -517,7 +494,7 @@ with gr.Blocks(
         lambda x: gr.update(value=x),
         [input],
         [input],
-        api_name=False,
+        api_visibility="private",
     )
 
     # Clean up graph instances when page is closed/refreshed
@@ -529,5 +506,25 @@ if __name__ == "__main__":
     # Set allowed_paths to serve chatbot avatar images
     current_directory = os.getcwd()
     allowed_paths = [current_directory + "/images"]
+    # Noto Color Emoji gets a nice-looking Unicode Character “🇷” (U+1F1F7) on Chrome
+    theme = gr.themes.Soft(
+        font=[
+            "ui-sans-serif",
+            "system-ui",
+            "sans-serif",
+            "Apple Color Emoji",
+            "Segoe UI Emoji",
+            "Segoe UI Symbol",
+            "Noto Color Emoji",
+        ]
+    )
+    # Custom CSS for bottom alignment
+    css = """
+    .row-container {
+        display: flex;
+        align-items: flex-end; /* Align components at the bottom */
+        gap: 10px; /* Add spacing between components */
+    }
+    """
     # Launch the Gradio app
-    demo.launch(allowed_paths=allowed_paths)
+    demo.launch(allowed_paths=allowed_paths, theme=theme, css=css)
