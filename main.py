@@ -22,6 +22,7 @@ from graph import BuildGraph
 # R-help-chat
 # -----------
 # First version by Jeffrey Dick on 2025-06-29
+# Updated to LangChain v1 and Chroma 6 on 2026-01-03
 
 # Setup environment variables
 load_dotenv(dotenv_path=".env", override=True)

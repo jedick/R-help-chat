@@ -42,9 +42,9 @@ Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to
     - Only indexes changed files
     - Removes stale documents from vector database
 - Multiple retrieval methods for deeper search
-    - Dense search with vector embeddings ([Chroma](https://github.com/chroma-core/chroma) vector database)
-    - Sparse search ([BM25S](https://github.com/xhluca/bm25s))
-    - Hybrid (dense+sparse) search
+    - Semantic search with vector embeddings ([Chroma](https://github.com/chroma-core/chroma) vector database)
+    - Lexical search ([BM25S](https://github.com/xhluca/bm25s))
+    - Hybrid (semantic + lexical) search
 - Full-context retrieval
     - Retrieval provides whole emails (parent documents) for context
     - Dense embedding uses small chunks (child documents) to capture semantic meaning

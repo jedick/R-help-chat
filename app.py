@@ -319,22 +319,13 @@ with gr.Blocks(
             ## 🇷🤝💬 R-help-chat
             
             **Search and chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
-            An LLM turns your question into a search query, including year ranges and months,
-            and generates an answer from the retrieved emails (*emails are shown below the chatbot*).
+            An LLM turns your question into a search query, including year ranges and months.
+            Retrieved emails are shown below the chatbot and are used by the LLM to generate an answer.
             You can ask follow-up questions with the chat history as context.
             Press the clear button (🗑) to clear the history and start a new chat.
-            🚧 Under construction: Select a mailing list to search, or use Auto to let the LLM choose.
+            *Privacy notice*: Data sharing with OpenAI is enabled.
             """
         return intro
-
-    def get_status_text():
-        status_text = f"""
-        🌐 This app uses the OpenAI API<br>
-        ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
-        ✨ text-embedding-3-small and {openai_model}<br>
-        🏠 More info: [R-help-chat GitHub repository](https://github.com/jedick/R-help-chat)
-        """
-        return status_text
 
     def get_info_text():
         try:
@@ -347,9 +338,12 @@ with gr.Blocks(
             start = None
             end = None
         info_text = f"""
-            **Database:** {len(sources)} emails from {start} to {end}.
-            **Features:** RAG, today's date, hybrid search (dense+sparse), multiple retrievals, citations output, chat memory.
-            **Tech:** OpenAI API + LangGraph + Gradio; ChromaDB and BM25S-based retrievers.<br>
+            **Database:** {len(sources)} emails from {start} to {end}<br>
+            **Models:** {openai_model} and text-embedding-3-small<br>
+            **Features:** RAG, today's date, hybrid search (semantic + lexical), multiple retrievals, citations output, chat memory<br>
+            **Tech:** [OpenAI](https://openai.com/), [Chroma](https://www.trychroma.com/),
+              [BM25S](https://github.com/xhluca/bm25s), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.langchain.com/langgraph)<br>
+            🏠 **More info:** [R-help-chat GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return info_text
 
@@ -393,7 +387,7 @@ with gr.Blocks(
                 with gr.Column(scale=1):
                     gr.Radio(
                         ["Auto", "R-help", "R-devel", "R-pkg-devel"],
-                        label="Mailing List",
+                        label="🚧 Mailing List (Under construction) 🚧",
                         interactive=False,
                     )
             with gr.Group() as chat_interface:
@@ -406,8 +400,7 @@ with gr.Blocks(
             missing_data.render()
         # Right column: Info, Examples
         with gr.Column(scale=1):
-            status = gr.Markdown(get_status_text())
-            with gr.Accordion("ℹ️ More Info", open=False):
+            with gr.Accordion("ℹ️ App Info", open=True):
                 info = gr.Markdown(get_info_text())
             with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
@@ -527,4 +520,9 @@ if __name__ == "__main__":
     }
     """
     # Launch the Gradio app
-    demo.launch(allowed_paths=allowed_paths, theme=theme, css=css)
+    demo.launch(
+        allowed_paths=allowed_paths,
+        theme=theme,
+        css=css,
+        footer_links=["gradio", "settings"],
+    )
