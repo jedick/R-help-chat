@@ -1,5 +1,5 @@
 # Main retriever modules
-from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
+from langchain_classic.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain_core.retrievers import BaseRetriever, RetrieverLike
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_text_splitters import RecursiveCharacterTextSplitter

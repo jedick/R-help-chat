@@ -1,32 +1,25 @@
 # To load API keys
-python-dotenv==1.1.1
+python-dotenv==1.2.1
 
-# To download data from S3
-boto3==1.39.14
+# To download files from S3
+boto3==1.42.21
 
 # Retrieval
-bm25s==0.2.12
-chromadb==0.6.3
-# NOTE: chromadb==1.0.13 was giving intermittent error:
-#   ValueError('Could not connect to tenant default_tenant. Are you sure it exists?')
-# posthog<6.0.0 is temporary fix for ChromaDB telemetry error log messages
-# https://github.com/vanna-ai/vanna/issues/917
-posthog==5.4.0
+bm25s==0.2.14
+chromadb==1.4.0
 
-# Langchain packages
-langchain==0.3.26
-langchain-core==0.3.72
-langchain-chroma==0.2.3
-langchain-openai==0.3.27
-langchain-community==0.3.27
-langchain-text-splitters==0.3.8
-langgraph==0.4.7
-langgraph-sdk==0.1.72
-langgraph-prebuilt==0.5.2
-langgraph-checkpoint==2.1.0
+# LangChain packages
+langchain==1.2.0
+langchain-chroma==1.1.0
+langchain-openai==1.1.6
+langchain-classic==1.0.1
+langchain-community==0.4.1
+langgraph==1.0.5
 
 # Evaluations
 ragas==0.2.15
+#ragas==0.4.2
 
 # Frontend
 gradio==5.38.2
+#gradio==6.2.0
