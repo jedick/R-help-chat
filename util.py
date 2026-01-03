@@ -5,21 +5,6 @@ import os
 import re
 
 
-def get_collection(compute_mode):
-    """
-    Returns the vectorstore collection.
-
-    Usage Examples:
-        # Number of child documents
-        collection = get_collection("remote")
-        len(collection["ids"])
-        # Number of parent documents (unique doc_ids)
-        len(set([m["doc_id"] for m in collection["metadatas"]]))
-    """
-    retriever = BuildRetriever(compute_mode, "dense")
-    return retriever.vectorstore.get()
-
-
 def get_sources():
     """
     Return the source files indexed in the database, e.g. 'R-help/2024-April.txt'.

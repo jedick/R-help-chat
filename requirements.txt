@@ -1,25 +1,17 @@
-# Pin torch and chroma versions
-torch==2.5.1
+# To load API keys
+python-dotenv==1.1.1
+
+# To download data from S3
+boto3==1.39.14
+
+# Retrieval
+bm25s==0.2.12
 chromadb==0.6.3
 # NOTE: chromadb==1.0.13 was giving intermittent error:
 #   ValueError('Could not connect to tenant default_tenant. Are you sure it exists?')
-
-# FlashAttention
-#flash-attn==2.8.2
-
-# Stated requirements:
-#   Gemma 3: transformers>=4.50
-#   Qwen3:   transformers>=4.51
-#   SmolLM3: transformers>=4.53
-transformers==4.51.3
-tokenizers==0.21.2
-# Only needed with AutoModelForCausalLM.from_pretrained(device_map="auto")
-#accelerate==1.8.1
-
-# Required by langchain-huggingface
-sentence-transformers==5.0.0
-# For snapshot_download
-huggingface-hub==0.34.3
+# posthog<6.0.0 is temporary fix for ChromaDB telemetry error log messages
+# https://github.com/vanna-ai/vanna/issues/917
+posthog==5.4.0
 
 # Langchain packages
 langchain==0.3.26
@@ -27,31 +19,14 @@ langchain-core==0.3.72
 langchain-chroma==0.2.3
 langchain-openai==0.3.27
 langchain-community==0.3.27
-langchain-huggingface==0.3.0
 langchain-text-splitters==0.3.8
 langgraph==0.4.7
 langgraph-sdk==0.1.72
 langgraph-prebuilt==0.5.2
 langgraph-checkpoint==2.1.0
 
-# Required by Nomic embeddings
-einops==0.8.1
-
-# Commented because we have local modifications
-#tool-calling-llm==0.1.2
-bm25s==0.2.12
+# Evaluations
 ragas==0.2.15
 
-# posthog<6.0.0 is temporary fix for ChromaDB telemetry error log messages
-# https://github.com/vanna-ai/vanna/issues/917
-posthog==5.4.0
-
-# Gradio for the web interface
+# Frontend
 gradio==5.38.2
-spaces==0.37.1
-
-# For downloading data from S3
-boto3==1.39.14
-
-# Others
-python-dotenv==1.1.1

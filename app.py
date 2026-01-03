@@ -1,41 +1,24 @@
 from langgraph.checkpoint.memory import MemorySaver
-from huggingface_hub import snapshot_download
+from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
 from datetime import datetime
 import gradio as gr
-import spaces
-import torch
 import uuid
 import ast
 import os
 import re
 
 # Local modules
-from main import GetChatModel, openai_model, model_id
 from util import get_sources, get_start_end_months
-from retriever import db_dir, embedding_model_id
-from mods.tool_calling_llm import extract_think
 from data import download_data, extract_data
+from main import openai_model
 from graph import BuildGraph
+from retriever import db_dir
 
 # Set environment variables
 load_dotenv(dotenv_path=".env", override=True)
 # Hide BM25S progress bars
 os.environ["DISABLE_TQDM"] = "true"
-
-# Download model snapshots from Hugging Face Hub
-if torch.cuda.is_available():
-    print(f"Downloading checkpoints for {model_id}...")
-    ckpt_dir = snapshot_download(model_id, local_dir_use_symlinks=False)
-    print(f"Using checkpoints from {ckpt_dir}")
-    print(f"Downloading checkpoints for {embedding_model_id}...")
-    embedding_ckpt_dir = snapshot_download(
-        embedding_model_id, local_dir_use_symlinks=False
-    )
-    print(f"Using embedding checkpoints from {embedding_ckpt_dir}")
-else:
-    ckpt_dir = None
-    embedding_ckpt_dir = None
 
 # Download and extract data if data directory is not present
 if not os.path.isdir(db_dir):
@@ -51,17 +34,35 @@ search_type = "hybrid"
 
 # Global variables for LangChain graph: use dictionaries to store user-specific instances
 # https://www.gradio.app/guides/state-in-blocks
-graph_instances = {"local": {}, "remote": {}}
+graph_instances = {}
 
 
 def cleanup_graph(request: gr.Request):
     timestamp = datetime.now().replace(microsecond=0).isoformat()
-    if request.session_hash in graph_instances["local"]:
-        del graph_instances["local"][request.session_hash]
-        print(f"{timestamp} - Delete local graph for session {request.session_hash}")
-    if request.session_hash in graph_instances["remote"]:
-        del graph_instances["remote"][request.session_hash]
-        print(f"{timestamp} - Delete remote graph for session {request.session_hash}")
+    if request.session_hash in graph_instances:
+        del graph_instances[request.session_hash]
+        print(f"{timestamp} - Delete graph for session {request.session_hash}")
+
+
+def extract_think(content):
+    # Added by Cursor 20250726 jmd
+    # Extract content within <think>...</think>
+    think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+    think_text = think_match.group(1).strip() if think_match else ""
+    # Extract text after </think>
+    if think_match:
+        post_think = content[think_match.end() :].lstrip()
+    else:
+        # Check if content starts with <think> but missing closing tag
+        if content.strip().startswith("<think>"):
+            # Extract everything after <think>
+            think_start = content.find("<think>") + len("<think>")
+            think_text = content[think_start:].strip()
+            post_think = ""
+        else:
+            # No <think> found, so return entire content as post_think
+            post_think = content
+    return think_text, post_think
 
 
 def append_content(chunk_messages, history, thinking_about):
@@ -85,48 +86,32 @@ def append_content(chunk_messages, history, thinking_about):
     return history
 
 
-def run_workflow(input, history, compute_mode, thread_id, session_hash):
+def run_workflow(input, history, thread_id, session_hash):
     """The main function to run the chat workflow"""
 
-    # Error if user tries to run local mode without GPU
-    if compute_mode == "local":
-        if not torch.cuda.is_available():
-            raise gr.Error(
-                "Local mode requires GPU.",
-                print_exception=False,
-            )
-
     # Get graph instance
-    graph = graph_instances[compute_mode].get(session_hash)
+    graph = graph_instances.get(session_hash)
 
     if graph is None:
-        # Notify when we're loading the local model because it takes some time
-        if compute_mode == "local":
-            gr.Info(
-                f"Please wait for the local model to load",
-                title=f"Model loading...",
-            )
         # Get the chat model and build the graph
-        chat_model = GetChatModel(compute_mode, ckpt_dir)
+        chat_model = ChatOpenAI(model=openai_model, temperature=0)
         graph_builder = BuildGraph(
             chat_model,
-            compute_mode,
             search_type,
-            embedding_ckpt_dir=embedding_ckpt_dir,
         )
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
-        # Set global graph for compute mode
-        graph_instances[compute_mode][session_hash] = graph
+        # Set global graph
+        graph_instances[session_hash] = graph
         # ISO 8601 timestamp with local timezone information without microsecond
         timestamp = datetime.now().replace(microsecond=0).isoformat()
-        print(f"{timestamp} - Set {compute_mode} graph for session {session_hash}")
-        # Notify when model finishes loading
-        gr.Success(f"{compute_mode}", duration=4, title=f"Model loaded!")
+        print(f"{timestamp} - Set graph for session {session_hash}")
+        ## Notify when model finishes loading
+        # gr.Success("Model loaded!", duration=4)
     else:
         timestamp = datetime.now().replace(microsecond=0).isoformat()
-        print(f"{timestamp} - Get {compute_mode} graph for session {session_hash}")
+        print(f"{timestamp} - Get graph for session {session_hash}")
 
     # print(f"Using thread_id: {thread_id}")
 
@@ -235,28 +220,11 @@ def run_workflow(input, history, compute_mode, thread_id, session_hash):
 
 
 def to_workflow(request: gr.Request, *args):
-    """Wrapper function to call function with or without @spaces.GPU"""
+    """Wrapper function to call run_workflow() with session_hash"""
     input = args[0]
-    compute_mode = args[2]
     # Add session_hash to arguments
     new_args = args + (request.session_hash,)
-    if compute_mode == "local":
-        # Call the workflow function with the @spaces.GPU decorator
-        for value in run_workflow_local(*new_args):
-            yield value
-    if compute_mode == "remote":
-        for value in run_workflow_remote(*new_args):
-            yield value
-
-
-@spaces.GPU(duration=100)
-def run_workflow_local(*args):
-    for value in run_workflow(*args):
-        yield value
-
-
-def run_workflow_remote(*args):
-    for value in run_workflow(*args):
+    for value in run_workflow(*new_args):
         yield value
 
 
@@ -290,19 +258,6 @@ with gr.Blocks(
     # Define components
     # -----------------
 
-    compute_mode = gr.Radio(
-        choices=[
-            "local",
-            "remote",
-        ],
-        # Default to remote because it provides a better first impression for most people
-        # value=("local" if torch.cuda.is_available() else "remote"),
-        value="remote",
-        label="Compute Mode",
-        info="NOTE: remote mode **does not** use ZeroGPU",
-        render=False,
-    )
-
     loading_data = gr.Textbox(
         "Please wait for the email database to be downloaded and extracted.",
         max_lines=0,
@@ -332,14 +287,7 @@ with gr.Blocks(
     chatbot = gr.Chatbot(
         type="messages",
         show_label=False,
-        avatar_images=(
-            None,
-            (
-                "images/cloud.png"
-                if compute_mode.value == "remote"
-                else "images/chip.png"
-            ),
-        ),
+        avatar_images=(None, "images/cloud.png"),
         show_copy_all_button=True,
         render=False,
     )
@@ -398,24 +346,17 @@ with gr.Blocks(
             and generates an answer from the retrieved emails (*emails are shown below the chatbot*).
             You can ask follow-up questions with the chat history as context.
             Press the clear button (🗑) to clear the history and start a new chat.
+            🚧 Under construction: Select a mailing list to search, or use Auto to let the LLM choose.
             """
         return intro
 
-    def get_status_text(compute_mode):
-        if compute_mode == "remote":
-            status_text = f"""
-            🌐 Now in **remote** mode, using the OpenAI API<br>
-            ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
-            ✨ text-embedding-3-small and {openai_model}<br>
-            🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
-            """
-        if compute_mode == "local":
-            status_text = f"""
-            📍 Now in **local** mode, using ZeroGPU hardware<br>
-            ⌛ Response time is about one minute<br>
-            ✨ [{embedding_model_id.split("/")[-1]}](https://huggingface.co/{embedding_model_id}) and [{model_id.split("/")[-1]}](https://huggingface.co/{model_id})<br>
-            🏠 See the project's [GitHub repository](https://github.com/jedick/R-help-chat)
-            """
+    def get_status_text():
+        status_text = f"""
+        🌐 This app uses the OpenAI API<br>
+        ⚠️ **_Privacy Notice_**: Data sharing with OpenAI is enabled<br>
+        ✨ text-embedding-3-small and {openai_model}<br>
+        🏠 More info: [R-help-chat GitHub repository](https://github.com/jedick/R-help-chat)
+        """
         return status_text
 
     def get_info_text():
@@ -430,13 +371,13 @@ with gr.Blocks(
             end = None
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}.
-            **Features:** RAG, today's date, hybrid search (dense+sparse), multiple retrievals, citations output (remote), chat memory.
-            **Tech:** LangChain + Hugging Face + Gradio; ChromaDB and BM25S-based retrievers.<br>
+            **Features:** RAG, today's date, hybrid search (dense+sparse), multiple retrievals, citations output, chat memory.
+            **Tech:** OpenAI API + LangGraph + Gradio; ChromaDB and BM25S-based retrievers.<br>
             """
         return info_text
 
-    def get_example_questions(compute_mode, as_dataset=True):
-        """Get example questions based on compute mode"""
+    def get_example_questions(as_dataset=True):
+        """Get example questions"""
         questions = [
             # "What is today's date?",
             "Summarize emails from the most recent two months",
@@ -445,15 +386,11 @@ with gr.Blocks(
             "Who reported installation problems in 2023-2024?",
         ]
 
-        ## Remove "/think" from questions in remote mode
-        # if compute_mode == "remote":
-        #     questions = [q.replace(" /think", "") for q in questions]
-
         # cf. https://github.com/gradio-app/gradio/pull/8745 for updating examples
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
 
-    def get_multi_tool_questions(compute_mode, as_dataset=True):
-        """Get multi-tool example questions based on compute mode"""
+    def get_multi_tool_questions(as_dataset=True):
+        """Get multi-tool example questions"""
         questions = [
             "Differences between lapply and for loops",
             "Discuss pipe operator usage in 2022, 2023, and 2024",
@@ -461,8 +398,8 @@ with gr.Blocks(
 
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
 
-    def get_multi_turn_questions(compute_mode, as_dataset=True):
-        """Get multi-turn example questions based on compute mode"""
+    def get_multi_turn_questions(as_dataset=True):
+        """Get multi-turn example questions"""
         questions = [
             "Lookup emails that reference bugs.r-project.org in 2025",
             "Did the authors you cited report bugs before 2025?",
@@ -474,10 +411,14 @@ with gr.Blocks(
         # Left column: Intro, Compute, Chat
         with gr.Column(scale=2):
             with gr.Row(elem_classes=["row-container"]):
-                with gr.Column(scale=2):
+                with gr.Column(scale=4):
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
-                    compute_mode.render()
+                    gr.Radio(
+                        ["Auto", "R-help", "R-devel", "R-pkg-devel"],
+                        label="Mailing List",
+                        interactive=False,
+                    )
             with gr.Group() as chat_interface:
                 chatbot.render()
                 input.render()
@@ -488,29 +429,23 @@ with gr.Blocks(
             missing_data.render()
         # Right column: Info, Examples
         with gr.Column(scale=1):
-            status = gr.Markdown(get_status_text(compute_mode.value))
+            status = gr.Markdown(get_status_text())
             with gr.Accordion("ℹ️ More Info", open=False):
                 info = gr.Markdown(get_info_text())
             with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
                 example_questions = gr.Examples(
-                    examples=get_example_questions(
-                        compute_mode.value, as_dataset=False
-                    ),
+                    examples=get_example_questions(as_dataset=False),
                     inputs=[input],
                     label="Click an example to fill the message box",
                 )
                 multi_tool_questions = gr.Examples(
-                    examples=get_multi_tool_questions(
-                        compute_mode.value, as_dataset=False
-                    ),
+                    examples=get_multi_tool_questions(as_dataset=False),
                     inputs=[input],
                     label="Multiple retrievals",
                 )
                 multi_turn_questions = gr.Examples(
-                    examples=get_multi_turn_questions(
-                        compute_mode.value, as_dataset=False
-                    ),
+                    examples=get_multi_turn_questions(as_dataset=False),
                     inputs=[input],
                     label="Asking follow-up questions",
                 )
@@ -529,18 +464,6 @@ with gr.Blocks(
     def value(value):
         """Return updated value for a component"""
         return gr.update(value=value)
-
-    def set_avatar(compute_mode):
-        if compute_mode == "remote":
-            image_file = "images/cloud.png"
-        if compute_mode == "local":
-            image_file = "images/chip.png"
-        return gr.update(
-            avatar_images=(
-                None,
-                image_file,
-            ),
-        )
 
     def change_visibility(visible):
         """Return updated visibility state for a component"""
@@ -565,45 +488,10 @@ with gr.Blocks(
     # https://github.com/gradio-app/gradio/issues/9722
     chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
 
-    def clear_component(component):
-        """Return cleared component"""
-        return component.clear()
-
-    compute_mode.change(
-        # Start a new thread
-        generate_thread_id,
-        outputs=[thread_id],
-        api_name=False,
-    ).then(
-        # Focus textbox by updating the textbox with the current value
-        lambda x: gr.update(value=x),
-        [input],
-        [input],
-        api_name=False,
-    ).then(
-        # Change the app status text
-        get_status_text,
-        [compute_mode],
-        [status],
-        api_name=False,
-    ).then(
-        # Clear the chatbot history
-        clear_component,
-        [chatbot],
-        [chatbot],
-        api_name=False,
-    ).then(
-        # Change the chatbot avatar
-        set_avatar,
-        [compute_mode],
-        [chatbot],
-        api_name=False,
-    )
-
     input.submit(
         # Submit input to the chatbot
         to_workflow,
-        [input, chatbot, compute_mode, thread_id],
+        [input, chatbot, thread_id],
         [chatbot, retrieved_emails, citations_text],
         api_name=False,
     )

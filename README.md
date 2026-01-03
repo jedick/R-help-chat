@@ -24,9 +24,6 @@ A Gradio web interface is available for easy interaction with the chatbot:
 python app.py
 ```
 
-This launches an interactive chat interface in a web browser.
-The interface comes with example questions and allows choosing remote or local processing.
-
 <div align="center">
   <img src="https://chnosz.net/guest/R-help-chat/screenshot.png" alt="R-help-chat screenshot" style="width:65%;"/>
 </div>
@@ -35,7 +32,7 @@ Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to
 
 ## Features
 
-- Complete retrieval-augmented generation (RAG) solution built with [LangChain](https://github.com/langchain-ai/langchain)
+- Complete retrieval-augmented generation (RAG) solution built with [LangChain](https://github.com/langchain-ai/langchain) and the OpenAI API
     - Chain workflow for simple retrieval and response
     - Graph workflow for conversational chat
 - Data preprocesssing for email messages
@@ -55,6 +52,7 @@ Go to [Hugging Face Spaces](https://huggingface.co/spaces/jedick/R-help-chat) to
     - [Query analysis](https://python.langchain.com/docs/tutorials/qa_chat_history/): Chat model rewrites user's query for the retrieval function
     - [Chat memory](https://python.langchain.com/docs/how_to/chatbots_memory/): Previous user and AI messages are part of the context for follow-up questions
     - [Source citations](https://python.langchain.com/docs/how_to/qa_sources/): Model response uses a tool call to cite the sender and date for each answer
+
 
 
 Here's a drawing of the graph workflow for one conversational turn:
@@ -84,24 +82,19 @@ graph LR;
 	classDef last fill:#bfb6fc
 ```
 
-- Choice of compute modes to balance performance, price, and privacy
-    - Remote mode: OpenAI API for embeddings and chat model
-    - Local mode: [Nomic embeddings](https://huggingface.co/nomic-ai/nomic-embed-text-v1.5) and [Gemma 3](https://huggingface.co/google/gemma-3-12b-it)
-    - <a href="https://huggingface.co/spaces?q=R-help&hardware=zerogpu"><img src="images/running-on-zero.png" alt="Running on ZeroGPU" style="height: 1em; vertical-align: baseline;"></a> Local mode runs on ZeroGPU (dynamic GPU resources) in HF Spaces
-
 ## Command-Line Usage
 
 Setup:
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
 - Extract the files and put them in a folder named `R-help`
-- Set your `OPENAI_API_KEY` environment variable (not needed if using local computing)
+- Set your `OPENAI_API_KEY` environment variable
 
 Run this Python code to create the vector database:
 
 ```python
 from main import *
-ProcessDirectory("R-help", "remote")
+ProcessDirectory("R-help")
 ```
 
 Now you're ready to run the chain or graph workflow. Here are some examples of RAG with the chain workflow:
@@ -137,7 +130,7 @@ To run evals:
 - Set `search_type` to dense, sparse, or hybrid
 
 ```sh
-python eval.py --compute_mode remote --workflow graph --search_type hybrid
+python eval.py --workflow graph --search_type hybrid
 ```
 
 For a fair comparison of different search types, each one retrieves up to 6 emails:
@@ -155,18 +148,14 @@ Evals are made for the following LLM-based metrics (see [NVIDIA Metrics in Ragas
 
 Results for queries and reference answers in `eval.csv` with retrieval from 5.5 years of the R-help archives (January 2020-July 2025):
 
-| Compute | Workflow | Relevance | Groundedness | Accuracy |
-|-|-|-|-|-|
-| Remote - OpenAI API | Chain | 0.81 | 0.79 | **0.65** |
-| Remote - OpenAI API | Graph | 0.66 | 0.75 | 0.63 |
-| Local - [Gemma 3 12B](google/gemma-3-12b-it) | Graph | **0.91** | 0.79 | 0.54 |
-| Local - [Qwen3 8B](Qwen/Qwen3-8B) | Graph | 0.81 | **0.81** | 0.57 |
+| Workflow | Relevance | Groundedness | Accuracy |
+|-|-|-|-|
+| Chain | **0.81** | 0.79 | **0.65** |
+| Graph | 0.66 | 0.75 | 0.63 |
 
 ## Acknowledgments
 
 Key features of this project wouldn't be possible without the codes adapted from other projects (see `mods` directory). Thank you!
 
 - The retriever class to use BM25S with persistence is copied from a [LangChain PR](https://github.com/langchain-ai/langchain/pull/28123) by [@mspronesti](https://github.com/mspronesti)
-- Code from [ToolCallingLLM](https://github.com/lalanikarim/tool_calling_llm) adds LangChain-compatible tooling to local Hugging Face models
-  - Modified here to handle multiple tool calls and LLM thinking output
 - LangChain's [LocalFileStore](https://python.langchain.com/api_reference/langchain/storage/langchain.storage.file_system.LocalFileStore.html) was modified to use subdirectories for lower per-directory file counts.

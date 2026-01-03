@@ -2,15 +2,13 @@ from langchain_core.messages import SystemMessage, ToolMessage, HumanMessage, AI
 from langgraph.graph import START, END, MessagesState, StateGraph
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode, tools_condition
-from langchain_huggingface import ChatHuggingFace
 from typing import Optional
 import datetime
 import os
 
 # Local modules
 from retriever import BuildRetriever
-from prompts import query_prompt, answer_prompt, generic_tools_template
-from mods.tool_calling_llm import ToolCallingLLM
+from prompts import query_prompt, answer_prompt
 
 # For tracing (disabled)
 # os.environ["LANGSMITH_TRACING"] = "true"
@@ -105,48 +103,18 @@ def normalize_messages(messages, summaries_for=None):
     return messages
 
 
-def ToolifyHF(chat_model, system_message):
-    """
-    Get a Hugging Face model ready for bind_tools().
-    """
-
-    # Combine system prompt and tools template
-    tool_system_prompt_template = system_message + generic_tools_template
-
-    class HuggingFaceWithTools(ToolCallingLLM, ChatHuggingFace):
-        def __init__(self, **kwargs):
-            super().__init__(**kwargs)
-
-    chat_model = HuggingFaceWithTools(
-        llm=chat_model.llm,
-        tool_system_prompt_template=tool_system_prompt_template,
-    )
-
-    return chat_model
-
-
 def BuildGraph(
     chat_model,
-    compute_mode,
     search_type,
     top_k=6,
-    think_query=False,
-    think_answer=False,
-    local_citations=False,
-    embedding_ckpt_dir=None,
 ):
     """
     Build conversational RAG graph for email retrieval and answering with citations.
 
     Args:
-        chat_model: LangChain chat model from GetChatModel()
-        compute_mode: remote or local (for retriever)
+        chat_model: LangChain chat model
         search_type: dense, sparse, or hybrid (for retriever)
         top_k: number of documents to retrieve
-        think_query: Whether to use thinking mode for the query (local model)
-        think_answer: Whether to use thinking mode for the answer (local model)
-        local_citations: Whether to use answer_with_citations() tool (local model)
-        embedding_ckpt_dir: Directory for embedding model checkpoint
 
     Based on:
         https://python.langchain.com/docs/how_to/qa_sources
@@ -158,7 +126,7 @@ def BuildGraph(
         # Build graph with chat model
         from langchain_openai import ChatOpenAI
         chat_model = ChatOpenAI(model="gpt-4o-mini")
-        graph = BuildGraph(chat_model, "remote", "hybrid")
+        graph = BuildGraph(chat_model, "hybrid")
 
         # Add simple in-memory checkpointer
         from langgraph.checkpoint.memory import MemorySaver
@@ -198,7 +166,10 @@ def BuildGraph(
             months (str, optional): One or more months separated by spaces
         """
         retriever = BuildRetriever(
-            compute_mode, search_type, top_k, start_year, end_year, embedding_ckpt_dir
+            search_type,
+            top_k,
+            start_year,
+            end_year,
         )
         # For now, just add the months to the search query
         if months:
@@ -230,55 +201,23 @@ def BuildGraph(
         """
         return answer, citations
 
-    # Add tools to the local or remote chat model
-    is_local = hasattr(chat_model, "model_id")
-    if is_local:
-        # For local models (ChatHuggingFace with SmolLM, Gemma, or Qwen)
-        query_model = ToolifyHF(
-            chat_model, query_prompt(chat_model, think=think_query)
-        ).bind_tools([retrieve_emails])
-        if local_citations:
-            answer_model = ToolifyHF(
-                chat_model,
-                answer_prompt(chat_model, think=think_answer, with_tools=True),
-            ).bind_tools([answer_with_citations])
-        else:
-            # Don't use answer_with_citations tool because responses with are sometimes unparseable
-            answer_model = chat_model
-    else:
-        # For remote model (OpenAI API)
-        query_model = chat_model.bind_tools([retrieve_emails])
-        answer_model = chat_model.bind_tools([answer_with_citations])
+    # Add tools to the chat model
+    query_model = chat_model.bind_tools([retrieve_emails])
+    answer_model = chat_model.bind_tools([answer_with_citations])
 
     # Initialize the graph object
     graph = StateGraph(MessagesState)
 
     def query(state: MessagesState):
         """Queries the retriever with the chat model"""
-        if is_local:
-            # Don't include the system message here because it's defined in ToolCallingLLM
-            messages = state["messages"]
-            messages = normalize_messages(messages)
-        else:
-            messages = [SystemMessage(query_prompt(chat_model))] + state["messages"]
+        messages = [SystemMessage(query_prompt())] + state["messages"]
         response = query_model.invoke(messages)
 
         return {"messages": response}
 
     def answer(state: MessagesState):
         """Generates an answer with the chat model"""
-        if is_local:
-            messages = state["messages"]
-            messages = normalize_messages(messages)
-            if not local_citations:
-                # Add the system message here if we're not using tools
-                messages = [
-                    SystemMessage(answer_prompt(chat_model, think=think_answer))
-                ] + messages
-        else:
-            messages = [
-                SystemMessage(answer_prompt(chat_model, with_tools=True))
-            ] + state["messages"]
+        messages = [SystemMessage(answer_prompt())] + state["messages"]
         response = answer_model.invoke(messages)
 
         return {"messages": response}

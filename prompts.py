@@ -3,22 +3,16 @@ from util import get_sources, get_start_end_months
 import re
 
 
-def check_prompt(prompt, chat_model, think):
-    """Check for unassigned variables and add /no_think if needed"""
+def check_prompt(prompt):
+    """Check for unassigned variables"""
     # A sanity check that we don't have unassigned variables
-    # (this causes KeyError in parsing by ToolCallingLLM)
     matches = re.findall(r"\{.*?\}", " ".join(prompt))
     if matches:
         raise ValueError(f"Unassigned variables in prompt: {' '.join(matches)}")
-    # Check if we should add /no_think to turn off thinking mode
-    if hasattr(chat_model, "model_id"):
-        model_id = chat_model.model_id
-        if ("SmolLM" in model_id or "Qwen" in model_id) and not think:
-            prompt = "/no_think\n" + prompt
     return prompt
 
 
-def query_prompt(chat_model, think=False):
+def query_prompt():
     """Return system prompt for query step"""
 
     # Get start and end months from database
@@ -43,12 +37,12 @@ def query_prompt(chat_model, think=False):
         # "Do not use your memory or knowledge to answer the user's question. Only retrieve emails based on the user's question. "  # Qwen
         # "If you decide not to retrieve emails, tell the user why and suggest how to improve their question to chat with the R-help mailing list. "
     )
-    prompt = check_prompt(prompt, chat_model, think)
+    prompt = check_prompt(prompt)
 
     return prompt
 
 
-def answer_prompt(chat_model, think=False, with_tools=False):
+def answer_prompt():
     """Return system prompt for answer step"""
     prompt = (
         f"Today Date: {date.today()}. "
@@ -64,61 +58,8 @@ def answer_prompt(chat_model, think=False, with_tools=False):
         "Only answer general questions about R if the answer is in the retrieved emails. "
         "Only include URLs if they were used by human authors (not in email headers), and do not modify any URLs. "  # Qwen, Gemma
         "Respond with 500 words maximum and 50 lines of code maximum. "
+        "Use answer_with_citations to provide the complete answer and all citations used. "
     )
-    if with_tools:
-        prompt = (
-            f"{prompt}"
-            "Use answer_with_citations to provide the complete answer and all citations used. "
-        )
-    prompt = check_prompt(prompt, chat_model, think)
+    prompt = check_prompt(prompt)
 
     return prompt
-
-
-# Prompt template for SmolLM3 with tools
-# The first two lines, <function-name>, and <args-json-object> are from the apply_chat_template for HuggingFaceTB/SmolLM3-3B
-# The other lines (You have, {tools}, You must), "tool", and "tool_input" are from tool_calling_llm.py
-smollm3_tools_template = """
-
-### Tools
-
-You may call one or more functions to assist with the user query.
-
-You have access to the following tools:
-
-{tools}
-
-You must always select one of the above tools and respond with only a JSON object matching the following schema:
-
-{{
-    "tool": <function-name>,
-    "tool_input": <args-json-object>
-}},
-{{
-    "tool": <function-name>,
-    "tool_input": <args-json-object>
-}}
-
-"""
-
-# Prompt template for Gemma/Qwen with tools
-# Based on https://ai.google.dev/gemma/docs/capabilities/function-calling
-generic_tools_template = """
-
-### Functions
-
-You have access to functions. If you decide to invoke any of the function(s), you MUST put it in the format of
-
-{{
-    "tool": <function-name>,
-    "tool_input": <args-json-object>
-}},
-{{
-    "tool": <function-name>,
-    "tool_input": <args-json-object>
-}}
-
-You SHOULD NOT include any other text in the response if you call a function
-
-{tools}
-"""

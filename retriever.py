@@ -1,24 +1,16 @@
 # Main retriever modules
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import TextLoader
-from langchain_chroma import Chroma
 from langchain.retrievers import ParentDocumentRetriever, EnsembleRetriever
-from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever, RetrieverLike
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_community.document_loaders import TextLoader
+from langchain_core.documents import Document
+from langchain_openai import OpenAIEmbeddings
+from langchain_chroma import Chroma
 from typing import Any, Optional
 import chromadb
-import torch
 import os
 import re
-
-# To use OpenAI models (remote)
-from langchain_openai import OpenAIEmbeddings
-
-## To use Hugging Face models (local)
-# from langchain_huggingface import HuggingFaceEmbeddings
-# For more control over BGE and Nomic embeddings
-from langchain_community.embeddings import HuggingFaceBgeEmbeddings
 
 # Local modules
 from mods.bm25s_retriever import BM25SRetriever
@@ -27,41 +19,30 @@ from mods.file_system import LocalFileStore
 # Database directory
 db_dir = "db"
 
-# Embedding model
-embedding_model_id = "nomic-ai/nomic-embed-text-v1.5"
-
 
 def BuildRetriever(
-    compute_mode,
     search_type: str = "hybrid",
     top_k=6,
     start_year=None,
     end_year=None,
-    embedding_ckpt_dir=None,
 ):
     """
     Build retriever instance.
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
-        compute_mode: Compute mode for embeddings (remote or local)
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
         top_k: Number of documents to retrieve for "dense" and "sparse"
         start_year: Start year (optional)
         end_year: End year (optional)
-        embedding_ckpt_dir: Directory for embedding model checkpoint
     """
     if search_type == "dense":
         if not (start_year or end_year):
             # No year filtering, so directly use base retriever
-            return BuildRetrieverDense(
-                compute_mode, top_k=top_k, embedding_ckpt_dir=embedding_ckpt_dir
-            )
+            return BuildRetrieverDense(top_k=top_k)
         else:
             # Get 1000 documents then keep top_k filtered by year
-            base_retriever = BuildRetrieverDense(
-                compute_mode, top_k=1000, embedding_ckpt_dir=embedding_ckpt_dir
-            )
+            base_retriever = BuildRetrieverDense(top_k=1000)
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
@@ -85,20 +66,16 @@ def BuildRetriever(
         # Use floor (top_k // 2) and ceiling -(top_k // -2) to divide odd values of top_k
         # https://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
         dense_retriever = BuildRetriever(
-            compute_mode,
             "dense",
             (top_k // 2),
             start_year,
             end_year,
-            embedding_ckpt_dir,
         )
         sparse_retriever = BuildRetriever(
-            compute_mode,
             "sparse",
             -(top_k // -2),
             start_year,
             end_year,
-            embedding_ckpt_dir,
         )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
@@ -128,43 +105,19 @@ def BuildRetrieverSparse(top_k=6):
     return retriever
 
 
-def BuildRetrieverDense(compute_mode: str, top_k=6, embedding_ckpt_dir=None):
+def BuildRetrieverDense(top_k=6):
     """
     Build dense retriever instance with ChromaDB vectorstore
 
     Args:
-        compute_mode: Compute mode for embeddings (remote or local)
         top_k: Number of documents to retrieve
-        embedding_ckpt_dir: Directory for embedding model checkpoint
     """
 
-    # Don't try to use local models without a GPU
-    if compute_mode == "local" and not torch.cuda.is_available():
-        raise Exception("Local embeddings selected without GPU")
-
     # Define embedding model
-    if compute_mode == "remote":
-        embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
-    if compute_mode == "local":
-        # embedding_function = HuggingFaceEmbeddings(model_name="BAAI/bge-large-en-v1.5", show_progress=True)
-        # https://python.langchain.com/api_reference/community/embeddings/langchain_community.embeddings.huggingface.HuggingFaceBgeEmbeddings.html
-        model_kwargs = {
-            "device": "cuda",
-            "trust_remote_code": True,
-        }
-        encode_kwargs = {"normalize_embeddings": True}
-        # Use embedding model ID or checkpoint directory if given
-        id_or_dir = embedding_ckpt_dir if embedding_ckpt_dir else embedding_model_id
-        embedding_function = HuggingFaceBgeEmbeddings(
-            model_name=id_or_dir,
-            model_kwargs=model_kwargs,
-            encode_kwargs=encode_kwargs,
-            query_instruction="search_query:",
-            embed_instruction="search_document:",
-        )
+    embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
     # Create vector store
     client_settings = chromadb.config.Settings(anonymized_telemetry=False)
-    persist_directory = f"{db_dir}/chroma_{compute_mode}"
+    persist_directory = f"{db_dir}/chroma"
     vectorstore = Chroma(
         collection_name="R-help",
         embedding_function=embedding_function,
@@ -172,7 +125,7 @@ def BuildRetrieverDense(compute_mode: str, top_k=6, embedding_ckpt_dir=None):
         persist_directory=persist_directory,
     )
     # The storage layer for the parent documents
-    file_store = f"{db_dir}/file_store_{compute_mode}"
+    file_store = f"{db_dir}/file_store"
     byte_store = LocalFileStore(file_store)
     # Text splitter for child documents
     child_splitter = RecursiveCharacterTextSplitter(

@@ -34,7 +34,7 @@ def load_questions_and_references(csv_path):
     return questions, references
 
 
-def build_eval_dataset(questions, references, compute_mode, workflow, search_type):
+def build_eval_dataset(questions, references, workflow, search_type):
     """Build dataset for evaluation"""
     dataset = []
     for question, reference in zip(questions, references):
@@ -42,15 +42,15 @@ def build_eval_dataset(questions, references, compute_mode, workflow, search_typ
             if workflow == "chain":
                 print("\n\n--- Question ---")
                 print(question)
-                response = RunChain(question, compute_mode, search_type)
+                response = RunChain(question, search_type)
                 print("--- Response ---")
                 print(response)
                 # Retrieve context documents for a question
-                retriever = BuildRetriever(compute_mode, search_type)
+                retriever = BuildRetriever(search_type)
                 docs = retriever.invoke(question)
                 retrieved_contexts = [doc.page_content for doc in docs]
             if workflow == "graph":
-                result = RunGraph(question, compute_mode, search_type)
+                result = RunGraph(question, search_type)
                 retrieved_contexts = []
                 if "retrieved_emails" in result:
                     # Remove the source file names (e.g. R-help/2022-September.txt) as it confuses the evaluator
@@ -143,12 +143,6 @@ def main():
         description="Evaluate RAG retrieval and generation."
     )
     parser.add_argument(
-        "--compute_mode",
-        choices=["remote", "local"],
-        required=True,
-        help="Compute mode: remote or local.",
-    )
-    parser.add_argument(
         "--workflow",
         choices=["chain", "graph"],
         required=True,
@@ -161,14 +155,11 @@ def main():
         help="Search type: dense, sparse, or hybrid.",
     )
     args = parser.parse_args()
-    compute_mode = args.compute_mode
     workflow = args.workflow
     search_type = args.search_type
 
     questions, references = load_questions_and_references("eval.csv")
-    dataset = build_eval_dataset(
-        questions, references, compute_mode, workflow, search_type
-    )
+    dataset = build_eval_dataset(questions, references, workflow, search_type)
     evaluation_dataset = EvaluationDataset.from_list(dataset)
 
     # Set up LLM for evaluation
