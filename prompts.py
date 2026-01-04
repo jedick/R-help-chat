@@ -42,7 +42,7 @@ def query_prompt(db_dir, collection):
         "Always use retrieve_emails with a non-empty query string for search_query. "
         "For general summaries, use retrieve_emails(search_query='R'). "
         "For questions about years, use retrieve_emails(search_query=<query>, start_year=, end_year=). "
-        "For questions about months, use 3-letter abbreviations (Jan...Dec) for the 'month' argument. "
+        "For questions about months, use 3-letter abbreviations (Jan...Dec) for the 'months' argument. "
         "Use all previous messages as context to formulate your search query. "  # Gemma
         "You should always retrieve more emails based on context and the most recent question. "  # Qwen
         f"If you decide not to retrieve emails, tell the user how to improve their question to search the {collection} mailing list. "

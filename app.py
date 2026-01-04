@@ -153,7 +153,7 @@ def run_workflow(input, collection, history, thread_id, session_hash):
                     if start_year or end_year:
                         content = f"{content} ({start_year or ''} - {end_year or ''})"
                     if "months" in args:
-                        content = f"{content} {args['months']}"
+                        content = f"{content} {", ".join(args['months'])}"
                     history.append(
                         gr.ChatMessage(
                             role="assistant",
@@ -353,20 +353,18 @@ with gr.Blocks(
             """
         return info_text
 
-    def get_example_questions(as_dataset=True):
+    def get_example_questions(as_dataset=False):
         """Get example questions"""
         questions = [
             # "What is today's date?",
             "Summarize emails from the most recent two months",
             "Show me code examples using plotmath",
-            "When was has.HLC mentioned?",
-            "Who reported installation problems in 2023-2024?",
         ]
 
         # cf. https://github.com/gradio-app/gradio/pull/8745 for updating examples
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
 
-    def get_multi_tool_questions(as_dataset=True):
+    def get_multi_tool_questions(as_dataset=False):
         """Get multi-tool example questions"""
         questions = [
             "Differences between lapply and for loops",
@@ -375,11 +373,20 @@ with gr.Blocks(
 
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
 
-    def get_multi_turn_questions(as_dataset=True):
+    def get_multi_turn_questions(as_dataset=False):
         """Get multi-turn example questions"""
         questions = [
             "Lookup emails that reference bugs.r-project.org in 2025",
             "Did the authors you cited report bugs before 2025?",
+        ]
+
+        return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
+
+    def get_month_questions(as_dataset=False):
+        """Get month example questions"""
+        questions = [
+            "Was there any discussion of ggplot2 in Q4 2025?",
+            "How about Q3?",
         ]
 
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
@@ -411,19 +418,24 @@ with gr.Blocks(
             with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
                 example_questions = gr.Examples(
-                    examples=get_example_questions(as_dataset=False),
+                    examples=get_example_questions(),
                     inputs=[input],
                     label="Select an example to fill the message box",
                 )
                 multi_tool_questions = gr.Examples(
-                    examples=get_multi_tool_questions(as_dataset=False),
+                    examples=get_multi_tool_questions(),
                     inputs=[input],
                     label="Multiple retrievals",
                 )
                 multi_turn_questions = gr.Examples(
-                    examples=get_multi_turn_questions(as_dataset=False),
+                    examples=get_multi_turn_questions(),
                     inputs=[input],
                     label="Asking follow-up questions",
+                )
+                month_questions = gr.Examples(
+                    examples=get_month_questions(),
+                    inputs=[input],
+                    label="Follow-up questions with months",
                 )
 
     # Bottom row: retrieved emails and citations

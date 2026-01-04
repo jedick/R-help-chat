@@ -11,6 +11,7 @@ from typing import Any, Optional
 import chromadb
 import os
 import re
+from calendar import month_abbr, month_name
 
 # Local modules
 from mods.bm25s_retriever import BM25SRetriever
@@ -22,9 +23,10 @@ def BuildRetriever(
     db_dir: str,
     collection: str,
     search_type: str,
-    top_k: int = 6,
-    start_year: int = None,
-    end_year: int = None,
+    top_k: Optional[int] = 6,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+    months: Optional[list[str]] = None,
 ):
     """
     Build retriever instance.
@@ -37,38 +39,41 @@ def BuildRetriever(
         top_k: Number of documents to retrieve for "dense" and "sparse"
         start_year: Start year (optional)
         end_year: End year (optional)
+        months: List of months (3-letter abbreviations) (optional)
     """
     if search_type == "dense":
-        if not (start_year or end_year):
-            # No year filtering, so directly use base retriever
+        if not (start_year or end_year or months):
+            # No year or month filtering, so directly use base retriever
             return BuildRetrieverDense(
                 db_dir=db_dir, collection=collection, top_k=top_k
             )
         else:
-            # Get 1000 documents then keep top_k filtered by year
+            # Get 10000 documents then keep top_k filtered by year and month
             base_retriever = BuildRetrieverDense(
-                db_dir=db_dir, collection=collection, top_k=1000
+                db_dir=db_dir, collection=collection, top_k=10000
             )
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
                 start_year=start_year,
                 end_year=end_year,
+                months=months,
             )
     if search_type == "sparse":
-        if not (start_year or end_year):
+        if not (start_year or end_year or months):
             return BuildRetrieverSparse(
                 db_dir=db_dir, collection=collection, top_k=top_k
             )
         else:
             base_retriever = BuildRetrieverSparse(
-                db_dir=db_dir, collection=collection, top_k=1000
+                db_dir=db_dir, collection=collection, top_k=10000
             )
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
                 start_year=start_year,
                 end_year=end_year,
+                months=months,
             )
     elif search_type == "hybrid":
         # Hybrid search (dense + sparse) - use ensemble method
@@ -82,6 +87,7 @@ def BuildRetriever(
             (top_k // 2),
             start_year,
             end_year,
+            months,
         )
         sparse_retriever = BuildRetriever(
             db_dir,
@@ -90,6 +96,7 @@ def BuildRetriever(
             -(top_k // -2),
             start_year,
             end_year,
+            months,
         )
         ensemble_retriever = EnsembleRetriever(
             retrievers=[dense_retriever, sparse_retriever], weights=[1, 1]
@@ -173,18 +180,21 @@ def BuildRetrieverDense(db_dir, collection, top_k=6):
 
 
 class TopKRetriever(BaseRetriever):
-    """Retriever that wraps a base retriever and returns the top k documents, optionally matching given start and/or end years."""
+    """
+    Retriever that wraps a base retriever and returns the top k documents,
+    optionally matching given start and/or end years.
 
-    # Code adapted from langchain/retrievers/contextual_compression.py
+    Code adapted from langchain/retrievers/contextual_compression.py
+    """
 
+    # Base Retriever to use for getting relevant documents
     base_retriever: RetrieverLike
-    """Base Retriever to use for getting relevant documents."""
-
+    # Number of documents to return
     top_k: int = 6
-    """Number of documents to return."""
-
+    # Optional year and month arguments
     start_year: Optional[int] = None
     end_year: Optional[int] = None
+    months: Optional[list[str]] = None
 
     def _get_relevant_documents(
         self,
@@ -193,7 +203,8 @@ class TopKRetriever(BaseRetriever):
         run_manager: CallbackManagerForRetrieverRun,
         **kwargs: Any,
     ) -> list[Document]:
-        """Return the top k documents within start and end years if given.
+        """
+        Return the top k documents within start and end years (and months) if given.
 
         Returns:
             Sequence of documents
@@ -204,28 +215,84 @@ class TopKRetriever(BaseRetriever):
         )
         if retrieved_docs:
 
-            # Get the sources (file names) and years
+            # Get the email source files and basenames
             sources = [doc.metadata["source"] for doc in filtered_docs]
-            years = [
-                re.sub(r"-[A-Za-z]+\.txt", "", os.path.basename(source))
-                for source in sources
-            ]
-            # Convert years to integer
-            years = [int(year) for year in years]
+            filenames = [os.path.basename(source) for source in sources]
+            # Get the years and months
+            pattern = re.compile(r"(\d{4})-([A-Za-z]+)\.txt")
+            matches = [pattern.match(filename) for filename in filenames]
+            # Extract years and month names, handling None matches
+            years = []
+            month_names = []
+            for match in matches:
+                if match:
+                    years.append(int(match.group(1)))
+                    month_names.append(match.group(2))
+                else:
+                    years.append(None)
+                    month_names.append(None)
+
+            # Create mapping from 3-letter abbreviations to full month names
+            # month_abbr[0] is empty string, month_abbr[1] is "Jan", etc.
+            # month_name[0] is empty string, month_name[1] is "January", etc.
+            abbr_to_full = {month_abbr[i].lower(): month_name[i] for i in range(1, 13)}
+
+            # Convert months list (3-letter abbreviations) to full month names
+            target_months = None
+            if self.months:
+                target_months = [
+                    abbr_to_full.get(month.lower()) for month in self.months
+                ]
+                # Filter out None values in case of invalid abbreviations
+                target_months = [m for m in target_months if m is not None]
+
+            # Initialize filter flags
+            year_filter = None
+            month_filter = None
 
             # Filtering by year
-            if self.start_year:
-                in_range = after_start = [year >= self.start_year for year in years]
-            if self.end_year:
-                in_range = before_end = [year <= self.end_year for year in years]
-            if self.start_year and self.end_year:
-                in_range = [
-                    after and before for after, before in zip(after_start, before_end)
-                ]
             if self.start_year or self.end_year:
-                # Extract docs where the year is in the start-end range
+                if self.start_year and self.end_year:
+                    year_filter = [
+                        year is not None
+                        and year >= self.start_year
+                        and year <= self.end_year
+                        for year in years
+                    ]
+                elif self.start_year:
+                    year_filter = [
+                        year is not None and year >= self.start_year for year in years
+                    ]
+                elif self.end_year:
+                    year_filter = [
+                        year is not None and year <= self.end_year for year in years
+                    ]
+
+            # Filtering by month
+            if target_months:
+                month_filter = [
+                    month_name is not None and month_name in target_months
+                    for month_name in month_names
+                ]
+
+            # Combine filters
+            if year_filter is not None and month_filter is not None:
+                # Both year and month filters
+                combined_filter = [
+                    year and month for year, month in zip(year_filter, month_filter)
+                ]
                 filtered_docs = [
-                    doc for doc, in_range in zip(retrieved_docs, in_range) if in_range
+                    doc for doc, keep in zip(retrieved_docs, combined_filter) if keep
+                ]
+            elif year_filter is not None:
+                # Only year filter
+                filtered_docs = [
+                    doc for doc, keep in zip(retrieved_docs, year_filter) if keep
+                ]
+            elif month_filter is not None:
+                # Only month filter
+                filtered_docs = [
+                    doc for doc, keep in zip(retrieved_docs, month_filter) if keep
                 ]
 
             # Return the top k docs
