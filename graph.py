@@ -17,7 +17,9 @@ from prompts import query_prompt, answer_prompt
 
 def BuildGraph(
     chat_model,
-    search_type,
+    db_dir,
+    collection,
+    search_type="hybrid",
     top_k=6,
 ):
     """
@@ -25,7 +27,9 @@ def BuildGraph(
 
     Args:
         chat_model: LangChain chat model
-        search_type: dense, sparse, or hybrid (for retriever)
+        db_dir: Database directory
+        collection: Email collection
+        search_type: dense, sparse, or hybrid
         top_k: number of documents to retrieve
 
     Based on:
@@ -78,6 +82,8 @@ def BuildGraph(
             months (str, optional): One or more months separated by spaces
         """
         retriever = BuildRetriever(
+            db_dir,
+            collection,
             search_type,
             top_k,
             start_year,
@@ -122,7 +128,7 @@ def BuildGraph(
 
     def query(state: MessagesState):
         """Queries the retriever with the chat model"""
-        messages = [SystemMessage(query_prompt())] + state["messages"]
+        messages = [SystemMessage(query_prompt(db_dir, collection))] + state["messages"]
         response = query_model.invoke(messages)
 
         return {"messages": response}

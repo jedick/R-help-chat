@@ -1,18 +1,23 @@
 from calendar import month_name
-from retriever import BuildRetriever, db_dir
 import json
 import os
 import re
 
 
-def get_sources():
+def get_sources(db_dir, collection):
     """
-    Return the source files indexed in the database, e.g. 'R-help/2024-April.txt'.
-    """
-    # Path to your JSON Lines file
-    file_path = os.path.join(db_dir, "bm25", "corpus.jsonl")
+    Return the source files for all emails indexed in the database.
+    The source file names look like 'R-help/2024-April.txt' and are repeated
+    for as many tims as there are indexed emails from each source file.
 
-    # Reading the JSON Lines file
+    Args:
+        db_dir: Database directory
+        collection: Email collection
+    """
+    # Path to the JSON Lines file
+    file_path = os.path.join(db_dir, collection, "bm25", "corpus.jsonl")
+
+    # Read the JSON Lines file
     with open(file_path, "r", encoding="utf-8") as file:
         # Parse each line as a JSON object
         sources = [json.loads(line.strip())["metadata"]["source"] for line in file]

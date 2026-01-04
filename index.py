@@ -5,16 +5,18 @@ import tempfile
 import os
 
 # Local modules
-from retriever import BuildRetriever, db_dir
+from retriever import BuildRetriever
 from mods.bm25s_retriever import BM25SRetriever
 
 
-def ProcessFile(file_path, search_type: str = "dense"):
+def ProcessFile(file_path, db_dir, collection, search_type):
     """
     Wrapper function to process file for dense or sparse search
 
     Args:
         file_path: File to process
+        db_dir: Database directory
+        collection: Email collection
         search_type: Type of search to use. Options: "dense", "sparse"
     """
 
@@ -65,10 +67,10 @@ def ProcessFile(file_path, search_type: str = "dense"):
     try:
         if search_type == "sparse":
             # Handle sparse search with BM25
-            ProcessFileSparse(truncated_temp_file, file_path)
+            ProcessFileSparse(truncated_temp_file, file_path, db_dir, collection)
         elif search_type == "dense":
             # Handle dense search with ChromaDB
-            ProcessFileDense(truncated_temp_file, file_path)
+            ProcessFileDense(truncated_temp_file, file_path, db_dir, collection)
         else:
             raise ValueError(f"Unsupported search type: {search_type}")
     finally:
@@ -80,12 +82,12 @@ def ProcessFile(file_path, search_type: str = "dense"):
             pass
 
 
-def ProcessFileDense(cleaned_temp_file, file_path):
+def ProcessFileDense(cleaned_temp_file, file_path, db_dir, collection):
     """
     Process file for dense vector search using ChromaDB
     """
     # Get a retriever instance
-    retriever = BuildRetriever("dense")
+    retriever = BuildRetriever(db_dir, collection, "dense")
     # Load cleaned text file
     loader = TextLoader(cleaned_temp_file)
     documents = loader.load()
@@ -113,7 +115,7 @@ def ProcessFileDense(cleaned_temp_file, file_path):
         retriever.add_documents(documents_batch)
 
 
-def ProcessFileSparse(cleaned_temp_file, file_path):
+def ProcessFileSparse(cleaned_temp_file, file_path, db_dir, collection):
     """
     Process file for sparse search using BM25
     """
@@ -126,18 +128,19 @@ def ProcessFileSparse(cleaned_temp_file, file_path):
     splitter = RecursiveCharacterTextSplitter(
         separators=["\n\n\nFrom"], chunk_size=1, chunk_overlap=0
     )
-    ## Using 'EmailFrom' as the separator (requires preprocesing)
-    # splitter = RecursiveCharacterTextSplitter(separators=["EmailFrom"])
     emails = splitter.split_documents(documents)
 
-    # Use original file path for "source" key in metadata
+    # Add metadata keys
     for email in emails:
+        # Original file path, e.g. "R-help/2025-December.txt"
         email.metadata["source"] = file_path
+        # Collection name, e.g. "R-help"
+        email.metadata["collection"] = collection
 
     # Create or update BM25 index
     try:
         # Update BM25 index if it exists
-        bm25_persist_directory = f"{db_dir}/bm25"
+        bm25_persist_directory = os.path.join(db_dir, collection, "bm25")
         retriever = BM25SRetriever.from_persisted_directory(bm25_persist_directory)
         # Get new emails - ones which have not been indexed
         new_emails = [email for email in emails if email not in retriever.docs]

@@ -13,12 +13,15 @@ from util import get_sources, get_start_end_months
 from data import download_data, extract_data
 from main import openai_model
 from graph import BuildGraph
-from retriever import db_dir
 
 # Set environment variables
 load_dotenv(dotenv_path=".env", override=True)
 # Hide BM25S progress bars
 os.environ["DISABLE_TQDM"] = "true"
+
+# Database directory and email collection
+db_dir = "db"
+collection = "R-help"
 
 # Download and extract data if data directory is not present
 if not os.path.isdir(db_dir):
@@ -97,6 +100,8 @@ def run_workflow(input, history, thread_id, session_hash):
         chat_model = ChatOpenAI(model=openai_model, temperature=0)
         graph_builder = BuildGraph(
             chat_model,
+            db_dir,
+            collection,
             search_type,
         )
         # Compile the graph with an in-memory checkpointer
@@ -169,12 +174,12 @@ def run_workflow(input, history, thread_id, session_hash):
                 email_list = message.content.replace(
                     "### Retrieved Emails:\n\n", ""
                 ).split("--- --- --- --- Next Email --- --- --- ---\n\n")
-                # Get the list of source files (e.g. R-help/2024-December.txt) for retrieved emails
-                month_list = [text.splitlines()[0] for text in email_list]
+                # Get the source file names (e.g. 2024-December.txt) for retrieved emails
+                month_list = [
+                    os.path.basename(text.splitlines()[0]) for text in email_list
+                ]
                 # Format months (e.g. 2024-December) into text
-                month_text = (
-                    ", ".join(month_list).replace("R-help/", "").replace(".txt", "")
-                )
+                month_text = ", ".join(month_list).replace(".txt", "")
                 # Get the number of retrieved emails
                 n_emails = len(email_list)
                 title = f"🗎 Retrieved {n_emails} emails"
@@ -330,7 +335,7 @@ with gr.Blocks(
     def get_info_text():
         try:
             # Get source files for each email and start and end months from database
-            sources = get_sources()
+            sources = get_sources(db_dir, collection)
             start, end = get_start_end_months(sources)
         except:
             # If database isn't ready, put in empty values
@@ -339,10 +344,10 @@ with gr.Blocks(
             end = None
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}<br>
-            **Models:** {openai_model} and text-embedding-3-small<br>
             **Features:** RAG, today's date, hybrid search (semantic + lexical), multiple retrievals, citations output, chat memory<br>
             **Tech:** [OpenAI](https://openai.com/), [Chroma](https://www.trychroma.com/),
               [BM25S](https://github.com/xhluca/bm25s), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.langchain.com/langgraph)<br>
+            **Maintainer:** Jeff at <j3ffdick@gmail.com> - feedback welcome!<br>
             🏠 **More info:** [R-help-chat GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return info_text

@@ -15,22 +15,24 @@ import re
 # Local modules
 from mods.bm25s_retriever import BM25SRetriever
 from mods.file_system import LocalFileStore
-
-# Database directory
-db_dir = "db"
+from util import get_sources
 
 
 def BuildRetriever(
-    search_type: str = "hybrid",
-    top_k=6,
-    start_year=None,
-    end_year=None,
+    db_dir: str,
+    collection: str,
+    search_type: str,
+    top_k: int = 6,
+    start_year: int = None,
+    end_year: int = None,
 ):
     """
     Build retriever instance.
     All retriever types are configured to return up to 6 documents for fair comparison in evals.
 
     Args:
+        db_dir: Database directory
+        collection: Email collection
         search_type: Type of search to use. Options: "dense", "sparse", "hybrid"
         top_k: Number of documents to retrieve for "dense" and "sparse"
         start_year: Start year (optional)
@@ -39,10 +41,14 @@ def BuildRetriever(
     if search_type == "dense":
         if not (start_year or end_year):
             # No year filtering, so directly use base retriever
-            return BuildRetrieverDense(top_k=top_k)
+            return BuildRetrieverDense(
+                db_dir=db_dir, collection=collection, top_k=top_k
+            )
         else:
             # Get 1000 documents then keep top_k filtered by year
-            base_retriever = BuildRetrieverDense(top_k=1000)
+            base_retriever = BuildRetrieverDense(
+                db_dir=db_dir, collection=collection, top_k=1000
+            )
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
@@ -51,9 +57,13 @@ def BuildRetriever(
             )
     if search_type == "sparse":
         if not (start_year or end_year):
-            return BuildRetrieverSparse(top_k=top_k)
+            return BuildRetrieverSparse(
+                db_dir=db_dir, collection=collection, top_k=top_k
+            )
         else:
-            base_retriever = BuildRetrieverSparse(top_k=1000)
+            base_retriever = BuildRetrieverSparse(
+                db_dir=db_dir, collection=collection, top_k=1000
+            )
             return TopKRetriever(
                 base_retriever=base_retriever,
                 top_k=top_k,
@@ -66,12 +76,16 @@ def BuildRetriever(
         # Use floor (top_k // 2) and ceiling -(top_k // -2) to divide odd values of top_k
         # https://stackoverflow.com/questions/14822184/is-there-a-ceiling-equivalent-of-operator-in-python
         dense_retriever = BuildRetriever(
+            db_dir,
+            collection,
             "dense",
             (top_k // 2),
             start_year,
             end_year,
         )
         sparse_retriever = BuildRetriever(
+            db_dir,
+            collection,
             "sparse",
             -(top_k // -2),
             start_year,
@@ -85,31 +99,38 @@ def BuildRetriever(
         raise ValueError(f"Unsupported search type: {search_type}")
 
 
-def BuildRetrieverSparse(top_k=6):
+def BuildRetrieverSparse(db_dir, collection, top_k=6):
     """
     Build sparse retriever instance
 
     Args:
+        db_dir: Database directory
+        collection: Email collection
         top_k: Number of documents to retrieve
     """
     # BM25 persistent directory
-    bm25_persist_directory = f"{db_dir}/bm25"
+    bm25_persist_directory = os.path.join(db_dir, collection, "bm25")
     if not os.path.exists(bm25_persist_directory):
         os.makedirs(bm25_persist_directory)
 
     # Use BM25 sparse search
+    # top_k can't be larger than the corpus size (number of emails)
+    corpus_size = len(get_sources(db_dir, collection))
+    k = top_k if top_k < corpus_size else corpus_size
     retriever = BM25SRetriever.from_persisted_directory(
         path=bm25_persist_directory,
-        k=top_k,
+        k=k,
     )
     return retriever
 
 
-def BuildRetrieverDense(top_k=6):
+def BuildRetrieverDense(db_dir, collection, top_k=6):
     """
     Build dense retriever instance with ChromaDB vectorstore
 
     Args:
+        db_dir: Database directory
+        collection: Email collection
         top_k: Number of documents to retrieve
     """
 
@@ -117,15 +138,15 @@ def BuildRetrieverDense(top_k=6):
     embedding_function = OpenAIEmbeddings(model="text-embedding-3-small")
     # Create vector store
     client_settings = chromadb.config.Settings(anonymized_telemetry=False)
-    persist_directory = f"{db_dir}/chroma"
+    persist_directory = os.path.join(db_dir, collection, "chroma")
     vectorstore = Chroma(
-        collection_name="R-help",
+        collection_name=collection,
         embedding_function=embedding_function,
         client_settings=client_settings,
         persist_directory=persist_directory,
     )
     # The storage layer for the parent documents
-    file_store = f"{db_dir}/file_store"
+    file_store = os.path.join(db_dir, collection, "file_store")
     byte_store = LocalFileStore(file_store)
     # Text splitter for child documents
     child_splitter = RecursiveCharacterTextSplitter(
@@ -186,7 +207,7 @@ class TopKRetriever(BaseRetriever):
             # Get the sources (file names) and years
             sources = [doc.metadata["source"] for doc in filtered_docs]
             years = [
-                re.sub(r"-[A-Za-z]+\.txt", "", source.replace("R-help/", ""))
+                re.sub(r"-[A-Za-z]+\.txt", "", os.path.basename(source))
                 for source in sources
             ]
             # Convert years to integer

@@ -87,14 +87,14 @@ graph LR;
 Setup:
 
 - Grab one or more gzip'd files from [The R-help Archive](https://stat.ethz.ch/pipermail/r-help/)
-- Extract the files and put them in a folder named `R-help`
+- Extract the files and put them in a directory named `R-help`
 - Set your `OPENAI_API_KEY` environment variable
 
-Run this Python code to create the vector database:
+Run this Python code to create the email database (vector embeddings + sparse index) in the `db` directory:
 
 ```python
 from main import *
-ProcessDirectory("R-help")
+ProcessCollection("R-help", "db")
 ```
 
 Now you're ready to run the chain or graph workflow. Here are some examples of RAG with the chain workflow:

@@ -12,11 +12,17 @@ def check_prompt(prompt):
     return prompt
 
 
-def query_prompt():
-    """Return system prompt for query step"""
+def query_prompt(db_dir, collection):
+    """
+    Return system prompt for query step
+
+    Args:
+        db_dir: Database directory
+        collection: Email collection
+    """
 
     # Get start and end months from database
-    start, end = get_start_end_months(get_sources())
+    start, end = get_start_end_months(get_sources(db_dir, collection))
 
     prompt = (
         f"Today Date: {date.today()}. "

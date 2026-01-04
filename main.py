@@ -13,7 +13,7 @@ import ast
 import os
 
 # Local modules
-from retriever import BuildRetriever, db_dir
+from retriever import BuildRetriever
 from prompts import answer_prompt
 from index import ProcessFile
 from graph import BuildGraph
@@ -38,29 +38,33 @@ httpx_logger = logging.getLogger("httpx")
 httpx_logger.setLevel(logging.WARNING)
 
 
-def ProcessDirectory(path):
+def ProcessCollection(email_dir, db_dir):
     """
     Update vector store and sparse index for files in a directory, only adding new or updated files
 
     Args:
-        path: Directory to process
+        email_dir: Email directory to process
+        db_dir: Database directory
 
     Usage example:
-        ProcessDirectory("R-help")
+        ProcessCollection("R-help", "db")
     """
 
     # TODO: use UUID to process only changed documents
     # https://stackoverflow.com/questions/76265631/chromadb-add-single-document-only-if-it-doesnt-exist
 
+    # Get last part of path
+    # https://stackoverflow.com/questions/3925096/how-to-get-only-the-last-part-of-a-path-in-python
+    collection = os.path.basename(os.path.normpath(email_dir))
     # Get a dense retriever instance
-    retriever = BuildRetriever("dense")
+    retriever = BuildRetriever(db_dir, collection, "dense")
 
     # List all text files in target directory
-    file_paths = glob.glob(f"{path}/*.txt")
+    file_paths = glob.glob(f"{email_dir}/*.txt")
     for file_path in file_paths:
 
         # Process file for sparse search (BM25S)
-        ProcessFile(file_path, "sparse")
+        ProcessFile(file_path, db_dir, collection, "sparse")
 
         # Logic for dense search: skip file if already indexed
         # Look for existing embeddings for this file
@@ -90,7 +94,7 @@ def ProcessDirectory(path):
                 update_file = True
 
         if add_file:
-            ProcessFile(file_path, "dense")
+            ProcessFile(file_path, db_dir, collection, "dense")
 
         if update_file:
             print(f"Chroma: updated embeddings for {file_path}")
@@ -101,7 +105,7 @@ def ProcessDirectory(path):
             ]
             files_to_keep = list(set(used_doc_ids))
             # Get all files in the file store
-            file_store = f"{db_dir}/file_store"
+            file_store = os.path.join(db_dir, collection, "file_store")
             all_files = os.listdir(file_store)
             # Iterate through the files and delete those not in the list
             for file in all_files:
@@ -115,7 +119,9 @@ def ProcessDirectory(path):
 
 
 def RunChain(
-    query,
+    query: str,
+    db_dir: str,
+    collection: str,
     search_type: str = "hybrid",
 ):
     """
@@ -123,14 +129,16 @@ def RunChain(
 
     Args:
         query: User's query
+        db_dir: Database directory
+        collection: Email collection
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
 
     Example:
-        RunChain("What R functions are discussed?")
+        RunChain("What R functions are discussed?", "db", "R-help")
     """
 
     # Get retriever instance
-    retriever = BuildRetriever(search_type)
+    retriever = BuildRetriever(db_dir, collection, search_type)
 
     if retriever is None:
         return "No retriever available. Please process some documents first."
@@ -170,6 +178,8 @@ def RunChain(
 
 def RunGraph(
     query: str,
+    db_dir: str,
+    collection: str,
     search_type: str = "hybrid",
     top_k: int = 6,
     thread_id=None,
@@ -178,6 +188,8 @@ def RunGraph(
 
     Args:
         query: User query to start the chat
+        db_dir: Database directory
+        collection: Email collection
         search_type: Type of search to use. Options: "dense", "sparse", or "hybrid"
         top_k: Number of documents to retrieve
         thread_id: Thread ID for memory (optional)
@@ -191,6 +203,8 @@ def RunGraph(
     # Build the graph
     graph_builder = BuildGraph(
         chat_model,
+        db_dir,
+        collection,
         search_type,
         top_k,
     )
