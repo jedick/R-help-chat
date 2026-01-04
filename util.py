@@ -29,11 +29,13 @@ def get_start_end_months(sources):
     """
     Given a set of filenames like 'R-help/2024-January.txt', return the earliest and latest month in 'Month YYYY' format.
     """
-    pattern = re.compile(r"R-help/(\d{4})-([A-Za-z]+)\.txt")
+    # Get just the file names (e.g. 2024-January.txt)
+    filenames = [os.path.basename(source) for source in sources]
+    pattern = re.compile(r"(\d{4})-([A-Za-z]+)\.txt")
     months = []
-    # Start with the unique sources
-    unique_sources = set(sources)
-    for src in unique_sources:
+    # Start with the unique filenames
+    unique_filenames = set(filenames)
+    for src in unique_filenames:
         m = pattern.match(src)
         if m:
             year = int(m.group(1))

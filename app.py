@@ -19,9 +19,8 @@ load_dotenv(dotenv_path=".env", override=True)
 # Hide BM25S progress bars
 os.environ["DISABLE_TQDM"] = "true"
 
-# Database directory and email collection
+# Database directory
 db_dir = "db"
-collection = "R-help"
 
 # Download and extract data if data directory is not present
 if not os.path.isdir(db_dir):
@@ -35,7 +34,8 @@ if not os.path.isdir(db_dir):
 # Global setting for search type
 search_type = "hybrid"
 
-# Global variables for LangChain graph: use dictionaries to store user-specific instances
+# Global variable for LangChain graph
+# Use dictionary to store user-specific instances
 # https://www.gradio.app/guides/state-in-blocks
 graph_instances = {}
 
@@ -89,7 +89,7 @@ def append_content(chunk_messages, history, thinking_about):
     return history
 
 
-def run_workflow(input, history, thread_id, session_hash):
+def run_workflow(input, collection, history, thread_id, session_hash):
     """The main function to run the chat workflow"""
 
     # Get graph instance
@@ -111,7 +111,7 @@ def run_workflow(input, history, thread_id, session_hash):
         graph_instances[session_hash] = graph
         # ISO 8601 timestamp with local timezone information without microsecond
         timestamp = datetime.now().replace(microsecond=0).isoformat()
-        print(f"{timestamp} - Set graph for session {session_hash}")
+        print(f"{timestamp} - Set {collection} graph for session {session_hash}")
         ## Notify when model finishes loading
         # gr.Success("Model loaded!", duration=4)
     else:
@@ -224,7 +224,7 @@ def run_workflow(input, history, thread_id, session_hash):
             yield history, None, citations
 
 
-def to_workflow(request: gr.Request, *args):
+def run_workflow_in_session(request: gr.Request, *args):
     """Wrapper function to call run_workflow() with session_hash"""
     input = args[0]
     # Add session_hash to arguments
@@ -323,16 +323,17 @@ with gr.Blocks(
             <!-- Get AI-powered answers about R programming backed by email retrieval. -->
             ## 🇷🤝💬 R-help-chat
             
-            **Search and chat with the [R-help mailing list archives](https://stat.ethz.ch/pipermail/r-help/).**
+            **Search and chat with the [R-help](https://stat.ethz.ch/pipermail/r-help/) and [R-devel](https://stat.ethz.ch/pipermail/r-devel/)
+            mailing list archives.**
             An LLM turns your question into a search query, including year ranges and months.
             Retrieved emails are shown below the chatbot and are used by the LLM to generate an answer.
-            You can ask follow-up questions with the chat history as context.
+            You can ask follow-up questions with the chat history as context; changing the mailing list maintains history.
             Press the clear button (🗑) to clear the history and start a new chat.
             *Privacy notice*: Data sharing with OpenAI is enabled.
             """
         return intro
 
-    def get_info_text():
+    def get_info_text(collection):
         try:
             # Get source files for each email and start and end months from database
             sources = get_sources(db_dir, collection)
@@ -347,7 +348,7 @@ with gr.Blocks(
             **Features:** RAG, today's date, hybrid search (semantic + lexical), multiple retrievals, citations output, chat memory<br>
             **Tech:** [OpenAI](https://openai.com/), [Chroma](https://www.trychroma.com/),
               [BM25S](https://github.com/xhluca/bm25s), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.langchain.com/langgraph)<br>
-            **Maintainer:** Jeff at <j3ffdick@gmail.com> - feedback welcome!<br>
+            **Maintainer:** [Jeffrey Dick](mailto:j3ffdick@gmail.com) - feedback welcome!<br>
             🏠 **More info:** [R-help-chat GitHub repository](https://github.com/jedick/R-help-chat)
             """
         return info_text
@@ -390,10 +391,10 @@ with gr.Blocks(
                 with gr.Column(scale=4):
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
-                    gr.Radio(
-                        ["Auto", "R-help", "R-devel", "R-pkg-devel"],
-                        label="🚧 Mailing List (Under construction) 🚧",
-                        interactive=False,
+                    collection = gr.Radio(
+                        ["R-help", "R-devel", "R-package-devel"],
+                        value="R-help",
+                        label="Mailing List",
                     )
             with gr.Group() as chat_interface:
                 chatbot.render()
@@ -406,13 +407,13 @@ with gr.Blocks(
         # Right column: Info, Examples
         with gr.Column(scale=1):
             with gr.Accordion("ℹ️ App Info", open=True):
-                info = gr.Markdown(get_info_text())
+                app_info = gr.Markdown(get_info_text(collection.value))
             with gr.Accordion("💡 Examples", open=True):
                 # Add some helpful examples
                 example_questions = gr.Examples(
                     examples=get_example_questions(as_dataset=False),
                     inputs=[input],
-                    label="Click an example to fill the message box",
+                    label="Select an example to fill the message box",
                 )
                 multi_tool_questions = gr.Examples(
                     examples=get_multi_tool_questions(as_dataset=False),
@@ -463,10 +464,21 @@ with gr.Blocks(
     # https://github.com/gradio-app/gradio/issues/9722
     chatbot.clear(generate_thread_id, outputs=[thread_id], api_visibility="private")
 
+    collection.change(
+        # We need to build a new graph if the collection changes
+        cleanup_graph
+    ).then(
+        # Update the database stats in the app info box
+        get_info_text,
+        [collection],
+        [app_info],
+        api_name=False,
+    )
+
     input.submit(
         # Submit input to the chatbot
-        to_workflow,
-        [input, chatbot, thread_id],
+        run_workflow_in_session,
+        [input, collection, chatbot, thread_id],
         [chatbot, retrieved_emails, citations_text],
         api_visibility="private",
     )

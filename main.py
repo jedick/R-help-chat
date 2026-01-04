@@ -147,7 +147,7 @@ def RunChain(
     chat_model = ChatOpenAI(model=openai_model, temperature=0)
 
     # Get system prompt
-    system_prompt = answer_prompt()
+    system_prompt = answer_prompt(collection)
 
     # Create a prompt template
     system_template = ChatPromptTemplate.from_messages([SystemMessage(system_prompt)])

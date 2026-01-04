@@ -135,7 +135,7 @@ def BuildGraph(
 
     def answer(state: MessagesState):
         """Generates an answer with the chat model"""
-        messages = [SystemMessage(answer_prompt())] + state["messages"]
+        messages = [SystemMessage(answer_prompt(collection))] + state["messages"]
         response = answer_model.invoke(messages)
 
         return {"messages": response}
