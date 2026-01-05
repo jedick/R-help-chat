@@ -8,7 +8,9 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: '3.x'
+        # 3.x was getting Python 3.14.2, which gave this error:
+        # No matching distribution found for onnxruntime>=1.14.1
+        python-version: '3.13'
         cache: 'pip'
     - name: Install dependencies
       run: |
