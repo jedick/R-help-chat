@@ -352,8 +352,8 @@ with gr.Blocks(
         info_text = f"""
             **Database:** {len(sources)} emails from {start} to {end}<br>
             **Features:** RAG, today's date, hybrid search (semantic + lexical), multiple retrievals, citations output, chat memory<br>
-            **Tech:** [OpenAI](https://openai.com/), [Chroma](https://www.trychroma.com/),
-              [BM25S](https://github.com/xhluca/bm25s), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.gradio.app/)<br>
+            **Tech:** [OpenAI](https://openai.com/), [Chroma](https://www.trychroma.com/), [BM25S](https://github.com/xhluca/bm25s),
+              [Amazon S3](https://aws.amazon.com/s3/), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.gradio.app/)<br>
             **Maintainer:** [Jeffrey Dick](https://jedick.github.io) - feedback welcome!<br>
             **More info:** <i class="fa-brands fa-github"></i> [GitHub repository](https://github.com/jedick/R-help-chat),
               <i class="fa-brands fa-youtube"></i> [Walkthrough video](https://youtu.be/mLQqW7zea-k)

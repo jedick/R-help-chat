@@ -1,0 +1,475 @@
+From kev|nu@hey @end|ng |rom gm@||@com  Mon Dec  1 21:23:51 2025
+From: kev|nu@hey @end|ng |rom gm@||@com (Kevin Ushey)
+Date: Mon, 1 Dec 2025 12:23:51 -0800
+Subject: [Rd] Feature suggestion: %!in%
+In-Reply-To: <4e8e0040-430e-4503-9a8a-26a9698a6bac@gmail.com>
+References: <CAGcsfB3dn88L3U8TmDEkwNfJkphnFtJ8CRK-TJhZ5yOFU7=uMQ@mail.gmail.com>
+ <58bec605-9000-4f9e-9eb4-86950c4eb9e5@gmail.com>
+ <CAGcsfB0s0U+zYYHW6eWx5kKzH_XdmVKm=8LsJDWxfn8Pe-Ga0Q@mail.gmail.com>
+ <15fa876c-c0f3-4177-9045-ee6408fbcd16@gmail.com>
+ <9226DB4F-E4DE-477C-835F-0580A8C0024A@R-project.org>
+ <4e8e0040-430e-4503-9a8a-26a9698a6bac@gmail.com>
+Message-ID: <CAJXgQP3rSaU4JN02pM8XrVELJC7A85DKW8sLFf8P6Fh6RGHGSA@mail.gmail.com>
+
+Another useful data point: a large number of CRAN packages also define
+their own %nin% / %notin% operators, e.g.
+
+https://github.com/search?q=org%3Acran+%25nin%25&type=code
+https://github.com/search?q=org%3Acran+%25notin%25&type=code
+
+I think the broad usage of the operator, and the consensus over its
+implementation, makes it a strong candidate for inclusion in R itself.
+
+I imagine a similar justification was used when %||% was added to base
+R as well (which I was very glad to see!)
+
+Best,
+Kevin
+
+On Fri, Nov 28, 2025 at 3:12?AM Duncan Murdoch <murdoch.duncan at gmail.com> wrote:
+>
+> On 2025-11-27 6:09 p.m., Simon Urbanek wrote:
+> > Given that the args of tools:::%notin% don?t match %in% I'd say it was just a local use more than any deep thought about general use.
+> >
+> > Personally, I really like the idea of %notin% because it is very often that you start typing foo[foo %in% and then realise you want to invert it and the preceding negation is then cognitively sort of in the wrong place (reads like "not foo"). I also like %notin% better than %!in% because I think a salad of special characters makes things harder to read, but that may be just subjective.
+>
+> I agree with both points.  I generally use inefficient and unnecessary
+> parens, i.e. `foo[!(foo %in% baz)]`.
+>
+> > And to your 'why bother' question - I do think it?s better to standardise common operators in core rather than have packages re-define it each time. And certainly just importing something that trivial from another package is a bad idea given the dependency implications.
+>
+> If someone is willing to put up with the fallout from the "masked"
+> messages, then I'd also be in favour.  (And I'd choose %notin% rather
+> than %!in% or %nin%, but whoever is willing to do the work should make
+> that choice.)
+>
+>  > (On the flip side: if you start using it you need to depend on recent
+> R which may not be feasible in some environments, but then if that was
+> always the argument we?d never add anything new :P).
+>
+> Or depend on the backports package.
+>
+> Duncan Murdoch
+> >
+> > Cheers,
+> > Simon
+> >
+> >
+> >> On 28 Nov 2025, at 08:24, Duncan Murdoch <murdoch.duncan at gmail.com> wrote:
+> >>
+> >> On 2025-11-27 11:58 a.m., Marcelo Ventura Freire wrote:
+> >>> If it is not a rhetorical question about a closed issue (if it is, tell me and I will shut up), this inclusion [1] would be useful (since it was exported and rewritten so many times by so many people and will keep being), [2] would create an uniformization (since it was and will be written under so many names before), [3] would not break stuff (since it is not altering the interface of any already existing function nor it is overwriting any symbol with a diverse use), [4] would not be neither a complex nor a tiringsome inclusion (even I myself could do it in a single 1-line pull request, hypothetically speaking) and [5] would benefit users all around.
+> >>> I am not naive to the point of believing that an alteration to the R core would have few repercussions and surely there must be reasons why it was not done before.
+> >>
+> >> I don't know why it was added to tools but not exported, but here is my guess:
+> >>
+> >> - A member of R Core agrees with you that this operator is useful. This appears to have happened in 2016 based on the svn log.
+> >> - It already existed in some contributed package, but base packages can't import anything from non-base packages, so it needed to be added.
+> >> - It wasn't exported, because that would break some packages:
+> >>     - the ones that export something with that name would now receive a check message about the conflict.
+> >>     - if those packages stopped exporting it, then any package that imported from one of them would have to stop doing that, and import it from the base package instead.
+> >> - It is very easy to write your own, or to import one of the existing ones, so a lot of work would have been generated for not very much benefit.
+> >>
+> >> R Core members try to be careful not to generate work for others unless there's enough of a net benefit to the community.  They are very busy, and many authors of contributed packages who might be affected by this change are busy too.
+> >>
+> >>
+> >>> But, in the end, this inclusion would be just a seemingly unharmful syntax sugar that could be shared, like it was with "\" for the reserved word "function", but with waaaay less work to implement.
+> >>
+> >> The difference there is that it added new syntax, so as far as I know, it didn't affect any existing package.  Personally I don't see that it really offered much of a benefit (keystrokes are cheap), but lots of people are using it, so I guess some others would disagree.>
+> >>> If it is not a dumb proposal, I can just include it in the wishlist of features in Bugzilla as prescribed in the contributor's page or I can do that PR myself (if you propose more work to others, the sensible thing to do is at least to offer yourself to do it, right?). In either case, I create more work to the dev team, perhaps to different people.
+> >>
+> >> It's hard for you to do the coordination work with all the existing packages that use a similar operator, so I don't think that's really feasible.
+> >>
+> >>> Thanks for taking your time to answer me.
+> >>
+> >> No problem.  I'm sitting in an airport waiting for a plane, so any distraction is a net benefit for me!
+> >>
+> >> Duncan Murdoch>
+> >>> Marcelo Ventura Freire
+> >>> Escola de Artes, Ci?ncias e Humanidades
+> >>> Universidade de S?o Paulo
+> >>> Av. Arlindo Bettio, 1000,
+> >>> Sala Paulo Freire (Sala Coletiva 252), Pr?dio I1
+> >>> Ermelino Matarazzo, S?o Paulo, SP, Brasil
+> >>> CEP 03828-000
+> >>> Tel.: (11) 3091-8894
+> >>> Em qui., 27 de nov. de 2025 ?s 14:15, Duncan Murdoch <murdoch.duncan at gmail.com <mailto:murdoch.duncan at gmail.com>> escreveu:
+> >>>     The R sources already contain an operator like that, though it is not
+> >>>     exported.  tools:::`%notin%` is defined as
+> >>>        function (x, y)
+> >>>     is.na <http://is.na>(match(x, y))
+> >>>     Several CRAN packages export a similar function, e.g. omnibus, mefa4,
+> >>>     data.table, hutils, etc. So I think if it was exported by R that's a
+> >>>     better name, but since it is easy to write yourself or import from some
+> >>>     other package, why bother?
+> >>>     Duncan Murdoch
+> >>>     On 2025-11-27 9:19 a.m., Marcelo Ventura Freire via R-devel wrote:
+> >>>      > Hello, dear R core developers
+> >>>      >
+> >>>      >
+> >>>      > I have a feature suggestion and, following the orientations in
+> >>>      > https://contributor.r-project.org/rdevguide/chapters/
+> >>>     submitting_feature_requests.html <https://contributor.r-project.org/
+> >>>     rdevguide/chapters/submitting_feature_requests.html>,
+> >>>      > I have searched in Bugzilla to the best of my capabilities for
+> >>>     suggestions
+> >>>      > like the one I have in mind but found no results (however, I can
+> >>>     be wrong).
+> >>>      >
+> >>>      > My idea is including this line
+> >>>      >
+> >>>      > `%!in%`  <- function(x, table) match(x, table, nomatch = 0L) == 0L
+> >>>      >
+> >>>      > between lines 39 and 40 of the file "src/library/base/R/match.R".
+> >>>      >
+> >>>      > My objective is to create a "not in" operator that would allow us
+> >>>     to write
+> >>>      > code like
+> >>>      >>     value %!in% valuelist
+> >>>      > instead of
+> >>>      >>     ! value %in% valuelist
+> >>>      > which is in line with writing
+> >>>      >>     value1 != value2
+> >>>      > instead of
+> >>>      >>     ! value1 == value2
+> >>>      >
+> >>>      > I was not able to devise any reasonable way that such inclusion
+> >>>     would break
+> >>>      > any already existing heritage code unless that operator would be
+> >>>     defined
+> >>>      > otherwisely and it would improve (however marginally) the
+> >>>     readability of
+> >>>      > future code by its intuitive interpretation and by stitching
+> >>>     together two
+> >>>      > operators that currently stand apart each other.
+> >>>      >
+> >>>      > So, if this suggestion was not already proposed and if it is seen as
+> >>>      > useful, I would like to include it in the wishlist in Bugzilla.
+> >>>      >
+> >>>      > I would appreciate any feedback, be it critic or support, and I
+> >>>     hope I have
+> >>>      > not crossed any communicational rule from the group.
+> >>>      >
+> >>>      > Many thanks!  ?
+> >>>      >
+> >>>      >
+> >>>      >
+> >>>      > Marcelo Ventura Freire
+> >>>      > Escola de Artes, Ci?ncias e Humanidades
+> >>>      > Universidade de S?o Paulo
+> >>>      > Av. Arlindo Bettio, 1000,
+> >>>      > Sala Paulo Freire (Sala Coletiva 252), Pr?dio I1
+> >>>      > Ermelino Matarazzo, S?o Paulo, SP, Brasil
+> >>>      > CEP 03828-000
+> >>>      > Tel.: (11) 3091-8894
+> >>>      >
+> >>>      >       [[alternative HTML version deleted]]
+> >>>      >
+> >>>      > ______________________________________________
+> >>>      > R-devel at r-project.org <mailto:R-devel at r-project.org> mailing list
+> >>>      > https://stat.ethz.ch/mailman/listinfo/r-devel <https://
+> >>>     stat.ethz.ch/mailman/listinfo/r-devel>
+> >>>
+> >>
+> >> ______________________________________________
+> >> R-devel at r-project.org mailing list
+> >> https://stat.ethz.ch/mailman/listinfo/r-devel
+> >>
+> >
+>
+> ______________________________________________
+> R-devel at r-project.org mailing list
+> https://stat.ethz.ch/mailman/listinfo/r-devel
+
+
+From t@r@@@z@kh@rko @end|ng |rom uzh@ch  Tue Dec  2 11:13:11 2025
+From: t@r@@@z@kh@rko @end|ng |rom uzh@ch (Taras Zakharko)
+Date: Tue, 2 Dec 2025 10:13:11 +0000
+Subject: [Rd] Feature suggestion: %!in%
+In-Reply-To: <CAJXgQP3rSaU4JN02pM8XrVELJC7A85DKW8sLFf8P6Fh6RGHGSA@mail.gmail.com>
+References: <CAGcsfB3dn88L3U8TmDEkwNfJkphnFtJ8CRK-TJhZ5yOFU7=uMQ@mail.gmail.com>
+ <58bec605-9000-4f9e-9eb4-86950c4eb9e5@gmail.com>
+ <CAGcsfB0s0U+zYYHW6eWx5kKzH_XdmVKm=8LsJDWxfn8Pe-Ga0Q@mail.gmail.com>
+ <15fa876c-c0f3-4177-9045-ee6408fbcd16@gmail.com>
+ <9226DB4F-E4DE-477C-835F-0580A8C0024A@R-project.org>
+ <4e8e0040-430e-4503-9a8a-26a9698a6bac@gmail.com>
+ <CAJXgQP3rSaU4JN02pM8XrVELJC7A85DKW8sLFf8P6Fh6RGHGSA@mail.gmail.com>
+Message-ID: <EA47A69E-3B69-4F9E-B7F3-A721F1098D86@uzh.ch>
+
+I wonder what would be the formal relationship between %in% and %notin%, which will be relevant if these operators are made generic in the future.  Is `%notin%` defined as a boolean negation of `%in%`, is it the other way around, or are they entirely independent definitions that just happen to have complementary semantics? 
+
+I would be in favor of defining %notin% as a sugar for !x %in% y 
+
+Best, 
+
+Taras
+
+
+> On 1 Dec 2025, at 21:23, Kevin Ushey <kevinushey at gmail.com> wrote:
+> 
+> Another useful data point: a large number of CRAN packages also define
+> their own %nin% / %notin% operators, e.g.
+> 
+> https://github.com/search?q=org%3Acran+%25nin%25&type=code
+> https://github.com/search?q=org%3Acran+%25notin%25&type=code
+> 
+> I think the broad usage of the operator, and the consensus over its
+> implementation, makes it a strong candidate for inclusion in R itself.
+> 
+> I imagine a similar justification was used when %||% was added to base
+> R as well (which I was very glad to see!)
+> 
+> Best,
+> Kevin
+> 
+> On Fri, Nov 28, 2025 at 3:12?AM Duncan Murdoch <murdoch.duncan at gmail.com> wrote:
+>> 
+>> On 2025-11-27 6:09 p.m., Simon Urbanek wrote:
+>>> Given that the args of tools:::%notin% don?t match %in% I'd say it was just a local use more than any deep thought about general use.
+>>> 
+>>> Personally, I really like the idea of %notin% because it is very often that you start typing foo[foo %in% and then realise you want to invert it and the preceding negation is then cognitively sort of in the wrong place (reads like "not foo"). I also like %notin% better than %!in% because I think a salad of special characters makes things harder to read, but that may be just subjective.
+>> 
+>> I agree with both points.  I generally use inefficient and unnecessary
+>> parens, i.e. `foo[!(foo %in% baz)]`.
+>> 
+>>> And to your 'why bother' question - I do think it?s better to standardise common operators in core rather than have packages re-define it each time. And certainly just importing something that trivial from another package is a bad idea given the dependency implications.
+>> 
+>> If someone is willing to put up with the fallout from the "masked"
+>> messages, then I'd also be in favour.  (And I'd choose %notin% rather
+>> than %!in% or %nin%, but whoever is willing to do the work should make
+>> that choice.)
+>> 
+>>> (On the flip side: if you start using it you need to depend on recent
+>> R which may not be feasible in some environments, but then if that was
+>> always the argument we?d never add anything new :P).
+>> 
+>> Or depend on the backports package.
+>> 
+>> Duncan Murdoch
+>>> 
+>>> Cheers,
+>>> Simon
+>>> 
+>>> 
+>>>> On 28 Nov 2025, at 08:24, Duncan Murdoch <murdoch.duncan at gmail.com> wrote:
+>>>> 
+>>>> On 2025-11-27 11:58 a.m., Marcelo Ventura Freire wrote:
+>>>>> If it is not a rhetorical question about a closed issue (if it is, tell me and I will shut up), this inclusion [1] would be useful (since it was exported and rewritten so many times by so many people and will keep being), [2] would create an uniformization (since it was and will be written under so many names before), [3] would not break stuff (since it is not altering the interface of any already existing function nor it is overwriting any symbol with a diverse use), [4] would not be neither a complex nor a tiringsome inclusion (even I myself could do it in a single 1-line pull request, hypothetically speaking) and [5] would benefit users all around.
+>>>>> I am not naive to the point of believing that an alteration to the R core would have few repercussions and surely there must be reasons why it was not done before.
+>>>> 
+>>>> I don't know why it was added to tools but not exported, but here is my guess:
+>>>> 
+>>>> - A member of R Core agrees with you that this operator is useful. This appears to have happened in 2016 based on the svn log.
+>>>> - It already existed in some contributed package, but base packages can't import anything from non-base packages, so it needed to be added.
+>>>> - It wasn't exported, because that would break some packages:
+>>>>    - the ones that export something with that name would now receive a check message about the conflict.
+>>>>    - if those packages stopped exporting it, then any package that imported from one of them would have to stop doing that, and import it from the base package instead.
+>>>> - It is very easy to write your own, or to import one of the existing ones, so a lot of work would have been generated for not very much benefit.
+>>>> 
+>>>> R Core members try to be careful not to generate work for others unless there's enough of a net benefit to the community.  They are very busy, and many authors of contributed packages who might be affected by this change are busy too.
+>>>> 
+>>>> 
+>>>>> But, in the end, this inclusion would be just a seemingly unharmful syntax sugar that could be shared, like it was with "\" for the reserved word "function", but with waaaay less work to implement.
+>>>> 
+>>>> The difference there is that it added new syntax, so as far as I know, it didn't affect any existing package.  Personally I don't see that it really offered much of a benefit (keystrokes are cheap), but lots of people are using it, so I guess some others would disagree.>
+>>>>> If it is not a dumb proposal, I can just include it in the wishlist of features in Bugzilla as prescribed in the contributor's page or I can do that PR myself (if you propose more work to others, the sensible thing to do is at least to offer yourself to do it, right?). In either case, I create more work to the dev team, perhaps to different people.
+>>>> 
+>>>> It's hard for you to do the coordination work with all the existing packages that use a similar operator, so I don't think that's really feasible.
+>>>> 
+>>>>> Thanks for taking your time to answer me.
+>>>> 
+>>>> No problem.  I'm sitting in an airport waiting for a plane, so any distraction is a net benefit for me!
+>>>> 
+>>>> Duncan Murdoch>
+>>>>> Marcelo Ventura Freire
+>>>>> Escola de Artes, Ci?ncias e Humanidades
+>>>>> Universidade de S?o Paulo
+>>>>> Av. Arlindo Bettio, 1000,
+>>>>> Sala Paulo Freire (Sala Coletiva 252), Pr?dio I1
+>>>>> Ermelino Matarazzo, S?o Paulo, SP, Brasil
+>>>>> CEP 03828-000
+>>>>> Tel.: (11) 3091-8894
+>>>>> Em qui., 27 de nov. de 2025 ?s 14:15, Duncan Murdoch <murdoch.duncan at gmail.com <mailto:murdoch.duncan at gmail.com>> escreveu:
+>>>>>    The R sources already contain an operator like that, though it is not
+>>>>>    exported.  tools:::`%notin%` is defined as
+>>>>>       function (x, y)
+>>>>>    is.na <http://is.na>(match(x, y))
+>>>>>    Several CRAN packages export a similar function, e.g. omnibus, mefa4,
+>>>>>    data.table, hutils, etc. So I think if it was exported by R that's a
+>>>>>    better name, but since it is easy to write yourself or import from some
+>>>>>    other package, why bother?
+>>>>>    Duncan Murdoch
+>>>>>    On 2025-11-27 9:19 a.m., Marcelo Ventura Freire via R-devel wrote:
+>>>>>> Hello, dear R core developers
+>>>>>> 
+>>>>>> 
+>>>>>> I have a feature suggestion and, following the orientations in
+>>>>>> https://contributor.r-project.org/rdevguide/chapters/
+>>>>>    submitting_feature_requests.html <https://contributor.r-project.org/
+>>>>>    rdevguide/chapters/submitting_feature_requests.html>,
+>>>>>> I have searched in Bugzilla to the best of my capabilities for
+>>>>>    suggestions
+>>>>>> like the one I have in mind but found no results (however, I can
+>>>>>    be wrong).
+>>>>>> 
+>>>>>> My idea is including this line
+>>>>>> 
+>>>>>> `%!in%`  <- function(x, table) match(x, table, nomatch = 0L) == 0L
+>>>>>> 
+>>>>>> between lines 39 and 40 of the file "src/library/base/R/match.R".
+>>>>>> 
+>>>>>> My objective is to create a "not in" operator that would allow us
+>>>>>    to write
+>>>>>> code like
+>>>>>>>    value %!in% valuelist
+>>>>>> instead of
+>>>>>>>    ! value %in% valuelist
+>>>>>> which is in line with writing
+>>>>>>>    value1 != value2
+>>>>>> instead of
+>>>>>>>    ! value1 == value2
+>>>>>> 
+>>>>>> I was not able to devise any reasonable way that such inclusion
+>>>>>    would break
+>>>>>> any already existing heritage code unless that operator would be
+>>>>>    defined
+>>>>>> otherwisely and it would improve (however marginally) the
+>>>>>    readability of
+>>>>>> future code by its intuitive interpretation and by stitching
+>>>>>    together two
+>>>>>> operators that currently stand apart each other.
+>>>>>> 
+>>>>>> So, if this suggestion was not already proposed and if it is seen as
+>>>>>> useful, I would like to include it in the wishlist in Bugzilla.
+>>>>>> 
+>>>>>> I would appreciate any feedback, be it critic or support, and I
+>>>>>    hope I have
+>>>>>> not crossed any communicational rule from the group.
+>>>>>> 
+>>>>>> Many thanks!  ?
+>>>>>> 
+>>>>>> 
+>>>>>> 
+>>>>>> Marcelo Ventura Freire
+>>>>>> Escola de Artes, Ci?ncias e Humanidades
+>>>>>> Universidade de S?o Paulo
+>>>>>> Av. Arlindo Bettio, 1000,
+>>>>>> Sala Paulo Freire (Sala Coletiva 252), Pr?dio I1
+>>>>>> Ermelino Matarazzo, S?o Paulo, SP, Brasil
+>>>>>> CEP 03828-000
+>>>>>> Tel.: (11) 3091-8894
+>>>>>> 
+>>>>>>      [[alternative HTML version deleted]]
+>>>>>> 
+>>>>>> ______________________________________________
+>>>>>> R-devel at r-project.org <mailto:R-devel at r-project.org> mailing list
+>>>>>> https://stat.ethz.ch/mailman/listinfo/r-devel <https://
+>>>>>    stat.ethz.ch/mailman/listinfo/r-devel>
+>>>>> 
+>>>> 
+>>>> ______________________________________________
+>>>> R-devel at r-project.org mailing list
+>>>> https://stat.ethz.ch/mailman/listinfo/r-devel
+>>>> 
+>>> 
+>> 
+>> ______________________________________________
+>> R-devel at r-project.org mailing list
+>> https://stat.ethz.ch/mailman/listinfo/r-devel
+> 
+> ______________________________________________
+> R-devel at r-project.org mailing list
+> https://stat.ethz.ch/mailman/listinfo/r-devel
+
+
+From therne@u @end|ng |rom m@yo@edu  Tue Dec  2 13:41:47 2025
+From: therne@u @end|ng |rom m@yo@edu (Therneau, Terry M., Ph.D.)
+Date: Tue, 02 Dec 2025 12:41:47 +0000
+Subject: [Rd] Speed question: passing arguments vs environment
+Message-ID: <SJ0PR01MB815585DAF0A7777E538A2472AED8A@SJ0PR01MB8155.prod.exchangelabs.com>
+
+I have a complex likelihood function f() to maximize, with lots of arguments (some of which set up indexes for derivatives, for instance).
+When using something like optim(), one can pass these arguments through via its ? arg, or could make the likelihood function f() live in the same environment as the main routine so they are found directly.    Is there any advantage of one versus the other wrt speed?    At the end of the day, f() may get called thousands of times in a Hamiltonian MCMC.
+
+Since R does not replicate arguments that are used in a read-only fashion, one might expect little to no penalty for having them on the call chain, unless the bookkeeping for copy-on-write is itself time consuming.
+
+Terry T.
+
+
+	[[alternative HTML version deleted]]
+
+
+From er|cjberger @end|ng |rom gm@||@com  Tue Dec  2 13:48:14 2025
+From: er|cjberger @end|ng |rom gm@||@com (Eric Berger)
+Date: Tue, 2 Dec 2025 14:48:14 +0200
+Subject: [Rd] Speed question: passing arguments vs environment
+In-Reply-To: <SJ0PR01MB815585DAF0A7777E538A2472AED8A@SJ0PR01MB8155.prod.exchangelabs.com>
+References: <SJ0PR01MB815585DAF0A7777E538A2472AED8A@SJ0PR01MB8155.prod.exchangelabs.com>
+Message-ID: <CAGgJW75jf3maLVyUBtShrOCBMM9jmzvhDuWtmx7BWrMaHKtdWQ@mail.gmail.com>
+
+While not directly answering your question, what about collecting all these
+arguments into an env object? Then you are just passing one argument in the
+... and it is passed by reference, which is fast.
+
+
+On Tue, Dec 2, 2025 at 2:42?PM Therneau, Terry M., Ph.D. via R-devel <
+r-devel at r-project.org> wrote:
+
+> I have a complex likelihood function f() to maximize, with lots of
+> arguments (some of which set up indexes for derivatives, for instance).
+> When using something like optim(), one can pass these arguments through
+> via its ? arg, or could make the likelihood function f() live in the same
+> environment as the main routine so they are found directly.    Is there any
+> advantage of one versus the other wrt speed?    At the end of the day, f()
+> may get called thousands of times in a Hamiltonian MCMC.
+>
+> Since R does not replicate arguments that are used in a read-only fashion,
+> one might expect little to no penalty for having them on the call chain,
+> unless the bookkeeping for copy-on-write is itself time consuming.
+>
+> Terry T.
+>
+>
+>         [[alternative HTML version deleted]]
+>
+> ______________________________________________
+> R-devel at r-project.org mailing list
+> https://stat.ethz.ch/mailman/listinfo/r-devel
+>
+
+	[[alternative HTML version deleted]]
+
+
+From murdoch@dunc@n @end|ng |rom gm@||@com  Tue Dec  2 14:41:03 2025
+From: murdoch@dunc@n @end|ng |rom gm@||@com (Duncan Murdoch)
+Date: Tue, 2 Dec 2025 08:41:03 -0500
+Subject: [Rd] Speed question: passing arguments vs environment
+In-Reply-To: <SJ0PR01MB815585DAF0A7777E538A2472AED8A@SJ0PR01MB8155.prod.exchangelabs.com>
+References: <SJ0PR01MB815585DAF0A7777E538A2472AED8A@SJ0PR01MB8155.prod.exchangelabs.com>
+Message-ID: <c0b7468f-7d78-428a-92ca-abd0a69ffbb6@gmail.com>
+
+On 2025-12-02 7:41 a.m., Therneau, Terry M., Ph.D. via R-devel wrote:
+> I have a complex likelihood function f() to maximize, with lots of arguments (some of which set up indexes for derivatives, for instance).
+> When using something like optim(), one can pass these arguments through via its ? arg, or could make the likelihood function f() live in the same environment as the main routine so they are found directly.    Is there any advantage of one versus the other wrt speed?    At the end of the day, f() may get called thousands of times in a Hamiltonian MCMC.
+> 
+> Since R does not replicate arguments that are used in a read-only fashion, one might expect little to no penalty for having them on the call chain, unless the bookkeeping for copy-on-write is itself time consuming.
+> 
+
+I think there wouldn't be a big difference in timing, but I'd guess 
+there'd be a slight advantage to having them in the environment of the 
+objective function.  I'd recommend testing both ways if you want to be sure.
+
+Here are the differences that might matter:
+
+  - putting them as arguments has the overhead of constructing the 
+argument list each time, and if the args are used, the overhead of 
+resolving promises.
+
+  - putting them in the environment of the function means lookups will 
+take two steps:  the evaluation frame followed by its parent, instead of 
+succeeding in the first lookup.
+
+I suspect the overhead of arguments is bigger, but it's probably not 
+very big.
+
+Duncan Murdoch

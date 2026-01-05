@@ -1,0 +1,408 @@
+From j@ork|n @end|ng |rom @om@um@ry|@nd@edu  Sun Dec  1 03:27:29 2024
+From: j@ork|n @end|ng |rom @om@um@ry|@nd@edu (Sorkin, John)
+Date: Sun, 1 Dec 2024 02:27:29 +0000
+Subject: [R] Identify first row of each ID within a data frame,
+ create a variable first =1 for the first row and first=0 of all
+ other rows
+Message-ID: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+
+Dear R help folks,
+
+First my apologizes for sending several related questions to the list server. I am trying to learn how to manipulate data in R . . . and am having difficulty getting my program to work. I greatly appreciate the help and support list member give!
+
+I am trying to write a program that will run through a data frame organized by ID and for the first line of each new group of data lines that has the same ID create a new variable first that will be 1 for the first line of the group and 0 for all other lines.
+
+e.g. if my original data is 
+ olddata
+   ID date
+    1     1
+    1     1
+    1     2
+    1     2
+    1     3
+    1     3
+    1     4
+    1     4
+    1     5
+    1     5
+    2     5
+    2     5
+    2     5
+    2     6
+    2     6
+    2     6
+    3   10
+    3   10
+
+the new data will be
+newdata
+   ID date  first
+    1     1       1
+    1     1       0
+    1     2       0
+    1     2       0
+    1     3       0
+    1     3       0
+    1     4       0
+    1     4       0
+    1     5       0
+    1     5       0
+    2     5       1
+    2     5       0
+    2     5       0
+    2     6       0
+    2     6       0
+    2     6       0
+    3   10       1
+    3   10       0
+
+When I run the program below, I receive the following error:
+Error in df[, "ID"] : incorrect number of dimensions
+
+My code:
+# Create data.frame
+ID <- c(rep(1,10),rep(2,6),rep(3,2))
+date <- c(rep(1,2),rep(2,2),rep(3,2),rep(4,2),rep(5,2),
+          rep(5,3),rep(6,3),rep(10,2))
+olddata <- data.frame(ID=ID,date=date)
+class(olddata)
+cat("This is the original data frame","\n")
+print(olddata)
+ 
+# This function is supposed to identify the first row 
+# within each level of ID and, for the first row, set
+# the variable first to 1, and for all rows other than
+# the first row set first to 0.
+mydoit <- function(df){
+  value <- ifelse (first(df[,"ID"]),1,0)
+  cat("value=",value,"\n")
+  df[,"first"] <- value
+}
+newdata <- aggregate(olddata,list(olddata[,"ID"]),mydoit)
+
+Thank you,
+John
+
+
+John David Sorkin M.D., Ph.D.
+Professor of Medicine, University of Maryland School of Medicine;
+Associate Director for Biostatistics and Informatics, Baltimore VA Medical Center Geriatrics Research, Education, and Clinical Center;?
+PI?Biostatistics and Informatics Core, University of Maryland School of Medicine Claude D. Pepper Older Americans Independence Center;
+Senior Statistician University of Maryland Center for Vascular Research;
+
+Division of Gerontology and Paliative Care,
+10 North Greene Street
+GRECC (BT/18/GR)
+Baltimore, MD 21201-1524
+Cell phone 443-418-5382
+
+
+
+
+From bbo|ker @end|ng |rom gm@||@com  Sun Dec  1 03:35:38 2024
+From: bbo|ker @end|ng |rom gm@||@com (Ben Bolker)
+Date: Sat, 30 Nov 2024 21:35:38 -0500
+Subject: [R] Identify first row of each ID within a data frame,
+ create a variable first =1 for the first row and first=0 of all
+ other rows
+In-Reply-To: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+References: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+Message-ID: <CABghstS905fhe3rLmbJtfBxDhzLcpqwmCD1jObsNhqVmTznkQw@mail.gmail.com>
+
+I think as.numeric(! duplicated(group)) might do this for you ...
+
+On Sat, Nov 30, 2024, 9:27 PM Sorkin, John <jsorkin at som.umaryland.edu>
+wrote:
+
+> Dear R help folks,
+>
+> First my apologizes for sending several related questions to the list
+> server. I am trying to learn how to manipulate data in R . . . and am
+> having difficulty getting my program to work. I greatly appreciate the help
+> and support list member give!
+>
+> I am trying to write a program that will run through a data frame
+> organized by ID and for the first line of each new group of data lines that
+> has the same ID create a new variable first that will be 1 for the first
+> line of the group and 0 for all other lines.
+>
+> e.g. if my original data is
+>  olddata
+>    ID date
+>     1     1
+>     1     1
+>     1     2
+>     1     2
+>     1     3
+>     1     3
+>     1     4
+>     1     4
+>     1     5
+>     1     5
+>     2     5
+>     2     5
+>     2     5
+>     2     6
+>     2     6
+>     2     6
+>     3   10
+>     3   10
+>
+> the new data will be
+> newdata
+>    ID date  first
+>     1     1       1
+>     1     1       0
+>     1     2       0
+>     1     2       0
+>     1     3       0
+>     1     3       0
+>     1     4       0
+>     1     4       0
+>     1     5       0
+>     1     5       0
+>     2     5       1
+>     2     5       0
+>     2     5       0
+>     2     6       0
+>     2     6       0
+>     2     6       0
+>     3   10       1
+>     3   10       0
+>
+> When I run the program below, I receive the following error:
+> Error in df[, "ID"] : incorrect number of dimensions
+>
+> My code:
+> # Create data.frame
+> ID <- c(rep(1,10),rep(2,6),rep(3,2))
+> date <- c(rep(1,2),rep(2,2),rep(3,2),rep(4,2),rep(5,2),
+>           rep(5,3),rep(6,3),rep(10,2))
+> olddata <- data.frame(ID=ID,date=date)
+> class(olddata)
+> cat("This is the original data frame","\n")
+> print(olddata)
+>
+> # This function is supposed to identify the first row
+> # within each level of ID and, for the first row, set
+> # the variable first to 1, and for all rows other than
+> # the first row set first to 0.
+> mydoit <- function(df){
+>   value <- ifelse (first(df[,"ID"]),1,0)
+>   cat("value=",value,"\n")
+>   df[,"first"] <- value
+> }
+> newdata <- aggregate(olddata,list(olddata[,"ID"]),mydoit)
+>
+> Thank you,
+> John
+>
+>
+> John David Sorkin M.D., Ph.D.
+> Professor of Medicine, University of Maryland School of Medicine;
+> Associate Director for Biostatistics and Informatics, Baltimore VA Medical
+> Center Geriatrics Research, Education, and Clinical Center;
+> PI Biostatistics and Informatics Core, University of Maryland School of
+> Medicine Claude D. Pepper Older Americans Independence Center;
+> Senior Statistician University of Maryland Center for Vascular Research;
+>
+> Division of Gerontology and Paliative Care,
+> 10 North Greene Street
+> <https://www.google.com/maps/search/10+North+Greene+Street?entry=gmail&source=g>
+> GRECC (BT/18/GR)
+> Baltimore, MD 21201-1524
+> Cell phone 443-418-5382
+>
+>
+>
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide
+> https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+>
+
+	[[alternative HTML version deleted]]
+
+
+From cry@n @end|ng |rom b|ngh@mton@edu  Sun Dec  1 03:46:57 2024
+From: cry@n @end|ng |rom b|ngh@mton@edu (Christopher W. Ryan)
+Date: Sat, 30 Nov 2024 21:46:57 -0500
+Subject: [R] Identify first row of each ID within a data frame,
+ create a variable first =1 for the first row and first=0 of all
+ other rows
+In-Reply-To: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+References: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+Message-ID: <600b676e-9dab-8f64-e492-39ad4f4ca281@binghamton.edu>
+
+Personally, I'd do this in the tidyverse with dplyr and its row_number()
+function.
+
+olddata %>% group_by(ID) %>% mutate(first = as.integer(row_number() == 1))
+
+--Chris Ryan
+
+Sorkin, John wrote:
+> ID <- c(rep(1,10),rep(2,6),rep(3,2))
+> date <- c(rep(1,2),rep(2,2),rep(3,2),rep(4,2),rep(5,2),
+>           rep(5,3),rep(6,3),rep(10,2))
+> olddata <- data.frame(ID=ID,date=date)
+
+
+From cry@n @end|ng |rom b|ngh@mton@edu  Sun Dec  1 03:51:48 2024
+From: cry@n @end|ng |rom b|ngh@mton@edu (Christopher W. Ryan)
+Date: Sat, 30 Nov 2024 21:51:48 -0500
+Subject: [R] Identify first row of each ID within a data frame,
+ create a variable first =1 for the first row and first=0 of all
+ other rows
+In-Reply-To: <600b676e-9dab-8f64-e492-39ad4f4ca281@binghamton.edu>
+References: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+ <600b676e-9dab-8f64-e492-39ad4f4ca281@binghamton.edu>
+Message-ID: <f2250299-b8b5-a8a5-aacb-3779e51c397c@binghamton.edu>
+
+Sorry, for completeness:
+
+library(dplyr)
+olddata %>% group_by(ID) %>% mutate(first = as.integer(row_number() == 1))
+
+--Chris Ryan
+
+
+Christopher W. Ryan wrote:
+> Personally, I'd do this in the tidyverse with dplyr and its row_number()
+> function.
+> 
+> olddata %>% group_by(ID) %>% mutate(first = as.integer(row_number() == 1))
+> 
+> --Chris Ryan
+> 
+> Sorkin, John wrote:
+>> ID <- c(rep(1,10),rep(2,6),rep(3,2))
+>> date <- c(rep(1,2),rep(2,2),rep(3,2),rep(4,2),rep(5,2),
+>>           rep(5,3),rep(6,3),rep(10,2))
+>> olddata <- data.frame(ID=ID,date=date)
+
+
+From rmh @end|ng |rom temp|e@edu  Sun Dec  1 04:54:47 2024
+From: rmh @end|ng |rom temp|e@edu (Richard M. Heiberger)
+Date: Sun, 1 Dec 2024 03:54:47 +0000
+Subject: [R] 
+ [External]  Identify first row of each ID within a data frame,
+ create a variable first =1 for the first row and first=0 of all
+ other rows
+In-Reply-To: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+References: <DM6PR03MB5049ED4EE95641C693B3D7EAE2342@DM6PR03MB5049.namprd03.prod.outlook.com>
+Message-ID: <ACBADD34-16BF-4F7F-99BC-3D1DE568CD48@temple.edu>
+
+tmp.ID <- unique(olddata$ID)
+Firsts <- match(tmp.ID, olddata$ID)
+newdata <- cbind(olddata, First=0)
+newdata$First[Firsts] <- 1
+newdata
+
+newdata$FirstDay <- 0
+for (id in tmp.ID)
+  newdata$FirstDay[newdata$ID == id] <- newdata$date[newdata$ID == id][1]
+newdata
+
+
+> On Nov 30, 2024, at 21:27, Sorkin, John <jsorkin at som.umaryland.edu> wrote:
+>
+> Dear R help folks,
+>
+> First my apologizes for sending several related questions to the list server. I am trying to learn how to manipulate data in R . . . and am having difficulty getting my program to work. I greatly appreciate the help and support list member give!
+>
+> I am trying to write a program that will run through a data frame organized by ID and for the first line of each new group of data lines that has the same ID create a new variable first that will be 1 for the first line of the group and 0 for all other lines.
+>
+> e.g. if my original data is
+> olddata
+>   ID date
+>    1     1
+>    1     1
+>    1     2
+>    1     2
+>    1     3
+>    1     3
+>    1     4
+>    1     4
+>    1     5
+>    1     5
+>    2     5
+>    2     5
+>    2     5
+>    2     6
+>    2     6
+>    2     6
+>    3   10
+>    3   10
+>
+> the new data will be
+> newdata
+>   ID date  first
+>    1     1       1
+>    1     1       0
+>    1     2       0
+>    1     2       0
+>    1     3       0
+>    1     3       0
+>    1     4       0
+>    1     4       0
+>    1     5       0
+>    1     5       0
+>    2     5       1
+>    2     5       0
+>    2     5       0
+>    2     6       0
+>    2     6       0
+>    2     6       0
+>    3   10       1
+>    3   10       0
+>
+> When I run the program below, I receive the following error:
+> Error in df[, "ID"] : incorrect number of dimensions
+>
+> My code:
+> # Create data.frame
+> ID <- c(rep(1,10),rep(2,6),rep(3,2))
+> date <- c(rep(1,2),rep(2,2),rep(3,2),rep(4,2),rep(5,2),
+>          rep(5,3),rep(6,3),rep(10,2))
+> olddata <- data.frame(ID=ID,date=date)
+> class(olddata)
+> cat("This is the original data frame","\n")
+> print(olddata)
+>
+> # This function is supposed to identify the first row
+> # within each level of ID and, for the first row, set
+> # the variable first to 1, and for all rows other than
+> # the first row set first to 0.
+> mydoit <- function(df){
+>  value <- ifelse (first(df[,"ID"]),1,0)
+>  cat("value=",value,"\n")
+>  df[,"first"] <- value
+> }
+> newdata <- aggregate(olddata,list(olddata[,"ID"]),mydoit)
+>
+> Thank you,
+> John
+>
+>
+> John David Sorkin M.D., Ph.D.
+> Professor of Medicine, University of Maryland School of Medicine;
+> Associate Director for Biostatistics and Informatics, Baltimore VA Medical Center Geriatrics Research, Education, and Clinical Center;
+> PI Biostatistics and Informatics Core, University of Maryland School of Medicine Claude D. Pepper Older Americans Independence Center;
+> Senior Statistician University of Maryland Center for Vascular Research;
+>
+> Division of Gerontology and Paliative Care,
+> 10 North Greene Street
+> GRECC (BT/18/GR)
+> Baltimore, MD 21201-1524
+> Cell phone 443-418-5382
+>
+>
+>
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide https://www.r-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.

@@ -1,0 +1,428 @@
+From |eo@m@d@ @end|ng |rom @yon|c@eu  Tue Dec  2 09:39:09 2025
+From: |eo@m@d@ @end|ng |rom @yon|c@eu (Leo Mada)
+Date: Tue, 2 Dec 2025 08:39:09 +0000
+Subject: [R] lme: Plot colours based on variable?
+Message-ID: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+
+Dear R-Users,
+
+Is there a quick solution to plot colours based on a variable?
+
+I tried something like this:
+
+library(nlme)
+
+plot(BodyWeight)
+
+# Does NOT work!
+colDiet = c(2:4)[BodyWeight$Diet]
+plot(BodyWeight, col = colDiet)
+
+# Wastes space
+rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~ Time|Rat)
+plot(rat.fit, weight ~ Time | Rat + Diet)
+
+Is there a quick way to base the colour on the Diet variable?
+
+Many thanks,
+
+Leonard
+
+
+	[[alternative HTML version deleted]]
+
+
+From murdoch@dunc@n @end|ng |rom gm@||@com  Tue Dec  2 12:06:40 2025
+From: murdoch@dunc@n @end|ng |rom gm@||@com (Duncan Murdoch)
+Date: Tue, 2 Dec 2025 06:06:40 -0500
+Subject: [R] lme: Plot colours based on variable?
+In-Reply-To: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+References: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+Message-ID: <efe96ca1-92cd-4f97-9f73-a4eb734a9e69@gmail.com>
+
+On 2025-12-02 3:39 a.m., Leo Mada via R-help wrote:
+> Dear R-Users,
+> 
+> Is there a quick solution to plot colours based on a variable?
+> 
+> I tried something like this:
+> 
+> library(nlme)
+> 
+> plot(BodyWeight)
+> 
+> # Does NOT work!
+> colDiet = c(2:4)[BodyWeight$Diet]
+> plot(BodyWeight, col = colDiet)
+> 
+> # Wastes space
+> rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~ Time|Rat)
+> plot(rat.fit, weight ~ Time | Rat + Diet)
+> 
+> Is there a quick way to base the colour on the Diet variable?
+
+   plot(BodyWeight, ...)
+
+dispatches to plot.nfnGroupedData(), which uses lattice::xyplot() 
+graphics rather than base graphics. I don't know lattice well enough to 
+answer your question, but maybe this will give you a hint...
+
+Duncan Murdoch
+
+
+From bbo|ker @end|ng |rom gm@||@com  Tue Dec  2 17:26:10 2025
+From: bbo|ker @end|ng |rom gm@||@com (Ben Bolker)
+Date: Tue, 2 Dec 2025 11:26:10 -0500
+Subject: [R] lme: Plot colours based on variable?
+In-Reply-To: <efe96ca1-92cd-4f97-9f73-a4eb734a9e69@gmail.com>
+References: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+ <efe96ca1-92cd-4f97-9f73-a4eb734a9e69@gmail.com>
+Message-ID: <f4a0e8d7-c394-47f6-80bb-d3dcc0ebe3a5@gmail.com>
+
+   I often find custom-built lattice-based plot methods inscrutable and 
+end up falling back to figuring out how to get what I want directly with 
+lattice.
+
+   I haven't figured out how to get the label 'Diet' on the legend, but 
+otherwise this works pretty well ...
+
+
+library(lattice)
+library(nlme)
+labs <- paste(attr(BodyWeight, "labels"),
+               attr(BodyWeight, "units"))
+xyplot(weight ~ Time | Rat, type = c("p", "r"),
+        data = BodyWeight,
+        layout = c(NA, 1),  ## enforce 1 row
+        groups = Diet,
+        auto.key = TRUE,
+        pch = 19,
+        xlab = labs[1],
+        ylab = labs[2],
+        par.settings = list(superpose.line = list(col = "black")))
+
+
+On 12/2/25 06:06, Duncan Murdoch wrote:
+> On 2025-12-02 3:39 a.m., Leo Mada via R-help wrote:
+>> Dear R-Users,
+>>
+>> Is there a quick solution to plot colours based on a variable?
+>>
+>> I tried something like this:
+>>
+>> library(nlme)
+>>
+>> plot(BodyWeight)
+>>
+>> # Does NOT work!
+>> colDiet = c(2:4)[BodyWeight$Diet]
+>> plot(BodyWeight, col = colDiet)
+>>
+>> # Wastes space
+>> rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~ 
+>> Time|Rat)
+>> plot(rat.fit, weight ~ Time | Rat + Diet)
+>>
+>> Is there a quick way to base the colour on the Diet variable?
+> 
+>  ? plot(BodyWeight, ...)
+> 
+> dispatches to plot.nfnGroupedData(), which uses lattice::xyplot() 
+> graphics rather than base graphics. I don't know lattice well enough to 
+> answer your question, but maybe this will give you a hint...
+> 
+> Duncan Murdoch
+> 
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide https://www.R-project.org/posting- 
+> guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+
+-- 
+Dr. Benjamin Bolker
+Professor, Mathematics & Statistics and Biology, McMaster University
+Associate chair (graduate), Mathematics & Statistics
+Director, School of Computational Science and Engineering
+* E-mail is sent at my convenience; I don't expect replies outside of 
+working hours.
+
+
+From deep@y@n@@@rk@r @end|ng |rom gm@||@com  Tue Dec  2 18:01:28 2025
+From: deep@y@n@@@rk@r @end|ng |rom gm@||@com (Deepayan Sarkar)
+Date: Tue, 2 Dec 2025 22:31:28 +0530
+Subject: [R] lme: Plot colours based on variable?
+In-Reply-To: <f4a0e8d7-c394-47f6-80bb-d3dcc0ebe3a5@gmail.com>
+References: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+ <efe96ca1-92cd-4f97-9f73-a4eb734a9e69@gmail.com>
+ <f4a0e8d7-c394-47f6-80bb-d3dcc0ebe3a5@gmail.com>
+Message-ID: <CADfFDC7XTJchA6Z=pcaPB=9EcLMH=_VH0pMA=LxwWYmtXc9erQ@mail.gmail.com>
+
+On Tue, 2 Dec 2025 at 21:56, Ben Bolker <bbolker at gmail.com> wrote:
+
+>    I often find custom-built lattice-based plot methods inscrutable and
+> end up falling back to figuring out how to get what I want directly with
+> lattice.
+>
+
+The documentation suggests that this might work, but the colors come out
+weird.
+
+plot(BodyWeight, innerGroups = ~Diet)
+
+
+>
+>    I haven't figured out how to get the label 'Diet' on the legend, but
+> otherwise this works pretty well ...
+>
+>
+> library(lattice)
+> library(nlme)
+> labs <- paste(attr(BodyWeight, "labels"),
+>                attr(BodyWeight, "units"))
+> xyplot(weight ~ Time | Rat, type = c("p", "r"),
+>         data = BodyWeight,
+>         layout = c(NA, 1),  ## enforce 1 row
+>
+
+or aspect = "xy", as in the plot method.
+
+
+>         groups = Diet,
+>         auto.key = TRUE,
+>         pch = 19,
+>         xlab = labs[1],
+>         ylab = labs[2],
+>         par.settings = list(superpose.line = list(col = "black")))
+>
+
+A more direct analog of plot(BodyWeight) would be
+
+xyplot(BodyWeight, weight ~ Time | Rat,
+       aspect = "xy", type = "o",
+       groups = Diet, auto.key = list(title = "Diet", columns = 3),
+       grid = TRUE, xlab = labs[1], ylab = labs[2])
+
+-Deepayan
+
+
+
+>
+>
+> On 12/2/25 06:06, Duncan Murdoch wrote:
+> > On 2025-12-02 3:39 a.m., Leo Mada via R-help wrote:
+> >> Dear R-Users,
+> >>
+> >> Is there a quick solution to plot colours based on a variable?
+> >>
+> >> I tried something like this:
+> >>
+> >> library(nlme)
+> >>
+> >> plot(BodyWeight)
+> >>
+> >> # Does NOT work!
+> >> colDiet = c(2:4)[BodyWeight$Diet]
+> >> plot(BodyWeight, col = colDiet)
+> >>
+> >> # Wastes space
+> >> rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~
+> >> Time|Rat)
+> >> plot(rat.fit, weight ~ Time | Rat + Diet)
+> >>
+> >> Is there a quick way to base the colour on the Diet variable?
+> >
+> >    plot(BodyWeight, ...)
+> >
+> > dispatches to plot.nfnGroupedData(), which uses lattice::xyplot()
+> > graphics rather than base graphics. I don't know lattice well enough to
+> > answer your question, but maybe this will give you a hint...
+> >
+> > Duncan Murdoch
+> >
+> > ______________________________________________
+> > R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> > https://stat.ethz.ch/mailman/listinfo/r-help
+> > PLEASE do read the posting guide https://www.R-project.org/posting-
+> > guide.html
+> > and provide commented, minimal, self-contained, reproducible code.
+>
+> --
+> Dr. Benjamin Bolker
+> Professor, Mathematics & Statistics and Biology, McMaster University
+> Associate chair (graduate), Mathematics & Statistics
+> Director, School of Computational Science and Engineering
+> * E-mail is sent at my convenience; I don't expect replies outside of
+> working hours.
+>
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide
+> https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+>
+
+	[[alternative HTML version deleted]]
+
+
+From |eo@m@d@ @end|ng |rom @yon|c@eu  Tue Dec  2 18:53:44 2025
+From: |eo@m@d@ @end|ng |rom @yon|c@eu (Leo Mada)
+Date: Tue, 2 Dec 2025 17:53:44 +0000
+Subject: [R] lme: Plot colours based on variable?
+In-Reply-To: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+References: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+Message-ID: <DBAP192MB09566E3BD37F4B8539E43DC984D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+
+Dear Ben,
+
+Thank you very much for the suggestion. Indeed, it works.
+
+Many thanks to Duncan and Deepayan for the other suggestions, as well.
+
+I managed to add the legend title (figured out that legend is named "key"). The code looks like this (though the pch, fill & type-options do not work yet, and as much as I fiddle with them, I don't get them set):
+
+library(lattice)
+library(nlme)
+labs <- paste(attr(BodyWeight, "labels"),
+               attr(BodyWeight, "units"))
+xyplot(weight ~ Time | Rat, type = c("p", "r"),
+        data = BodyWeight,
+        layout = c(NA, 1),  ## enforce 1 row
+        groups = Diet,
+        auto.key = list(title = "Diet", pch = 16, type = "n", fill = 0.6),
+        pch = 19,
+        xlab = labs[1],
+        ylab = labs[2],
+        par.settings = list(superpose.line = list(col = "black")))
+
+The code provided by Deepayan is much shorter; although the colours are not the best choice.
+
+Sincerely,
+
+Leonard
+
+________________________________
+From: Leo Mada <leo.mada at syonic.eu>
+Sent: Tuesday, December 2, 2025 10:39 AM
+To: Leo Mada via R-help <r-help at r-project.org>
+Subject: lme: Plot colours based on variable?
+
+Dear R-Users,
+
+Is there a quick solution to plot colours based on a variable?
+
+I tried something like this:
+
+library(nlme)
+
+plot(BodyWeight)
+
+# Does NOT work!
+colDiet = c(2:4)[BodyWeight$Diet]
+plot(BodyWeight, col = colDiet)
+
+# Wastes space
+rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~ Time|Rat)
+plot(rat.fit, weight ~ Time | Rat + Diet)
+
+Is there a quick way to base the colour on the Diet variable?
+
+Many thanks,
+
+Leonard
+
+
+	[[alternative HTML version deleted]]
+
+
+From |eo@m@d@ @end|ng |rom @yon|c@eu  Thu Dec  4 00:38:09 2025
+From: |eo@m@d@ @end|ng |rom @yon|c@eu (Leo Mada)
+Date: Wed, 3 Dec 2025 23:38:09 +0000
+Subject: [R] lme: Plot colours based on variable?
+In-Reply-To: <VI1P194MB05426E9426061741297EEEDB9DD8A@VI1P194MB0542.EURP194.PROD.OUTLOOK.COM>
+References: <DBAP192MB0956E139BFF599808E8BEA7784D8A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+ <VI1P194MB05426E9426061741297EEEDB9DD8A@VI1P194MB0542.EURP194.PROD.OUTLOOK.COM>
+Message-ID: <DBAP192MB0956AF15B388155C129BFD1584D9A@DBAP192MB0956.EURP192.PROD.OUTLOOK.COM>
+
+Dear Vaclav,
+
+Thank  you very much for the suggestion.
+
+I tried to avoid this plot, because it wastes a lot of space. Each of Diet 1, 2 and 3 are visualised on separate rows, with the remaining row empty.
+
+Ben and Deepayan provided some working code. Some fine details still need to be improved, but both versions work well otherwise.
+
+Regarding the image: I wanted to add some nice images to a lecture - a wrap up of the statistics module for medical residents. As doctors do not know a lot of statistics, good images can convey the knowledge much better. I wanted to give them some overview of mixed-effects models and some other (more) advanced topics. Funnily, mid through the lecture I tried to have them recount what variance was; only to learn that they are a new batch of residents and this was their first class.
+
+Unfortunately, I am not familiar with lattice. And the terminology used through the documentation is sometimes confusing as well.
+
+Your suggestion to change the colours may be useful to someone, so I am adding it to the discussion thread.
+
+Many thanks,
+
+Leonard
+
+
+________________________________
+From: V?clav Adamec <vaclav.adamec at mendelu.cz>
+Sent: Tuesday, December 2, 2025 1:07 PM
+To: Leo Mada <leo.mada at syonic.eu>
+Subject: Re: lme: Plot colours based on variable?
+
+Hopefully, this is what you want.
+
+Vaclav
+
+
+
+library(nlme)
+library(lattice)
+plot(BodyWeight)
+rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~ Time|Rat)
+plot(rat.fit, weight ~ Time | Rat + Diet, groups = ~Diet, col = 2:4,
+     panel = function(x, y, groups, subscripts, ...) {
+  panel.xyplot(x, y, ..., groups = groups, subscripts = subscripts, )
+})
+
+________________________________________
+Od: R-help <r-help-bounces at r-project.org> za u?ivatele Leo Mada via R-help <r-help at r-project.org>
+Odesl?no: ?ter? 2. prosince 2025 9:39
+Komu: Leo Mada via R-help
+P?edm?t: [R] lme: Plot colours based on variable?
+
+Dear R-Users,
+
+Is there a quick solution to plot colours based on a variable?
+
+I tried something like this:
+
+library(nlme)
+
+plot(BodyWeight)
+
+# Does NOT work!
+colDiet = c(2:4)[BodyWeight$Diet]
+plot(BodyWeight, col = colDiet)
+
+# Wastes space
+rat.fit = lme(weight ~ Time + Diet, data = BodyWeight, random = ~ Time|Rat)
+plot(rat.fit, weight ~ Time | Rat + Diet)
+
+Is there a quick way to base the colour on the Diet variable?
+
+Many thanks,
+
+Leonard
+
+
+        [[alternative HTML version deleted]]
+
+______________________________________________
+R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+https://stat.ethz.ch/mailman/listinfo/r-help
+PLEASE do read the posting guide https://www.R-project.org/posting-guide.html
+and provide commented, minimal, self-contained, reproducible code.
+
+	[[alternative HTML version deleted]]

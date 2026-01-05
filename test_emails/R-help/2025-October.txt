@@ -1,0 +1,408 @@
+From rhe|p @end|ng |rom eoo@@dd@@n|  Thu Oct  2 08:26:22 2025
+From: rhe|p @end|ng |rom eoo@@dd@@n| (Jan van der Laan)
+Date: Thu, 2 Oct 2025 08:26:22 +0200
+Subject: [R] `install.packages()` and https proxy with R 4.5
+In-Reply-To: <CABFfbXv2gF-F_HvNLg9XGs4fXjYX6G3BUORY2dpZxtYwqLiaxA@mail.gmail.com>
+References: <CAHETjtZ=Pi=4V=A2YNKnNNFsOL8LTXtqWo-3OEFeZSQhzZsC_A@mail.gmail.com>
+ <CABFfbXv2gF-F_HvNLg9XGs4fXjYX6G3BUORY2dpZxtYwqLiaxA@mail.gmail.com>
+Message-ID: <dda68dfa-45cf-4b41-9384-f130e3beddd5@eoos.dds.nl>
+
+
+
+On 30-09-2025 17:49, Jeroen Ooms wrote:
+> On Sun, Sep 28, 2025 at 10:45?AM Lukas Schneiderbauer
+> <lukas.schneiderbauer at gmail.com> wrote:
+>>
+>> Hi all,
+>>
+>> I work from a Windows 11 environment behind a firewall, and I require proxy
+>> settings to reach the (private) R package repository I work with.
+>> Using R 4.4 I used to set the environment variable "https_proxy" which led
+>> to e.g. "install.packages()" to work just fine.
+> 
+> 
+> Maybe also try some of the other variables mentioned in
+> https://curl.se/libcurl/c/libcurl-env.html
+
+
+That documentation mentions that 'http_proxy' is used for 'https://' 
+addresses. Is that variable also set?
+
+
+I could also be that the proxy requires authentication with wininet this 
+is often automatically done (I believe that was de default before R4.5). 
+However, that doesn't explain why `method="curl"` would work. In that 
+case you could try to set the proxy to `http_proxy=":@yourproxy"`.
+
+HTH,
+Jan
+
+
+
+> 
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+
+
+From tgs77m m@iii@g oii y@hoo@com  Thu Oct  2 17:55:58 2025
+From: tgs77m m@iii@g oii y@hoo@com (tgs77m m@iii@g oii y@hoo@com)
+Date: Thu, 2 Oct 2025 08:55:58 -0700
+Subject: [R] polyroot
+References: <001201dc33b5$0c7825d0$25687170$.ref@yahoo.com>
+Message-ID: <001201dc33b5$0c7825d0$25687170$@yahoo.com>
+
+Colleagues,
+
+f <- function(x) ( x^11 + 1000*x^10 + 500 *x^9 + 1 ) ^0.01
+coeffs <- c(1, rep(0, 8), 500, 1000, 1)
+roots <- polyroot(coeffs)
+
+# output
+
+[1]    0.25770068+3.958197e-01i
+ [2]   -0.34615184+3.782848e-01i
+ [3]   -0.04089779-4.838134e-01i
+ [4]    0.44124314-1.517731e-01i
+ [5]   -0.04089779+4.838134e-01i
+ [6]   -0.56201931-1.282822e-01i
+ [7]   -0.34615184-3.782848e-01i
+ [8]    0.44124314+1.517731e-01i
+ [9]   -0.56201931+1.282822e-01i
+[10]    0.25770068-3.958197e-01i
+[11] -999.49974975+1.110223e-16i
+
+[11] -999.49974975+1.110223e-16i makes no sense since f is always greater
+than 0
+
+why does polyroot output [11] -999.49974975+1.110223e-16i ?
+
+Thanks,
+
+Thomas Subia
+
+
+From tgs77m m@iii@g oii y@hoo@com  Thu Oct  2 18:14:17 2025
+From: tgs77m m@iii@g oii y@hoo@com (tgs77m m@iii@g oii y@hoo@com)
+Date: Thu, 2 Oct 2025 09:14:17 -0700
+Subject: [R] polyroot behaviour
+References: <001b01dc33b7$9b97c980$d2c75c80$.ref@yahoo.com>
+Message-ID: <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+
+Colleagues,
+
+g <- function(x) ( x^11 + 1000*x^10 + 500 *x^9 + 1 )
+coeffs <- c(1, rep(0, 8), 500, 1000, 1)
+roots <- polyroot(coeffs)
+
+Output
+
+[1]    0.25770068+3.958197e-01i
+ [2]   -0.34615184+3.782848e-01i
+ [3]   -0.04089779-4.838134e-01i
+ [4]    0.44124314-1.517731e-01i
+ [5]   -0.04089779+4.838134e-01i
+ [6]   -0.56201931-1.282822e-01i
+ [7]   -0.34615184-3.782848e-01i
+ [8]    0.44124314+1.517731e-01i
+ [9]   -0.56201931+1.282822e-01i
+[10]    0.25770068-3.958197e-01i
+[11] -999.49974975+1.110223e-16i
+
+[11] -999.49974975+1.110223e-16i  makes  no sense since f>0 for all x
+
+Why does polyroot do this?
+
+Thomas Subia
+
+
+From bbo|ker @end|ng |rom gm@||@com  Thu Oct  2 19:35:56 2025
+From: bbo|ker @end|ng |rom gm@||@com (Ben Bolker)
+Date: Thu, 2 Oct 2025 13:35:56 -0400
+Subject: [R] polyroot behaviour
+In-Reply-To: <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+References: <001b01dc33b7$9b97c980$d2c75c80$.ref@yahoo.com>
+ <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+Message-ID: <3752ddd3-b23c-4b31-b902-d4d01fe5d3a2@gmail.com>
+
+   I haven't thought about this at all, but for what it's worth, sympy 
+gives the same answer (minus the tiny imaginary part):
+
+from sympy import nroots
+from sympy.abc import x
+g = x**11 + 1000*x**10 + 500 *x**9 + 1
+nroots(g)[0]
+
+-999.499749749687
+
+   The documentation for 
+https://docs.sympy.org/latest/guides/solving/find-roots-polynomial.html 
+mentions that
+
+nroots() can fail sometimes for polynomials that are numerically ill 
+conditioned, for example Wilkinson?s polynomial. Using RootOf() and 
+evalf() as described in Numerically Evaluate CRootOf Roots can avoid 
+both ill-conditioning and returning spurious complex parts because it 
+uses a more exact, but much slower, numerical algorithm based on 
+isolating intervals.
+
+
+   FWIW the slow/more exact method described here still gives the large 
+root.
+
+from sympy import solve
+g_solved = solve(g, x, dict=True);
+for root in g_solved:
+     print(root[x].n(10))
+
+   Given the convergence of different methods, this is very unlikely to 
+be a bug in R or the underlying algorithm.  Either there's a thinko and 
+-999.499... is actually a root, or this is a badly conditioned problem 
+for which it's extremely hard to get accurate numerical solutions ...
+
+
+On 2025-10-02 12:14 p.m., tgs77m--- via R-help wrote:
+> Colleagues,
+> 
+> g <- function(x) ( x^11 + 1000*x^10 + 500 *x^9 + 1 )
+> coeffs <- c(1, rep(0, 8), 500, 1000, 1)
+> roots <- polyroot(coeffs)
+> 
+> Output
+> 
+> [1]    0.25770068+3.958197e-01i
+>   [2]   -0.34615184+3.782848e-01i
+>   [3]   -0.04089779-4.838134e-01i
+>   [4]    0.44124314-1.517731e-01i
+>   [5]   -0.04089779+4.838134e-01i
+>   [6]   -0.56201931-1.282822e-01i
+>   [7]   -0.34615184-3.782848e-01i
+>   [8]    0.44124314+1.517731e-01i
+>   [9]   -0.56201931+1.282822e-01i
+> [10]    0.25770068-3.958197e-01i
+> [11] -999.49974975+1.110223e-16i
+> 
+> [11] -999.49974975+1.110223e-16i  makes  no sense since f>0 for all x
+> 
+> Why does polyroot do this?
+> 
+> Thomas Subia
+> 
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+
+-- 
+Dr. Benjamin Bolker
+Professor, Mathematics & Statistics and Biology, McMaster University
+Director, School of Computational Science and Engineering
+ > E-mail is sent at my convenience; I don't expect replies outside of 
+working hours.
+
+
+From deep@y@n@@@rk@r @end|ng |rom gm@||@com  Thu Oct  2 19:49:06 2025
+From: deep@y@n@@@rk@r @end|ng |rom gm@||@com (Deepayan Sarkar)
+Date: Thu, 2 Oct 2025 19:49:06 +0200
+Subject: [R] polyroot behaviour
+In-Reply-To: <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+References: <001b01dc33b7$9b97c980$d2c75c80$.ref@yahoo.com>
+ <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+Message-ID: <CADfFDC66vKuPpq_JKHjCj093aVGdEjZ-3ZxDzewLtU96aH_==w@mail.gmail.com>
+
+How can an odd degree polynomial be positive for all x?
+
+
+Deepayan
+
+On Thu, 2 Oct, 2025, 6:14 pm tgs77m--- via R-help, <r-help at r-project.org>
+wrote:
+
+> Colleagues,
+>
+> g <- function(x) ( x^11 + 1000*x^10 + 500 *x^9 + 1 )
+> coeffs <- c(1, rep(0, 8), 500, 1000, 1)
+> roots <- polyroot(coeffs)
+>
+> Output
+>
+> [1]    0.25770068+3.958197e-01i
+>  [2]   -0.34615184+3.782848e-01i
+>  [3]   -0.04089779-4.838134e-01i
+>  [4]    0.44124314-1.517731e-01i
+>  [5]   -0.04089779+4.838134e-01i
+>  [6]   -0.56201931-1.282822e-01i
+>  [7]   -0.34615184-3.782848e-01i
+>  [8]    0.44124314+1.517731e-01i
+>  [9]   -0.56201931+1.282822e-01i
+> [10]    0.25770068-3.958197e-01i
+> [11] -999.49974975+1.110223e-16i
+>
+> [11] -999.49974975+1.110223e-16i  makes  no sense since f>0 for all x
+>
+> Why does polyroot do this?
+>
+> Thomas Subia
+>
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide
+> https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+>
+
+	[[alternative HTML version deleted]]
+
+
+From @pencer@gr@ve@ @end|ng |rom e||ect|vede|en@e@org  Fri Oct  3 04:25:45 2025
+From: @pencer@gr@ve@ @end|ng |rom e||ect|vede|en@e@org (Spencer Graves)
+Date: Thu, 2 Oct 2025 21:25:45 -0500
+Subject: [R] polyroot behaviour
+In-Reply-To: <CADfFDC66vKuPpq_JKHjCj093aVGdEjZ-3ZxDzewLtU96aH_==w@mail.gmail.com>
+References: <001b01dc33b7$9b97c980$d2c75c80$.ref@yahoo.com>
+ <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+ <CADfFDC66vKuPpq_JKHjCj093aVGdEjZ-3ZxDzewLtU96aH_==w@mail.gmail.com>
+Message-ID: <28ff80a3-126c-453c-8b5b-09de3a67efd9@effectivedefense.org>
+
+I agree with Deepayan.
+
+
+This example reveals an opportunity for improving the polyroot algorithm:
+
+
+** Any polynomial of odd degree with real coefficients must have at 
+least one real root. This example has only one, which is reported as 
+-999.49974975+1.110223e-16i: The imaginary part is clearly round-off.
+
+
+** Moreover, any complex roots must come in complex conjugate pairs. In 
+this example, roots [1] and [10] are complex conjugates, as are roots 
+[2] and [7], etc. It's interesting to me that the roots are not sorted 
+to put complex conjugates together.
+
+
+However, improving this algorithm is probably not worth the time of 
+anyone who might know enough to actually do it with a reasonable effort ;-)
+
+
+Spencer Graves
+
+
+On 10/2/25 12:49, Deepayan Sarkar wrote:
+> How can an odd degree polynomial be positive for all x?
+> 
+> 
+> Deepayan
+> 
+> On Thu, 2 Oct, 2025, 6:14 pm tgs77m--- via R-help, <r-help at r-project.org>
+> wrote:
+> 
+>> Colleagues,
+>>
+>> g <- function(x) ( x^11 + 1000*x^10 + 500 *x^9 + 1 )
+>> coeffs <- c(1, rep(0, 8), 500, 1000, 1)
+>> roots <- polyroot(coeffs)
+>>
+>> Output
+>>
+>> [1]    0.25770068+3.958197e-01i
+>>   [2]   -0.34615184+3.782848e-01i
+>>   [3]   -0.04089779-4.838134e-01i
+>>   [4]    0.44124314-1.517731e-01i
+>>   [5]   -0.04089779+4.838134e-01i
+>>   [6]   -0.56201931-1.282822e-01i
+>>   [7]   -0.34615184-3.782848e-01i
+>>   [8]    0.44124314+1.517731e-01i
+>>   [9]   -0.56201931+1.282822e-01i
+>> [10]    0.25770068-3.958197e-01i
+>> [11] -999.49974975+1.110223e-16i
+>>
+>> [11] -999.49974975+1.110223e-16i  makes  no sense since f>0 for all x
+>>
+>> Why does polyroot do this?
+>>
+>> Thomas Subia
+>>
+>> ______________________________________________
+>> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+>> https://stat.ethz.ch/mailman/listinfo/r-help
+>> PLEASE do read the posting guide
+>> https://www.R-project.org/posting-guide.html
+>> and provide commented, minimal, self-contained, reproducible code.
+>>
+> 
+> 	[[alternative HTML version deleted]]
+> 
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+
+
+From |uk@@@@chne|derb@uer @end|ng |rom gm@||@com  Thu Oct  2 18:56:34 2025
+From: |uk@@@@chne|derb@uer @end|ng |rom gm@||@com (Lukas Schneiderbauer)
+Date: Thu, 2 Oct 2025 18:56:34 +0200
+Subject: [R] polyroot behaviour
+In-Reply-To: <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+References: <001b01dc33b7$9b97c980$d2c75c80$.ref@yahoo.com>
+ <001b01dc33b7$9b97c980$d2c75c80$@yahoo.com>
+Message-ID: <CAHETjta_FqNddJqfX-ufJD1PtUBGH+A0c6KPnHp4WabzWfaC7Q@mail.gmail.com>
+
+Dear Thomas,
+
+How can f be strictly positive if the leading term is an odd power of x?
+For large negative x, x^11 will dominate, and f should become quite
+negative. This argument is also supported by a graphical plot of f.
+Assuming that f can indeed be negative, my suspicion is that the 11th root
+is still a reasonable approximation to the actual root, but the gradient in
+this region is high and so f(x) evaluated numerically is too sensitive to
+small errors (that is why f(roots[[11]]) evaluates to a seemingly huge
+number).
+
+Best,
+Lukas
+
+
+On Thu, Oct 2, 2025 at 6:14?PM tgs77m--- via R-help <r-help at r-project.org>
+wrote:
+
+> Colleagues,
+>
+> g <- function(x) ( x^11 + 1000*x^10 + 500 *x^9 + 1 )
+> coeffs <- c(1, rep(0, 8), 500, 1000, 1)
+> roots <- polyroot(coeffs)
+>
+> Output
+>
+> [1]    0.25770068+3.958197e-01i
+>  [2]   -0.34615184+3.782848e-01i
+>  [3]   -0.04089779-4.838134e-01i
+>  [4]    0.44124314-1.517731e-01i
+>  [5]   -0.04089779+4.838134e-01i
+>  [6]   -0.56201931-1.282822e-01i
+>  [7]   -0.34615184-3.782848e-01i
+>  [8]    0.44124314+1.517731e-01i
+>  [9]   -0.56201931+1.282822e-01i
+> [10]    0.25770068-3.958197e-01i
+> [11] -999.49974975+1.110223e-16i
+>
+> [11] -999.49974975+1.110223e-16i  makes  no sense since f>0 for all x
+>
+> Why does polyroot do this?
+>
+> Thomas Subia
+>
+> ______________________________________________
+> R-help at r-project.org mailing list -- To UNSUBSCRIBE and more, see
+> https://stat.ethz.ch/mailman/listinfo/r-help
+> PLEASE do read the posting guide
+> https://www.R-project.org/posting-guide.html
+> and provide commented, minimal, self-contained, reproducible code.
+>
+
+	[[alternative HTML version deleted]]
