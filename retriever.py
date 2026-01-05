@@ -49,6 +49,9 @@ def BuildRetriever(
             )
         else:
             # Get 10000 documents then keep top_k filtered by year and month
+            # If this is increased to 20000 we get a noticeable slowdown on HF Spaces
+            # If this is increased to 100000 we get: chromadb.errors.InternalError: Error executing plan:
+            #   Internal error: error returned from database: (code: 1) too many SQL variables
             base_retriever = BuildRetrieverDense(
                 db_dir=db_dir, collection=collection, top_k=10000
             )

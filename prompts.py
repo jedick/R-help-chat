@@ -39,6 +39,7 @@ def query_prompt(db_dir, collection):
         # gpt-4o-mini thinks last two months aren't available with this: "Emails from from {start} to {end} are available for retrieval. "
         f"The emails available for retrieval are from {start} to {end}. "
         "For questions about differences, changes, or comparisons between X and Y, retrieve emails about X and Y using separate tool calls. "
+        "Also use multiple tool calls for multiple months or years but not long year ranges (> 5 years). "
         "Always use retrieve_emails with a non-empty query string for search_query. "
         "For general summaries, use retrieve_emails(search_query='R'). "
         "For questions about years, use retrieve_emails(search_query=<query>, start_year=, end_year=). "

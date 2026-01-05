@@ -3,6 +3,7 @@ from langchain_community.document_loaders import TextLoader
 from datetime import datetime
 import tempfile
 import os
+import re
 
 # Local modules
 from retriever import BuildRetriever
@@ -93,6 +94,14 @@ def ProcessFileDense(cleaned_temp_file, file_path, db_dir, collection):
     documents = loader.load()
     # Use original file path for "source" key in metadata
     documents[0].metadata["source"] = file_path
+    # Add year and month to metadata
+    filename = os.path.basename(file_path)
+    pattern = re.compile(r"(\d{4})-([A-Za-z]+)\.txt")
+    match = pattern.match(filename)
+    year = int(match.group(1))
+    month = match.group(2)
+    documents[0].metadata["year"] = year
+    documents[0].metadata["month"] = month
     # Add file timestamp to metadata
     mod_time = os.path.getmtime(file_path)
     timestamp = datetime.fromtimestamp(mod_time).isoformat()

@@ -151,9 +151,15 @@ def run_workflow(input, collection, history, thread_id, session_hash):
                     start_year = args["start_year"] if "start_year" in args else None
                     end_year = args["end_year"] if "end_year" in args else None
                     if start_year or end_year:
-                        content = f"{content} ({start_year or ''} - {end_year or ''})"
+                        if start_year == end_year:
+                            content = f"{content} ({start_year or ''})"
+                        else:
+                            content = (
+                                f"{content} ({start_year or ''} - {end_year or ''})"
+                            )
                     if "months" in args:
-                        content = f"{content} {", ".join(args['months'])}"
+                        months_text = ", ".join(args["months"])
+                        content = f"{content} {months_text}"
                     history.append(
                         gr.ChatMessage(
                             role="assistant",
@@ -270,7 +276,7 @@ with gr.Blocks(
     chatbot = gr.Chatbot(
         show_label=False,
         avatar_images=(None, "images/cloud.png"),
-        buttons=["copy", "copy_all"],
+        buttons=["copy_all"],
         render=False,
     )
     # Modified from gradio/chat_interface.py
@@ -347,9 +353,10 @@ with gr.Blocks(
             **Database:** {len(sources)} emails from {start} to {end}<br>
             **Features:** RAG, today's date, hybrid search (semantic + lexical), multiple retrievals, citations output, chat memory<br>
             **Tech:** [OpenAI](https://openai.com/), [Chroma](https://www.trychroma.com/),
-              [BM25S](https://github.com/xhluca/bm25s), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.langchain.com/langgraph)<br>
-            **Maintainer:** [Jeffrey Dick](mailto:j3ffdick@gmail.com) - feedback welcome!<br>
-            🏠 **More info:** [R-help-chat GitHub repository](https://github.com/jedick/R-help-chat)
+              [BM25S](https://github.com/xhluca/bm25s), [LangGraph](https://www.langchain.com/langgraph), [Gradio](https://www.gradio.app/)<br>
+            **Maintainer:** [Jeffrey Dick](https://jedick.github.io) - feedback welcome!<br>
+            **More info:** <i class="fa-brands fa-github"></i> [GitHub repository](https://github.com/jedick/R-help-chat),
+              <i class="fa-brands fa-youtube"></i> [Walkthrough video](https://youtu.be/mLQqW7zea-k)
             """
         return info_text
 
@@ -357,8 +364,8 @@ with gr.Blocks(
         """Get example questions"""
         questions = [
             # "What is today's date?",
-            "Summarize emails from the most recent two months",
             "Show me code examples using plotmath",
+            "When was the native pipe operator introduced?",
         ]
 
         # cf. https://github.com/gradio-app/gradio/pull/8745 for updating examples
@@ -368,7 +375,7 @@ with gr.Blocks(
         """Get multi-tool example questions"""
         questions = [
             "Differences between lapply and for loops",
-            "Discuss pipe operator usage in 2022, 2023, and 2024",
+            "Summarize emails from the most recent two months",
         ]
 
         return gr.Dataset(samples=[[q] for q in questions]) if as_dataset else questions
@@ -399,7 +406,7 @@ with gr.Blocks(
                     intro = gr.Markdown(get_intro_text())
                 with gr.Column(scale=1):
                     collection = gr.Radio(
-                        ["R-help", "R-devel", "R-package-devel"],
+                        ["R-help", "R-devel"],
                         value="R-help",
                         label="Mailing List",
                     )
@@ -420,7 +427,7 @@ with gr.Blocks(
                 example_questions = gr.Examples(
                     examples=get_example_questions(),
                     inputs=[input],
-                    label="Select an example to fill the message box",
+                    label="Basic examples (try R-devel for #2)",
                 )
                 multi_tool_questions = gr.Examples(
                     examples=get_multi_tool_questions(),
@@ -430,12 +437,12 @@ with gr.Blocks(
                 multi_turn_questions = gr.Examples(
                     examples=get_multi_turn_questions(),
                     inputs=[input],
-                    label="Asking follow-up questions",
+                    label="Follow-up questions",
                 )
                 month_questions = gr.Examples(
                     examples=get_month_questions(),
                     inputs=[input],
-                    label="Follow-up questions with months",
+                    label="Three-month periods",
                 )
 
     # Bottom row: retrieved emails and citations
@@ -548,10 +555,14 @@ if __name__ == "__main__":
         gap: 10px; /* Add spacing between components */
     }
     """
+    # HTML for Font Awesome
+    # https://cdnjs.com/libraries/font-awesome
+    head = '<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">'
     # Launch the Gradio app
     demo.launch(
         allowed_paths=allowed_paths,
         theme=theme,
         css=css,
+        head=head,
         footer_links=["gradio", "settings"],
     )
