@@ -221,17 +221,20 @@ def run_workflow(input, collection, history, thread_id, request: gr.Request):
                 email_list = message.content.replace(
                     "### Retrieved Emails:\n\n", ""
                 ).split("--- --- --- --- Next Email --- --- --- ---\n\n")
-                # Get the source file names (e.g. 2024-December.txt) for retrieved emails
-                month_list = [
-                    os.path.basename(text.splitlines()[0]) for text in email_list
-                ]
-                # Format months (e.g. 2024-December) into text
-                month_text = ", ".join(month_list).replace(".txt", "")
-                # Get the number of retrieved emails
-                n_emails = len(email_list)
-                title = f"🗎 Retrieved {n_emails} emails"
-                if email_list[0] == "### No emails were retrieved":
+                # If no emails were retrieved, the heading omits the colon (from graph.py)
+                if email_list[0] == "### Retrieved Emails":
                     title = "❌ Retrieved 0 emails"
+                    month_text = ""
+                else:
+                    # Get the source file names (e.g. 2024-December.txt) for retrieved emails
+                    month_list = [
+                        os.path.basename(text.splitlines()[0]) for text in email_list
+                    ]
+                    # Format months (e.g. 2024-December) into text
+                    month_text = ", ".join(month_list).replace(".txt", "")
+                    # Get the number of retrieved emails
+                    n_emails = len(email_list)
+                    title = f"🗎 Retrieved {n_emails} emails"
                 history.append(
                     gr.ChatMessage(
                         role="assistant",

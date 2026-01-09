@@ -102,7 +102,10 @@ def BuildGraph(
         retrieved_emails = (
             "### Retrieved Emails:" + serialized
             if serialized
-            else "### No emails were retrieved"
+            # NOTE: Don't say "No emails were retrieved" because it fools gpt-4o-mini
+            # if emails were retrieved in a previous tool call but not the last one.
+            # Instead, just use "Retrieved Emails" without a colon so it looks like a separator
+            else "### Retrieved Emails"
         )
         return retrieved_emails
 
