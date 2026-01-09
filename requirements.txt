@@ -6,11 +6,17 @@ boto3==1.42.21
 
 # Retrieval
 bm25s==0.2.14
-chromadb==1.4.0
+# chromadb 1.0.13 and 1.4.0 produce intermittent error:
+#   ValueError: Could not connect to tenant default_tenant. Are you sure it exists?
+chromadb==0.6.3
+# posthog<6.0.0 is temporary fix for ChromaDB telemetry error log messages
+# https://github.com/vanna-ai/vanna/issues/917
+posthog==5.4.0
 
 # LangChain packages
 langchain==1.2.0
-langchain-chroma==1.1.0
+# langchain-chroma 1.1.0 depends on chromadb<2.0.0 and >=1.3.5
+langchain-chroma==0.2.3
 langchain-openai==1.1.6
 langchain-classic==1.0.1
 langchain-community==0.4.1
