@@ -40,11 +40,14 @@ search_type = "hybrid"
 graph_instances = {}
 
 
-def cleanup_graph(request: gr.Request):
+def delete_graph(request: gr.Request):
+    """Delete a graph when the session is finished"""
     timestamp = datetime.now().replace(microsecond=0).isoformat()
-    if request.session_hash in graph_instances:
-        del graph_instances[request.session_hash]
-        print(f"{timestamp} - Delete graph for session {request.session_hash}")
+    # Get session hash
+    session_hash = request.session_hash
+    if session_hash in graph_instances:
+        del graph_instances[session_hash]
+        print(f"{timestamp} - Delete graph for session {session_hash}")
 
 
 def extract_think(content):
@@ -89,14 +92,50 @@ def append_content(chunk_messages, history, thinking_about):
     return history
 
 
-def run_workflow(input, collection, history, thread_id, session_hash):
+def watchdog():
+    """
+    Checks for the outer watchdog file.
+    If it exists, then checks for the inner watchdog file.
+    If both the outer and inner watchdog files exist, then issues a warning and cleans up both files.
+    If only the outer watchdog file exists, then creates the inner watchdog file.
+
+    The purpose of the inner watchdog file is to make sure that the outer
+    watchdog file exists for two consecutive ticks before issuing a warning.
+    """
+    outer_watchdog = "/tmp/outer_watchdog"
+    inner_watchdog = "/tmp/inner_watchdog"
+    if os.path.exists(outer_watchdog):
+        if os.path.exists(inner_watchdog):
+            message = "Building the LangGraph graph is taking longer than expected. The space may need to be restarted. Please contact the maintainer."
+            gr.Warning(message, duration=None)
+            try:
+                os.remove(inner_watchdog)
+                os.remove(outer_watchdog)
+            except:
+                pass
+        else:
+            with open(inner_watchdog, "w") as f:
+                f.write("")
+
+
+def run_workflow(input, collection, history, thread_id, request: gr.Request):
     """The main function to run the chat workflow"""
 
-    # Get graph instance
+    # Create the outer watchdog file
+    outer_watchdog = "/tmp/outer_watchdog"
+    with open(outer_watchdog, "w") as f:
+        f.write("")
+
+    # Uncomment for debugging
+    # print(f"Using thread_id: {thread_id}")
+
+    # Get session hash
+    session_hash = request.session_hash
+    # Get graph instance if it exists
     graph = graph_instances.get(session_hash)
 
     if graph is None:
-        # Get the chat model and build the graph
+        # Instantiate the chat model and build the graph
         chat_model = ChatOpenAI(model=openai_model, temperature=0)
         graph_builder = BuildGraph(
             chat_model,
@@ -107,18 +146,20 @@ def run_workflow(input, collection, history, thread_id, session_hash):
         # Compile the graph with an in-memory checkpointer
         memory = MemorySaver()
         graph = graph_builder.compile(checkpointer=memory)
-        # Set global graph
+        # Assign graph to session
         graph_instances[session_hash] = graph
         # ISO 8601 timestamp with local timezone information without microsecond
         timestamp = datetime.now().replace(microsecond=0).isoformat()
         print(f"{timestamp} - Set {collection} graph for session {session_hash}")
-        ## Notify when model finishes loading
-        # gr.Success("Model loaded!", duration=4)
     else:
         timestamp = datetime.now().replace(microsecond=0).isoformat()
         print(f"{timestamp} - Get graph for session {session_hash}")
 
-    # print(f"Using thread_id: {thread_id}")
+    # Clean up the watchdog file
+    try:
+        os.remove(outer_watchdog)
+    except:
+        pass
 
     # Display the user input in the chatbot
     history.append(gr.ChatMessage(role="user", content=input))
@@ -228,15 +269,6 @@ def run_workflow(input, collection, history, thread_id, session_hash):
 
             history.append(gr.ChatMessage(role="assistant", content=answer))
             yield history, None, citations
-
-
-def run_workflow_in_session(request: gr.Request, *args):
-    """Wrapper function to call run_workflow() with session_hash"""
-    input = args[0]
-    # Add session_hash to arguments
-    new_args = args + (request.session_hash,)
-    for value in run_workflow(*new_args):
-        yield value
 
 
 # Set allowed_paths to serve chatbot avatar images
@@ -484,6 +516,9 @@ with gr.Blocks(
         with gr.Column(scale=1):
             citations_textbox.render()
 
+    # Invisible component: timer ticking at 5-second intervals
+    timer = gr.Timer(5)
+
     # -------------
     # App functions
     # -------------
@@ -517,7 +552,7 @@ with gr.Blocks(
 
     collection.change(
         # We need to build a new graph if the collection changes
-        cleanup_graph
+        delete_graph
     ).then(
         # Update the database stats in the app info box
         get_info_text,
@@ -528,7 +563,7 @@ with gr.Blocks(
 
     input.submit(
         # Submit input to the chatbot
-        run_workflow_in_session,
+        run_workflow,
         [input, collection, chatbot, thread_id],
         [chatbot, retrieved_emails, citations_text],
         api_name=False,
@@ -558,8 +593,11 @@ with gr.Blocks(
         api_name=False,
     )
 
-    # Clean up graph instances when page is closed/refreshed
-    demo.unload(cleanup_graph)
+    # Delete graph instances when page is closed/refreshed
+    demo.unload(delete_graph)
+
+    # Watch for stalled graph building
+    timer.tick(watchdog)
 
 
 if __name__ == "__main__":
