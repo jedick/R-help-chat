@@ -45,7 +45,7 @@ def download_data():
 
     if not os.path.exists("db.zip"):
         # For S3 (need AWS_ACCESS_KEY_ID and AWS_ACCESS_KEY_SECRET)
-        download_file_from_bucket("r-help-chat", "db_20260104.zip", "db.zip")
+        download_file_from_bucket("r-help-chat", "db_20260109.zip", "db.zip")
         ## For Dropbox (shared file - key is in URL)
         # shared_link = "https://www.dropbox.com/scl/fi/jx90g5lorpgkkyyzeurtc/db.zip?rlkey=wvqa3p9hdy4rmod1r8yf2am09&st=l9tsam56&dl=0"
         # output_filename = "db.zip"

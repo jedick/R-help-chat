@@ -345,6 +345,7 @@ with gr.Blocks(
         # buttons=["copy_all"], # Gradio 6
         avatar_images=(None, "images/cloud.png"),
         render=False,
+        show_share_button=False,
     )
     # Modified from gradio/chat_interface.py
     input = gr.Textbox(

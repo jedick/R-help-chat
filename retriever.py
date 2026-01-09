@@ -1,4 +1,3 @@
-# Main retriever modules
 from langchain_classic.retrievers import ParentDocumentRetriever, EnsembleRetriever
 from langchain_core.retrievers import BaseRetriever, RetrieverLike
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
@@ -7,16 +6,33 @@ from langchain_community.document_loaders import TextLoader
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from calendar import month_abbr, month_name
 from typing import Any, Optional
 import chromadb
 import os
 import re
-from calendar import month_abbr, month_name
 
 # Local modules
 from mods.bm25s_retriever import BM25SRetriever
 from mods.file_system import LocalFileStore
 from util import get_sources
+
+
+def convert_months(months):
+    """Convert 3-letter abbreviations to full month names"""
+
+    # Create mapping from 3-letter abbreviations to full month names
+    # month_abbr[0] is empty string, month_abbr[1] is "Jan", etc.
+    # month_name[0] is empty string, month_name[1] is "January", etc.
+    abbr_to_full = {month_abbr[i].lower(): month_name[i] for i in range(1, 13)}
+
+    # Convert months list (3-letter abbreviations) to full month names
+    target_months = None
+    if months:
+        target_months = [abbr_to_full.get(month.lower()) for month in months]
+        # Filter out None values in case of invalid abbreviations
+        target_months = [m for m in target_months if m is not None]
+    return target_months
 
 
 def BuildRetriever(
@@ -42,26 +58,15 @@ def BuildRetriever(
         months: List of months (3-letter abbreviations) (optional)
     """
     if search_type == "dense":
-        if not (start_year or end_year or months):
-            # No year or month filtering, so directly use base retriever
-            return BuildRetrieverDense(
-                db_dir=db_dir, collection=collection, top_k=top_k
-            )
-        else:
-            # Get 10000 documents then keep top_k filtered by year and month
-            # If this is increased to 20000 we get a noticeable slowdown on HF Spaces
-            # If this is increased to 100000 we get: chromadb.errors.InternalError: Error executing plan:
-            #   Internal error: error returned from database: (code: 1) too many SQL variables
-            base_retriever = BuildRetrieverDense(
-                db_dir=db_dir, collection=collection, top_k=10000
-            )
-            return TopKRetriever(
-                base_retriever=base_retriever,
-                top_k=top_k,
-                start_year=start_year,
-                end_year=end_year,
-                months=months,
-            )
+        # Directly use BuildRetrieverDense with year and month filtering via ChromaDB where clause
+        return BuildRetrieverDense(
+            db_dir=db_dir,
+            collection=collection,
+            top_k=top_k,
+            start_year=start_year,
+            end_year=end_year,
+            months=months,
+        )
     if search_type == "sparse":
         if not (start_year or end_year or months):
             return BuildRetrieverSparse(
@@ -69,7 +74,7 @@ def BuildRetriever(
             )
         else:
             base_retriever = BuildRetrieverSparse(
-                db_dir=db_dir, collection=collection, top_k=10000
+                db_dir=db_dir, collection=collection, top_k=50000
             )
             return TopKRetriever(
                 base_retriever=base_retriever,
@@ -134,7 +139,14 @@ def BuildRetrieverSparse(db_dir, collection, top_k=6):
     return retriever
 
 
-def BuildRetrieverDense(db_dir, collection, top_k=6):
+def BuildRetrieverDense(
+    db_dir,
+    collection,
+    top_k=6,
+    start_year: Optional[int] = None,
+    end_year: Optional[int] = None,
+    months: Optional[list[str]] = None,
+):
     """
     Build dense retriever instance with ChromaDB vectorstore
 
@@ -142,6 +154,9 @@ def BuildRetrieverDense(db_dir, collection, top_k=6):
         db_dir: Database directory
         collection: Email collection
         top_k: Number of documents to retrieve
+        start_year: Start year (optional)
+        end_year: End year (optional)
+        months: List of months (3-letter abbreviations) (optional)
     """
 
     # Define embedding model
@@ -168,6 +183,42 @@ def BuildRetrieverDense(db_dir, collection, top_k=6):
     parent_splitter = RecursiveCharacterTextSplitter(
         separators=["\n\n\nFrom"], chunk_size=1, chunk_overlap=0
     )
+
+    # Build ChromaDB where filter
+    where_conditions = []
+
+    # Convert month abbreviations to full names
+    target_months = convert_months(months)
+
+    # Build month filter if months are provided
+    if target_months:
+        month_conditions = [{"month": month} for month in target_months]
+        if len(month_conditions) == 1:
+            where_conditions.append(month_conditions[0])
+        else:
+            where_conditions.append({"$or": month_conditions})
+
+    # Build year filter if years are provided
+    year_conditions = []
+    if start_year is not None:
+        year_conditions.append({"year": {"$gte": start_year}})
+    if end_year is not None:
+        year_conditions.append({"year": {"$lte": end_year}})
+
+    if year_conditions:
+        if len(year_conditions) == 1:
+            where_conditions.append(year_conditions[0])
+        else:
+            where_conditions.append({"$and": year_conditions})
+
+    # Build search_kwargs
+    search_kwargs = {"k": top_k}
+    if where_conditions:
+        if len(where_conditions) == 1:
+            search_kwargs["filter"] = where_conditions[0]
+        else:
+            search_kwargs["filter"] = {"$and": where_conditions}
+
     # Instantiate a retriever
     retriever = ParentDocumentRetriever(
         vectorstore=vectorstore,
@@ -176,8 +227,8 @@ def BuildRetrieverDense(db_dir, collection, top_k=6):
         byte_store=byte_store,
         child_splitter=child_splitter,
         parent_splitter=parent_splitter,
-        # Get top k documents
-        search_kwargs={"k": top_k},
+        # Get top k documents with optional year+month filtering
+        search_kwargs=search_kwargs,
     )
     return retriever
 
@@ -185,16 +236,20 @@ def BuildRetrieverDense(db_dir, collection, top_k=6):
 class TopKRetriever(BaseRetriever):
     """
     Retriever that wraps a base retriever and returns the top k documents,
-    optionally matching given start and/or end years.
+    optionally matching given start and/or end years and lists of months.
+
+    Args:
+        base_retriever: Base Retriever to use for getting relevant documents
+        top_k: Number of documents to return
+        start_year: Start year (optional)
+        end_year: End year (optional)
+        months: List of months (3-letter abbreviations) (optional)
 
     Code adapted from langchain/retrievers/contextual_compression.py
     """
 
-    # Base Retriever to use for getting relevant documents
     base_retriever: RetrieverLike
-    # Number of documents to return
     top_k: int = 6
-    # Optional year and month arguments
     start_year: Optional[int] = None
     end_year: Optional[int] = None
     months: Optional[list[str]] = None
@@ -235,19 +290,8 @@ class TopKRetriever(BaseRetriever):
                     years.append(None)
                     month_names.append(None)
 
-            # Create mapping from 3-letter abbreviations to full month names
-            # month_abbr[0] is empty string, month_abbr[1] is "Jan", etc.
-            # month_name[0] is empty string, month_name[1] is "January", etc.
-            abbr_to_full = {month_abbr[i].lower(): month_name[i] for i in range(1, 13)}
-
-            # Convert months list (3-letter abbreviations) to full month names
-            target_months = None
-            if self.months:
-                target_months = [
-                    abbr_to_full.get(month.lower()) for month in self.months
-                ]
-                # Filter out None values in case of invalid abbreviations
-                target_months = [m for m in target_months if m is not None]
+            # Convert 3-letter abbreviations to full month names
+            target_months = convert_months(self.months)
 
             # Initialize filter flags
             year_filter = None
