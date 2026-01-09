@@ -239,8 +239,39 @@ def run_workflow_in_session(request: gr.Request, *args):
         yield value
 
 
+# Set allowed_paths to serve chatbot avatar images
+current_directory = os.getcwd()
+allowed_paths = [current_directory + "/images"]
+# Noto Color Emoji gets a nice-looking Unicode Character “🇷” (U+1F1F7) on Chrome
+theme = gr.themes.Soft(
+    font=[
+        "ui-sans-serif",
+        "system-ui",
+        "sans-serif",
+        "Apple Color Emoji",
+        "Segoe UI Emoji",
+        "Segoe UI Symbol",
+        "Noto Color Emoji",
+    ]
+)
+# Custom CSS for bottom alignment
+css = """
+.row-container {
+    display: flex;
+    align-items: flex-end; /* Align components at the bottom */
+    gap: 10px; /* Add spacing between components */
+}
+"""
+# HTML for Font Awesome
+# https://cdnjs.com/libraries/font-awesome
+head = '<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">'
+
+
 with gr.Blocks(
     title="R-help-chat",
+    theme=theme,
+    css=css,
+    head=head,
 ) as demo:
 
     # -----------------
@@ -275,8 +306,9 @@ with gr.Blocks(
     )
     chatbot = gr.Chatbot(
         show_label=False,
+        type="messages",  # Gradio 5
+        # buttons=["copy_all"], # Gradio 6
         avatar_images=(None, "images/cloud.png"),
-        buttons=["copy_all"],
         render=False,
     )
     # Modified from gradio/chat_interface.py
@@ -335,7 +367,7 @@ with gr.Blocks(
             Retrieved emails are shown below the chatbot and are used by the LLM to generate an answer.
             You can ask follow-up questions with the chat history as context; changing the mailing list maintains history.
             Press the clear button (🗑) to clear the history and start a new chat.
-            *Privacy notice*: Data sharing with OpenAI is enabled.
+            *Privacy notice*: Inputs and outputs are shared with OpenAI.
             """
         return intro
 
@@ -481,7 +513,7 @@ with gr.Blocks(
 
     # Start a new thread when the user presses the clear (trash) button
     # https://github.com/gradio-app/gradio/issues/9722
-    chatbot.clear(generate_thread_id, outputs=[thread_id], api_visibility="private")
+    chatbot.clear(generate_thread_id, outputs=[thread_id], api_name=False)
 
     collection.change(
         # We need to build a new graph if the collection changes
@@ -499,7 +531,7 @@ with gr.Blocks(
         run_workflow_in_session,
         [input, collection, chatbot, thread_id],
         [chatbot, retrieved_emails, citations_text],
-        api_visibility="private",
+        api_name=False,
     )
 
     retrieved_emails.change(
@@ -507,7 +539,7 @@ with gr.Blocks(
         update_textbox,
         [retrieved_emails, emails_textbox],
         [emails_textbox, emails_textbox],
-        api_visibility="private",
+        api_name=False,
     )
 
     citations_text.change(
@@ -515,7 +547,7 @@ with gr.Blocks(
         update_textbox,
         [citations_text, citations_textbox],
         [citations_textbox, citations_textbox],
-        api_visibility="private",
+        api_name=False,
     )
 
     chatbot.clear(
@@ -523,7 +555,7 @@ with gr.Blocks(
         lambda x: gr.update(value=x),
         [input],
         [input],
-        api_visibility="private",
+        api_name=False,
     )
 
     # Clean up graph instances when page is closed/refreshed
@@ -532,37 +564,8 @@ with gr.Blocks(
 
 if __name__ == "__main__":
 
-    # Set allowed_paths to serve chatbot avatar images
-    current_directory = os.getcwd()
-    allowed_paths = [current_directory + "/images"]
-    # Noto Color Emoji gets a nice-looking Unicode Character “🇷” (U+1F1F7) on Chrome
-    theme = gr.themes.Soft(
-        font=[
-            "ui-sans-serif",
-            "system-ui",
-            "sans-serif",
-            "Apple Color Emoji",
-            "Segoe UI Emoji",
-            "Segoe UI Symbol",
-            "Noto Color Emoji",
-        ]
-    )
-    # Custom CSS for bottom alignment
-    css = """
-    .row-container {
-        display: flex;
-        align-items: flex-end; /* Align components at the bottom */
-        gap: 10px; /* Add spacing between components */
-    }
-    """
-    # HTML for Font Awesome
-    # https://cdnjs.com/libraries/font-awesome
-    head = '<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" rel="stylesheet">'
     # Launch the Gradio app
     demo.launch(
         allowed_paths=allowed_paths,
-        theme=theme,
-        css=css,
-        head=head,
-        footer_links=["gradio", "settings"],
+        show_api=False,
     )
