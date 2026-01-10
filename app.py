@@ -223,7 +223,7 @@ def run_workflow(input, collection, history, thread_id, request: gr.Request):
                 ).split("--- --- --- --- Next Email --- --- --- ---\n\n")
                 # If no emails were retrieved, the heading omits the colon (from graph.py)
                 if email_list[0] == "### Retrieved Emails":
-                    title = "❌ Retrieved 0 emails"
+                    title = "∅ Retrieved 0 emails"
                     month_text = ""
                 else:
                     # Get the source file names (e.g. 2024-December.txt) for retrieved emails

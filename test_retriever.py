@@ -40,7 +40,7 @@ def test_retriever():
 
     # R-devel with hybrid search
     retriever = BuildRetriever(
-        db_dir, "R-devel", "hybrid", top_k=1, start_year=2025, end_year=2025
+        db_dir, "R-devel", "hybrid", top_k=2, start_year=2025, end_year=2025
     )
     results = retriever.invoke("MCMC")
     assert "MCMC" in results[0].page_content
